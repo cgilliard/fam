@@ -1,0 +1,50 @@
+name: CI Pipeline
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+  schedule:
+    - cron: "15 7 * * *" # Daily midnight build (15 after)
+  workflow_dispatch:  # This enables manual triggering
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [linux-amd64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check linux version
+        run: uname -a
+      
+      - name: linux build (rustc)
+        run: |
+          ./scripts/build.sh
+      - name: linux build (mrustc)
+          echo "todo"
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        platform: [macos]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check macos version
+        run: sw_vers
+      
+      - name: macos build (rustc)
+        run: |
+          ./scripts/build.sh
+      - name: macos build (mrustc)
+        run: |
+          echo "todo"
