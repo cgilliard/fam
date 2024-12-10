@@ -31,6 +31,11 @@ jobs:
       - name: linux build (mrustc)
         run: |
           ./scripts/download_mrust_bin_linux.sh
+      - name: linux bootstrap (mrustc)
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "do bootstrap"
+          fi
   macos:
     runs-on: macos-latest
     strategy:
