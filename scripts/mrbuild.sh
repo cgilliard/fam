@@ -14,6 +14,7 @@ for var in "$@"; do
 done
 
 echo "output='${output}'";
+echo "mrustc='${mrustc}'";
 
 rm -f bin/fam
 ${mrustc} --crate-type=lib rust/mod.rs -L${output} || exit 1;
