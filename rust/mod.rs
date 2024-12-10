@@ -2,4 +2,3 @@
 
 pub mod base;
 mod real_main;
-asd
