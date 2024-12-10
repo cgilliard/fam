@@ -30,7 +30,7 @@ jobs:
           ./scripts/build.sh
       - name: linux build (mrustc)
         run: |
-          echo "todo"
+          ./scripts/mrbuild.sh
   macos:
     runs-on: macos-latest
     strategy:
@@ -48,4 +48,4 @@ jobs:
           ./scripts/build.sh
       - name: macos build (mrustc)
         run: |
-          echo "todo"
+          ./scripts/mrbuild.sh
