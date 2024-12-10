@@ -48,4 +48,4 @@ jobs:
           ./scripts/build.sh
       - name: macos build (mrustc)
         run: |
-          ./scripts/download_mrust_bin.sh
+          ./scripts/download_mrust_bin_macos.sh
