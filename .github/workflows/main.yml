@@ -30,7 +30,7 @@ jobs:
           ./scripts/build.sh
       - name: linux build (mrustc)
         run: |
-          #./scripts/download_mrust_bin.sh
+          ./scripts/download_mrust_bin_linux.sh
   macos:
     runs-on: macos-latest
     strategy:
