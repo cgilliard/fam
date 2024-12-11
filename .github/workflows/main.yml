@@ -38,7 +38,7 @@ jobs:
             cd mrustc
             ./build-1.54.0.sh
             cd ..
-            ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+            ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
           fi
   macos:
     runs-on: macos-latest
