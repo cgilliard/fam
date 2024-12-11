@@ -1,15 +1,78 @@
+#include <atomic.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <time.h>
 #include <util.h>
 
+// for macos
+#ifndef O_DIRECT
+#define O_DIRECT 0
+#endif	// O_DIRECT
+
+#define _FILE_OFFSET_BITS 64
+#define PAGE_SIZE (getpagesize())
+
 int getpagesize();
 void _exit(int code);
+int lseek(int fd, off_t offset, int whence);
 int write(int fd, const char *buf, unsigned long long len);
+char *getenv(const char *);
+int ftruncate(int fd, unsigned long long size);
+int _gfd = -1;
+long long _cur_size = -1;
+int _ftruncate_lock = 0;
+
+const char *_build_path() {
+	const char *home = getenv("HOME");
+	if (home == NULL) {
+		return NULL;
+	}
+	static char path[1024];
+	snprintf(path, sizeof(path), "%s/.fam.dat", home);
+	return path;
+}
 
 void *map(unsigned long long pages) {
-	return mmap(0, getpagesize() * pages, PROT_READ | PROT_WRITE,
-		    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	void *ret = mmap(0, getpagesize() * pages, PROT_READ | PROT_WRITE,
+			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (ret == MAP_FAILED) return 0;
+	return ret;
+}
+
+void *fmap(unsigned long long id) {
+	int _gfd_cur, fd, zero = 0;
+	do {
+		_gfd_cur = ALOAD(&_gfd);
+		if (_gfd_cur != -1) break;
+		fd = open(_build_path(), O_DIRECT | O_RDWR);
+		if (fd == -1) return 0;
+#ifdef __APPLE__
+		if (fcntl(_gfd, F_NOCACHE, 1)) {
+			const char *msg = "Could not disable caching";
+			write(2, msg, cstring_len(msg));
+		}
+#endif	// __APPLE__
+
+		ASTORE(&_cur_size, lseek(_gfd, 0, SEEK_END));
+	} while (!CAS_SEQ(&_gfd, &_gfd_cur, fd));
+
+	unsigned long long size;
+	size = ALOAD(&_cur_size);
+	if (size < (1 + id) * PAGE_SIZE) {
+		while (!CAS_SEQ(&_ftruncate_lock, &zero, 1));
+		if (size < (1 + id) * PAGE_SIZE)
+			ftruncate(_gfd, (1 + id) * PAGE_SIZE);
+		ASTORE(&_ftruncate_lock, 0);
+	}
+
+	void *ret = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
+			 _gfd, id * PAGE_SIZE);
+	if (ret == MAP_FAILED) return 0;
+
+	return ret;
 }
 
 void unmap(void *ptr, unsigned long long pages) {

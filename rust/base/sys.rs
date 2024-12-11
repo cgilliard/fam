@@ -24,8 +24,14 @@ extern "C" {
 
 #[cfg(test)]
 mod test {
+	use super::*;
+	use crate::println;
 	#[test]
-	fn test_abc() {
-		//assert!(false);
+	fn test_map() {
+		unsafe {
+			let x = map(1);
+			unmap(x, 1);
+			println!(x);
+		}
 	}
 }
