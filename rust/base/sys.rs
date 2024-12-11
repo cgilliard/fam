@@ -15,11 +15,37 @@ extern "C" {
 	pub fn unmap(ptr: *mut u8, pages: u64);
 	pub fn getpagesize() -> i32;
 	pub fn fmap(offset: u64) -> *mut u8;
-	pub fn read(fd: i32, buf: *mut u8, len: u64) -> i64;
+	pub fn read(fd: i32, buf: *mut u8, len: usize) -> i64;
 	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
 	pub fn _exit(code: i32);
 	pub fn os_sleep(millis: u64) -> i32;
 	pub fn getnanos() -> Nano;
+}
+
+// utils
+extern "C" {
+	pub fn cstring_len(buf: *const u8) -> u64;
+}
+
+#[macro_export]
+macro_rules! page_size {
+	() => {{
+		let v = unsafe { getpagesize() } as u64;
+		v
+	}};
+}
+
+#[macro_export]
+macro_rules! panic {
+	($s:expr) => {{
+		use base::sys::{_exit, cstring_len, write};
+		unsafe {
+			let sptr = $s.as_ptr();
+			write(2, sptr, cstring_len(sptr) as usize);
+			write(2, "\n\0".as_ptr(), 2);
+			_exit(-1);
+		}
+	}};
 }
 
 #[cfg(test)]
