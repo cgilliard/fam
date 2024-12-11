@@ -16,7 +16,7 @@ extern "C" {
 	pub fn getpagesize() -> i32;
 	pub fn fmap(offset: u64) -> *mut u8;
 	pub fn read(fd: i32, buf: *mut u8, len: u64) -> i64;
-	pub fn write(fd: i32, buf: *const u8, len: u64) -> i64;
+	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
 	pub fn _exit(code: i32);
 	pub fn os_sleep(millis: u64) -> i32;
 	pub fn getnanos() -> Nano;
@@ -25,13 +25,14 @@ extern "C" {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use crate::println;
+	//use crate::println;
+
 	#[test]
 	fn test_map() {
 		unsafe {
 			let x = map(1);
 			unmap(x, 1);
-			println!(x);
+			//	println!("abc {}, {} {}", 1, "something", 1.5);
 		}
 	}
 }
