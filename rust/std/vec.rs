@@ -4,8 +4,9 @@ use core::mem::size_of;
 use core::ops::{Drop, Index, IndexMut};
 use core::option::{Option, Option::None, Option::Some};
 use core::ptr::{copy_nonoverlapping, null_mut};
-use error::{Error, ErrorKind::*};
-use result::{Result, Result::Err, Result::Ok};
+use err;
+use std::error::{Error, ErrorKind::*};
+use std::result::{Result, Result::Err, Result::Ok};
 use sys::{getpagesize, map, unmap};
 
 #[macro_export]
