@@ -31,6 +31,9 @@ jobs:
       - name: linux build (mrustc)
         run: |
           ./scripts/download_mrust_bin_linux.sh
+      - name: linux tests
+        run: |
+          ./scripts/test.sh
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -58,3 +61,6 @@ jobs:
       - name: macos build (mrustc)
         run: |
           ./scripts/download_mrust_bin_macos.sh
+      - name: macos tests
+        run: |
+          ./scripts/test.sh
