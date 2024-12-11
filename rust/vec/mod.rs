@@ -1,9 +1,9 @@
-use base::sys::{getpagesize, map, unmap};
 use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::{Index, IndexMut};
 use core::ptr::{copy_nonoverlapping, null_mut};
 use error::{Error, ErrorKind::*};
+use sys::{getpagesize, map, unmap};
 
 macro_rules! pages {
 	($v:expr) => {{

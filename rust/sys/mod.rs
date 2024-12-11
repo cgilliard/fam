@@ -38,7 +38,7 @@ macro_rules! page_size {
 #[macro_export]
 macro_rules! panic {
 	($s:expr) => {{
-		use base::sys::{_exit, cstring_len, write};
+		use sys::{_exit, cstring_len, write};
 		unsafe {
 			let sptr = $s.as_ptr();
 			write(2, sptr, cstring_len(sptr) as usize);
