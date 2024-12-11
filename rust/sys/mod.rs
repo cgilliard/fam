@@ -10,6 +10,7 @@ impl Nano {
 	}
 }
 
+// system
 extern "C" {
 	pub fn map(pages: u64) -> *mut u8;
 	pub fn unmap(ptr: *mut u8, pages: u64);
@@ -25,6 +26,13 @@ extern "C" {
 // utils
 extern "C" {
 	pub fn cstring_len(buf: *const u8) -> u64;
+}
+
+macro_rules! pages {
+	($v:expr) => {{
+		let size = unsafe { getpagesize() };
+		1 + ($v - 1) / size as u64
+	}};
 }
 
 #[macro_export]

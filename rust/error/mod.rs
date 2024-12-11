@@ -1,11 +1,13 @@
 #[macro_export]
 macro_rules! err {
 	($v:expr) => {
-		Err(Error { kind: $v }) as Result<(), Error>
+		Error { kind: $v }
 	};
 }
 
+#[derive(PartialEq)]
 pub enum ErrorKind {
+	NoError = 0,
 	Alloc = 1,
 	OutOfBounds = 2,
 }
