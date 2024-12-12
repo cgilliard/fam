@@ -1,4 +1,4 @@
-use sys::write;
+use crate::sys::write;
 
 #[no_mangle]
 pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
@@ -8,11 +8,12 @@ pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
 	0
 }
 
+#[allow(unexpected_cfgs)]
 #[cfg(not(test))]
 mod panic_mod {
+	use crate::sys::{_exit, write};
 	use core::option::Option::Some;
 	use core::panic::PanicInfo;
-	use sys::{_exit, write};
 	#[panic_handler]
 	fn panic_handler(info: &PanicInfo) -> ! {
 		#[cfg(not(mrustc))]

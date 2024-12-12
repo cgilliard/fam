@@ -5,8 +5,19 @@ extern "C" {
 	pub fn _exit(code: i32);
 }
 
-#[cfg(test)]
-mod test {
-	#[test]
-	fn test_sys() {}
+fn test1(x: bool) -> i32 {
+	// Take x as an argument
+	let y;
+	if x {
+		y = 0;
+	} else {
+		y = 1;
+	}
+	y
+}
+
+#[test]
+fn test_sys() {
+	assert_eq!(test1(false), 1);
+	assert_eq!(test1(true), 0); // Test both branches
 }

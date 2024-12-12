@@ -1,7 +1,7 @@
 #!/bin/sh
 
 mrustc=mrustc
-output=../mrustc/output
+output=../mrustc/output-1.54.0
 for var in "$@"; do
         case "$var" in
         --mrustc=*)
