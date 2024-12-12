@@ -1,10 +1,20 @@
 #!/bin/sh
 
+update_docs=0;
+for var in "$@"
+do
+case "$var" in --update-docs)
+        update_docs=1;
+        ;;
+esac
+done
+
 clang -c -Ic c/sys.c || exit 1;
 ar rcs libtest.a *.o || exit 1;
 rustc --test rust/mod.rs -C instrument-coverage -C opt-level=0 -o bin/test_fam -L . -l static=test || exit 1;
 export LLVM_PROFILE_FILE="/tmp/file.profraw"
 ./bin/test_fam || exit 1;
+rm -f libtest.a *.o
 git log -1 > /tmp/coverage.txt || exit 1;
 grcov \
 	/tmp/file.profraw \
@@ -69,4 +79,12 @@ if [ "$line_count_sum" != "0" ]; then
 	percent=$(((cov_count_sum * 100) / line_count_sum));
 fi
 echo "Summary: $GREEN$percent%$RESET Lines: $YELLOW($cov_count_sum/$line_count_sum)$RESET!"
-rm -f libtest.a *.o
+codecov=`printf "%.2f" $percent`;
+timestamp=`date +%s`
+
+if [ $update_docs = 1 ]; then
+	echo "$codecov" > /tmp/cc_final;
+	echo "$timestamp $codecov $cov_count_sum $line_count_sum" >> ./docs/cc.txt
+	./scripts/update_code_coverage.sh
+fi
+
