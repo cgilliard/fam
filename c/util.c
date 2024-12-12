@@ -38,9 +38,9 @@ int cstring_compare(const char *X, const char *Y) {
 	if (*Y > *X) return -1;
 	return 0;
 }
-
+int printf(const char *, ...);
 int cstring_compare_n(const char *X, const char *Y, u64 n) {
-	while (*X == *Y && n && *X) {
+	while (n && *X == *Y && *X) {
 		n--;
 		X++;
 		Y++;

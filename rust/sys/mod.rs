@@ -26,6 +26,8 @@ extern "C" {
 // utils
 extern "C" {
 	pub fn cstring_len(buf: *const u8) -> u64;
+	pub fn cstring_compare(s1: *const u8, s2: *const u8) -> i32;
+	pub fn cstring_compare_n(s1: *const u8, s2: *const u8, n: u64) -> i32;
 }
 
 macro_rules! pages {
