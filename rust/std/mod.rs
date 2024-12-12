@@ -6,3 +6,5 @@ pub mod option;
 pub mod result;
 #[macro_use]
 pub mod error;
+pub mod clone;
+pub mod string;

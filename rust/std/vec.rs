@@ -7,7 +7,7 @@ use core::ptr::{copy_nonoverlapping, null_mut};
 use err;
 use std::error::{Error, ErrorKind::*};
 use std::result::{Result, Result::Err, Result::Ok};
-use sys::{getpagesize, map, unmap};
+use sys::{map, unmap};
 
 #[macro_export]
 macro_rules! vec {
