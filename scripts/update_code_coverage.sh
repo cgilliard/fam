@@ -1,9 +1,9 @@
 #!/bin/bash
 
+export cc_final=`cat /tmp/cc_final`;
 cp .templates/code_coverage.html docs/code_coverage.html
 cp .templates/README.md README.md
 perl -pi -e 's/CODE_COVERAGE/$ENV{cc_final}/g' README.md
-
 
 entries=`cat docs/cc.txt`;
 rm -f /tmp/timestamps
