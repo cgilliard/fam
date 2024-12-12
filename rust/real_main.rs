@@ -37,3 +37,14 @@ mod panic_mod {
 		loop {}
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use core::ptr::null_mut;
+	use real_main::real_main;
+
+	#[test]
+	fn test_real_main() {
+		real_main(0, null_mut());
+	}
+}
