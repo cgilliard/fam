@@ -55,9 +55,10 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
           git clone https://github.com/thepowersgang/mrustc
           cd mrustc
-          ./build-1.54.0.sh
+          make RUSTCSRC
+          make -f minicargo.mk
           cd ..
-           ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
+           ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
 
   macos:
@@ -86,7 +87,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
           git clone https://github.com/thepowersgang/mrustc
             cd mrustc
-            ./build-1.54.0.sh
+            make RUSTCSRC
+            make -f minicargo.mk
             cd ..
-            ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
+            ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
