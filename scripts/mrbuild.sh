@@ -1,5 +1,7 @@
 #!/bin/sh
 
+rm -f libmod.rlib*
+rm -f *.o
 mrustc=mrustc
 output=../mrustc/output-1.54.0
 for var in "$@"; do

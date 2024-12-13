@@ -1,5 +1,6 @@
 #!/bin/sh
 
+rm -f libtest.a *.o
 update_docs=0;
 for var in "$@"
 do
