@@ -28,8 +28,25 @@ fn _test1(x: bool) -> i32 {
 	y
 }
 
-#[test]
-fn test_sys() {
-	assert_eq!(_test1(false), 1);
-	assert_eq!(_test1(true), 0); // Test both branches
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aadd;
+	use aload;
+	use astore;
+	use asub;
+
+	#[test]
+	fn test_sys() {
+		assert_eq!(_test1(false), 1);
+		assert_eq!(_test1(true), 0); // Test both branches
+
+		let mut x: i64 = 1;
+		aadd!(&mut x, 1);
+		assert_eq!(aload!(&mut x), 2);
+		asub!(&mut x, 1);
+		assert_eq!(aload!(&mut x), 1);
+		astore!(&mut x, 100);
+		assert_eq!(aload!(&mut x), 100);
+	}
 }

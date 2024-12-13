@@ -65,6 +65,14 @@ impl String {
 		Ok(Self { ptr, len, sso })
 	}
 
+	pub fn empty() -> Self {
+		Self {
+			ptr: null_mut(),
+			len: 0,
+			sso: [0u8; 32],
+		}
+	}
+
 	pub fn to_str(&self) -> &str {
 		if self.len > 32 {
 			unsafe { from_utf8_unchecked(from_raw_parts(self.ptr, self.len as usize)) }
@@ -182,5 +190,11 @@ mod test {
 		assert_eq!(x7[0], b'5');
 		let x8 = x5.substring(6, 6).unwrap();
 		assert_eq!(x8.len(), 0);
+
+		let x9 = match String::new("test") {
+			Ok(s) => s,
+			Err(_e) => String::empty(),
+		};
+		assert_eq!(x9.len(), 4);
 	}
 }

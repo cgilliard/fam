@@ -38,3 +38,21 @@ macro_rules! asub {
 		unsafe { atomic_fetch_sub_i64($a, $v) }
 	}};
 }
+
+#[macro_export]
+macro_rules! aload {
+	($a:expr) => {{
+		#[allow(unused_unsafe)]
+		use sys::atomic_load_i64;
+		unsafe { atomic_load_i64($a) }
+	}};
+}
+
+#[macro_export]
+macro_rules! astore {
+	($a:expr, $v:expr) => {{
+		#[allow(unused_unsafe)]
+		use sys::atomic_store_i64;
+		unsafe { atomic_store_i64($a, $v) }
+	}};
+}
