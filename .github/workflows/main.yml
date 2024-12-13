@@ -34,15 +34,6 @@ jobs:
       - name: linux tests
         run: |
           ./scripts/test.sh
-      - name: linux bootstrap (mrustc)
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-          git clone https://github.com/thepowersgang/mrustc
-          cd mrustc
-          ./build-1.54.0.sh
-          cd ..
-           ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
-          fi
       - name: linux code coverage dependencies
         run: |
           cargo install grcov
@@ -59,6 +50,16 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git push https://${{ secrets.FamPat }}@github.com/cgilliard/fam.git
           fi
+      - name: linux bootstrap (mrustc)
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          git clone https://github.com/thepowersgang/mrustc
+          cd mrustc
+          ./build-1.54.0.sh
+          cd ..
+           ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
+          fi
+
   macos:
     runs-on: macos-latest
     strategy:
