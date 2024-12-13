@@ -36,13 +36,13 @@ jobs:
           ./scripts/test.sh
       - name: linux bootstrap (mrustc)
         run: |
-          #if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-          #git clone https://github.com/thepowersgang/mrustc
-          #cd mrustc
-          #./build-1.54.0.sh
-          #cd ..
-          # ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
-          #fi
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          git clone https://github.com/thepowersgang/mrustc
+          cd mrustc
+          ./build-1.54.0.sh
+          cd ..
+           ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
+          fi
       - name: linux code coverage dependencies
         run: |
           cargo install grcov
@@ -82,10 +82,10 @@ jobs:
           ./scripts/test.sh
       - name: macos bootstrap (mrustc)
         run: |
-          #if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-          #git clone https://github.com/thepowersgang/mrustc
-          #  cd mrustc
-          #  ./build-1.54.0.sh
-          #  cd ..
-          #  ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
-          #fi
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          git clone https://github.com/thepowersgang/mrustc
+            cd mrustc
+            ./build-1.54.0.sh
+            cd ..
+            ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
+          fi
