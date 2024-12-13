@@ -45,13 +45,12 @@ jobs:
           fi
       - name: code coverage
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://anything:${{ secrets.FamPat }}@github.com/cgilliard/fam.git _coverage
-            cd _coverage
-            git config user.name "Coverage-Bot"
-            git checkout main
-            ./scripts/coverage.sh --update-docs
-          fi
+          git clone https://anything:${{ secrets.FamPat }}@github.com/cgilliard/fam.git _coverage
+          cd _coverage
+          git config user.name "Coverage-Bot"
+          git config user.email "noreply@pipeline.com"
+          git checkout main
+          ./scripts/coverage.sh --update-docs
   macos:
     runs-on: macos-latest
     strategy:
