@@ -3,7 +3,7 @@
 rm -f libmod.rlib*
 rm -f *.o
 mrustc=mrustc
-output=../mrustc/output-1.54.0
+output=../mrustc/output
 for var in "$@"; do
         case "$var" in
         --mrustc=*)
