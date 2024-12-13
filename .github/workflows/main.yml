@@ -54,7 +54,9 @@ jobs:
           git checkout main
           ./scripts/coverage.sh --update-docs
           git commit -am "Coverage-Bot: Updated repo (via main.yml script) Source Version is $GITHUB_SHA";
-          git push https://${{ secrets.MyFamilyPat }}@github.com/cgilliard/fam.git
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            git push https://${{ secrets.MyFamilyPat }}@github.com/cgilliard/fam.git
+          fi
   macos:
     runs-on: macos-latest
     strategy:
