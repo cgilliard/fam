@@ -46,6 +46,7 @@ jobs:
       - name: code coverage
         run: |
           cargo install grcov
+          rustup component add llvm-tools-preview
           git clone https://anything:${{ secrets.FamPat }}@github.com/cgilliard/fam.git _coverage
           cd _coverage
           git config user.name "Coverage-Bot"
