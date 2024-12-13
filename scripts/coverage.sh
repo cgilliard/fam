@@ -19,8 +19,7 @@ git log -1 > /tmp/coverage.txt || exit 1;
 grcov \
 	/tmp/file.profraw \
 	--branch --binary-path \
-	./bin \
-	--llvm-path=/Users/christophergilliard/homebrew/opt/llvm/bin > /tmp/coverage.txt || exit 1;
+	./bin > /tmp/coverage.txt || exit 1;
 
 cur_file='';
 line_count=0;
