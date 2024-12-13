@@ -9,7 +9,7 @@ on:
     branches:
       - '*'
   schedule:
-    - cron: "15 7 * * *" # Daily midnight build (15 after)
+    - cron: "15 7 * * 0" # Weekly build at 7:15 AM on Sunday (UDT)
   workflow_dispatch:  # This enables manual triggering
 
 jobs:
