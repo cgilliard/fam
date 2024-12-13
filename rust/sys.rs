@@ -5,7 +5,7 @@ extern "C" {
 	pub fn _exit(code: i32);
 }
 
-fn test1(x: bool) -> i32 {
+fn _test1(x: bool) -> i32 {
 	// Take x as an argument
 	let y;
 	if x {
@@ -18,6 +18,6 @@ fn test1(x: bool) -> i32 {
 
 #[test]
 fn test_sys() {
-	assert_eq!(test1(false), 1);
-	assert_eq!(test1(true), 0); // Test both branches
+	assert_eq!(_test1(false), 1);
+	assert_eq!(_test1(true), 0); // Test both branches
 }
