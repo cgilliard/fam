@@ -1,4 +1,5 @@
 use crate::sys::write;
+use exit;
 use sys::cstring_len;
 
 #[no_mangle]
@@ -16,6 +17,9 @@ pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
 			}
 			if buf[0] == b't' && buf[1] == b'e' && buf[2] == b's' && buf[3] == b't' {
 				print_len = 0;
+			}
+			if argc > 5 {
+				exit!("argc > 5");
 			}
 		}
 	} else {
