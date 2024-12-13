@@ -13,4 +13,3 @@
 <p align="right">
 -- <strong>1 Corinthians 12:12-14</strong>
 </p>
-
