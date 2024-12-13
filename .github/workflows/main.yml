@@ -43,10 +43,12 @@ jobs:
           #cd ..
           # ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
           #fi
-      - name: code coverage
+      - name: linux code coverage dependencies
         run: |
           cargo install grcov
           rustup component add llvm-tools-preview
+      - name: code coverage
+        run: |
           git clone https://anything:${{ secrets.FamPat }}@github.com/cgilliard/fam.git _coverage
           cd _coverage
           git config user.name "Coverage-Bot"
