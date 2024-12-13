@@ -39,8 +39,7 @@ impl String {
 
 		//		let x = "".len();
 				*/
-		//let len = s.len();
-		let len = 0;
+		let len = s.len();
 		let ptr = null_mut();
 		let sso = [0u8; 32];
 
