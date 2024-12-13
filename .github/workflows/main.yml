@@ -43,6 +43,15 @@ jobs:
             cd ..
             ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.54.0
           fi
+      - name: code coverage
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            git clone https://anything:${{ secrets.FamPat }}@github.com/cgilliard/fam.git _coverage
+            cd _coverage
+            git config user.name "Coverage-Bot"
+            git checkout main
+            ./scripts/coverage.sh --update-docs
+          fi
   macos:
     runs-on: macos-latest
     strategy:
