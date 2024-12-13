@@ -28,3 +28,35 @@ pub fn u32_to_str(num: u32) -> &'static str {
 		_ => "unknown", // Handle numbers outside the range 0-9
 	}
 }
+
+pub fn strcmp(a: &str, b: &str) -> i32 {
+	let len = if a.len() > b.len() { b.len() } else { a.len() };
+	let x = a.as_bytes();
+	let y = b.as_bytes();
+
+	for i in 0..len {
+		if x[i] != y[i] {
+			return if x[i] > y[i] { 1 } else { -1 };
+		}
+	}
+
+	if a.len() < b.len() {
+		1
+	} else if a.len() > b.len() {
+		-1
+	} else {
+		0
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::strcmp;
+
+	#[test]
+	fn test_strcmp() {
+		assert_eq!(strcmp("abc", "abc"), 0);
+		assert_eq!(strcmp("abc", "def"), -1);
+		assert_eq!(strcmp("def", "abc"), 1);
+	}
+}

@@ -11,6 +11,10 @@ extern "C" {
 // util
 extern "C" {
 	pub fn cstring_len(s: *const u8) -> usize;
+	pub fn atomic_store_i64(ptr: *mut i64, value: i64);
+	pub fn atomic_load_i64(ptr: *mut i64) -> i64;
+	pub fn atomic_fetch_add_i64(ptr: *mut i64, value: i64) -> i64;
+	pub fn atomic_fetch_sub_i64(ptr: *mut i64, value: i64) -> i64;
 }
 
 fn _test1(x: bool) -> i32 {

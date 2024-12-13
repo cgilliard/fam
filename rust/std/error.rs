@@ -7,9 +7,10 @@ macro_rules! err {
 
 #[derive(PartialEq)]
 pub enum ErrorKind {
-	NoError = 0,
-	Alloc = 1,
-	OutOfBounds = 2,
+	NoError,
+	Alloc,
+	OutOfBounds,
+	Todo,
 }
 
 pub struct Error {
