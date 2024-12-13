@@ -5,6 +5,11 @@ extern "C" {
 	pub fn _exit(code: i32);
 }
 
+// util
+extern "C" {
+	pub fn cstring_len(s: *const u8) -> usize;
+}
+
 fn _test1(x: bool) -> i32 {
 	// Take x as an argument
 	let y;

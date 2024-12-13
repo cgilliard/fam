@@ -20,6 +20,7 @@ rm -f bin/fam
 ${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -C panic=abort || exit 1;
 clang -Ic -c c/main.c || exit 1;
 clang -Ic -c c/sys.c || exit 1;
+clang -c -Ic c/util.c || exit 1;
 clang -o bin/fam *.o || exit 1;
 rm -f libmod.rlib*
 rm -f *.o
