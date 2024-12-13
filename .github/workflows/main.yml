@@ -53,6 +53,8 @@ jobs:
           git config user.email "noreply@pipeline.com"
           git checkout main
           ./scripts/coverage.sh --update-docs
+          git commit -am "Coverage-Bot: Updated repo (via main.yml script) Source Version is $GITHUB_SHA";
+          git push https://${{ secrets.MyFamilyPat }}@github.com/cgilliard/fam.git
   macos:
     runs-on: macos-latest
     strategy:
