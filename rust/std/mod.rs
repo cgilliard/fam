@@ -10,3 +10,4 @@ pub mod rc;
 pub mod result;
 pub mod string;
 pub mod util;
+pub mod vec;

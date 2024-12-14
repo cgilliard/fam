@@ -1,9 +1,12 @@
 use crate::sys::write;
 use exit;
 use sys::cstring_len;
+use vec;
 
 #[no_mangle]
 pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
+	let mut v = vec![1, 2, 3].unwrap();
+	v[0] = 1;
 	let mut print_len = 10;
 	if argc > 0 {
 		unsafe {
@@ -46,6 +49,7 @@ mod panic_mod {
 				_ => "",
 			};
 			unsafe {
+				write(2, "Panic:\n".as_ptr(), 7);
 				write(2, panic_msg.as_ptr(), panic_msg.len() as usize);
 				_exit(-1);
 			}

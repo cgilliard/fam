@@ -19,7 +19,6 @@ extern "C" {
 
 #[cfg(test)]
 mod test {
-	use super::*;
 	use aadd;
 	use aload;
 	use astore;
