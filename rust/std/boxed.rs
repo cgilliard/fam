@@ -4,7 +4,6 @@ use core::mem::size_of;
 use core::mem::{align_of_val, forget, size_of_val};
 use core::ops::Drop;
 use core::ptr;
-use core::ptr::copy_nonoverlapping;
 use err;
 use std::clone::Clone;
 use std::error::{Error, ErrorKind::Alloc};
@@ -29,23 +28,13 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
-impl<T> Clone for Box<T> {
+impl<T: Clone> Clone for Box<T> {
 	fn clone(&self) -> Result<Self, Error> {
-		let value = unsafe { &mut *self.value };
-		let nvalue;
-		let pages = pages!(size_of::<T>());
-		unsafe {
-			nvalue = map(pages) as *mut T;
-			if nvalue.is_null() {
-				return Err(err!(Alloc));
-			}
-			copy_nonoverlapping(value, nvalue, size_of::<T>());
+		let value = self.as_ref();
+		match value.clone() {
+			Ok(v) => Box::new(v),
+			Err(e) => Err(e),
 		}
-
-		Ok(Self {
-			value: nvalue,
-			_marker: PhantomData,
-		})
 	}
 }
 
@@ -104,7 +93,6 @@ mod test {
 		let z = x.as_mut();
 		*z = 10;
 		assert_eq!(*z, 10);
-
 		let a = x.clone().unwrap();
 		let b = a.as_ref();
 		assert_eq!(*b, 10);
