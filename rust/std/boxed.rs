@@ -1,7 +1,4 @@
-use core::marker::PhantomData;
-use core::marker::Sized;
 use core::mem::size_of;
-use core::mem::{align_of_val, forget, size_of_val};
 use core::ops::Drop;
 use core::ptr;
 use err;
@@ -10,16 +7,14 @@ use std::error::{Error, ErrorKind::Alloc};
 use std::result::{Result, Result::Err, Result::Ok};
 use sys::{map, unmap};
 
-pub struct Box<T: ?Sized> {
+pub struct Box<T> {
 	value: *mut T,
-	_marker: PhantomData<T>, // For type tracking
+	pages: usize,
 }
 
-impl<T: ?Sized> Drop for Box<T> {
+impl<T> Drop for Box<T> {
 	fn drop(&mut self) {
-		let size = size_of_val(self.as_ref());
-		let align = align_of_val(self.as_ref());
-		let pages = pages!(size + align);
+		let pages = self.pages;
 
 		unsafe {
 			ptr::drop_in_place(self.value);
@@ -38,29 +33,6 @@ impl<T: Clone> Clone for Box<T> {
 	}
 }
 
-impl<T: ?Sized> Box<T> {
-	pub fn from_raw(raw: *mut T) -> Self {
-		Self {
-			value: raw,
-			_marker: PhantomData,
-		}
-	}
-
-	pub fn into_raw(self) -> *mut T {
-		let ptr = self.value;
-		forget(self);
-		ptr
-	}
-
-	pub fn as_ref(&self) -> &T {
-		unsafe { &*self.value }
-	}
-
-	pub fn as_mut(&mut self) -> &mut T {
-		unsafe { &mut *self.value }
-	}
-}
-
 impl<T> Box<T> {
 	pub fn new(t: T) -> Result<Self, Error> {
 		let value;
@@ -73,10 +45,15 @@ impl<T> Box<T> {
 			ptr::write(value, t);
 		}
 
-		Ok(Self {
-			value,
-			_marker: PhantomData,
-		})
+		Ok(Self { value, pages })
+	}
+
+	pub fn as_ref(&self) -> &T {
+		unsafe { &*self.value }
+	}
+
+	pub fn as_mut(&mut self) -> &mut T {
+		unsafe { &mut *self.value }
 	}
 }
 
@@ -84,6 +61,7 @@ impl<T> Box<T> {
 mod test {
 	use std::boxed::Box;
 	use std::clone::Clone;
+
 	#[test]
 	fn test_box() {
 		let mut x = Box::new(4).unwrap();
@@ -96,5 +74,14 @@ mod test {
 		let a = x.clone().unwrap();
 		let b = a.as_ref();
 		assert_eq!(*b, 10);
+
+		//let bt = BoxTest { v };
+		/*
+		let v = BoxTest {
+			v: Box::new([0u8; 5]).unwrap().into(),
+		};
+				*/
+
+		//let v2 = v.v.as_ref();
 	}
 }
