@@ -17,17 +17,6 @@ extern "C" {
 	pub fn atomic_fetch_sub_i64(ptr: *mut i64, value: i64) -> i64;
 }
 
-fn _test1(x: bool) -> i32 {
-	// Take x as an argument
-	let y;
-	if x {
-		y = 0;
-	} else {
-		y = 1;
-	}
-	y
-}
-
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -38,9 +27,6 @@ mod test {
 
 	#[test]
 	fn test_sys() {
-		assert_eq!(_test1(false), 1);
-		assert_eq!(_test1(true), 0); // Test both branches
-
 		let mut x: i64 = 1;
 		aadd!(&mut x, 1);
 		assert_eq!(aload!(&mut x), 2);
