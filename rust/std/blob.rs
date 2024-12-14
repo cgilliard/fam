@@ -53,5 +53,12 @@ mod test {
 		for i in 0..1000 {
 			assert_eq!(a2[i], (i % 26) as u8 + b'a');
 		}
+
+		let mut b2 = Blob::new(1).unwrap();
+		let a3 = b2.get_mut();
+		a3[..1000].copy_from_slice(&a2[..1000]);
+		for i in 0..1000 {
+			assert_eq!(a3[i], (i % 26) as u8 + b'a');
+		}
 	}
 }
