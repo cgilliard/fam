@@ -1,4 +1,7 @@
-use core::mem::{drop, size_of};
+use core::marker::PhantomData;
+use core::marker::Sized;
+use core::mem::size_of;
+use core::mem::{align_of_val, forget, size_of_val};
 use core::ops::Drop;
 use core::ptr;
 use core::ptr::copy_nonoverlapping;
@@ -8,16 +11,19 @@ use std::error::{Error, ErrorKind::Alloc};
 use std::result::{Result, Result::Err, Result::Ok};
 use sys::{map, unmap};
 
-pub struct Box<T> {
+pub struct Box<T: ?Sized> {
 	value: *mut T,
+	_marker: PhantomData<T>, // For type tracking
 }
 
-impl<T> Drop for Box<T> {
+impl<T: ?Sized> Drop for Box<T> {
 	fn drop(&mut self) {
-		let pages = pages!(size_of::<T>());
+		let size = size_of_val(self.as_ref());
+		let align = align_of_val(self.as_ref());
+		let pages = pages!(size + align);
+
 		unsafe {
-			let value = ptr::read(self.value);
-			drop(value);
+			ptr::drop_in_place(self.value);
 			unmap(self.value as *mut u8, pages);
 		}
 	}
@@ -36,7 +42,33 @@ impl<T> Clone for Box<T> {
 			copy_nonoverlapping(value, nvalue, size_of::<T>());
 		}
 
-		Ok(Self { value: nvalue })
+		Ok(Self {
+			value: nvalue,
+			_marker: PhantomData,
+		})
+	}
+}
+
+impl<T: ?Sized> Box<T> {
+	pub fn from_raw(raw: *mut T) -> Self {
+		Self {
+			value: raw,
+			_marker: PhantomData,
+		}
+	}
+
+	pub fn into_raw(self) -> *mut T {
+		let ptr = self.value;
+		forget(self);
+		ptr
+	}
+
+	pub fn as_ref(&self) -> &T {
+		unsafe { &*self.value }
+	}
+
+	pub fn as_mut(&mut self) -> &mut T {
+		unsafe { &mut *self.value }
 	}
 }
 
@@ -52,15 +84,10 @@ impl<T> Box<T> {
 			ptr::write(value, t);
 		}
 
-		Ok(Self { value })
-	}
-
-	pub fn as_ref(&self) -> &T {
-		unsafe { &*self.value }
-	}
-
-	pub fn as_mut(&mut self) -> &mut T {
-		unsafe { &mut *self.value }
+		Ok(Self {
+			value,
+			_marker: PhantomData,
+		})
 	}
 }
 
