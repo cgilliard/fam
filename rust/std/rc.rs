@@ -57,22 +57,19 @@ impl<T> Rc<T> {
 	}
 
 	pub fn get(&self) -> &T {
-		let inner = unsafe { &*self.inner };
-		&inner.value
+		unsafe { &(&*self.inner).value }
 	}
 
 	pub fn get_mut(&mut self) -> Option<&mut T> {
 		if aload!(&mut (*self.inner).count) == 1 {
-			let inner = unsafe { &mut *self.inner };
-			Some(&mut inner.value)
+			unsafe { Some(&mut (&mut *self.inner).value) }
 		} else {
 			None
 		}
 	}
 
 	pub unsafe fn get_mut_unchecked(&mut self) -> &mut T {
-		let inner = unsafe { &mut *self.inner };
-		&mut inner.value
+		unsafe { &mut (&mut *self.inner).value }
 	}
 }
 
