@@ -17,3 +17,8 @@ i64 atomic_fetch_add_i64(i64 *ptr, i64 value) {
 i64 atomic_fetch_sub_i64(i64 *ptr, i64 value) {
 	return __atomic_fetch_sub(ptr, value, __ATOMIC_SEQ_CST);
 }
+
+i64 cas_release(i64 *ptr, i64 *expect, i64 desired) {
+	return __atomic_compare_exchange_n(ptr, expect, desired, 0,
+					   __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+}

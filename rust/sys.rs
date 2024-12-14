@@ -6,6 +6,7 @@ extern "C" {
 	pub fn map(pages: usize) -> *mut u8;
 	pub fn unmap(ptr: *mut u8, pages: usize);
 	pub fn getpagesize() -> i32;
+	pub fn sched_yield() -> i32;
 }
 
 // util
@@ -15,6 +16,7 @@ extern "C" {
 	pub fn atomic_load_i64(ptr: *mut i64) -> i64;
 	pub fn atomic_fetch_add_i64(ptr: *mut i64, value: i64) -> i64;
 	pub fn atomic_fetch_sub_i64(ptr: *mut i64, value: i64) -> i64;
+	pub fn cas_release(ptr: *mut i64, expect: *const i64, desired: i64) -> bool;
 }
 
 #[cfg(test)]
@@ -23,6 +25,7 @@ mod test {
 	use aload;
 	use astore;
 	use asub;
+	use cas;
 
 	#[test]
 	fn test_sys() {
@@ -33,5 +36,15 @@ mod test {
 		assert_eq!(aload!(&mut x), 1);
 		astore!(&mut x, 100);
 		assert_eq!(aload!(&mut x), 100);
+		let mut x = 0i64;
+		let mut y = 0i64;
+
+		assert!(cas!(&mut x, &mut y, 10));
+		assert_eq!(x, 10);
+
+		x = 0i64;
+		y = 1i64;
+		assert!(!cas!(&mut x, &mut y, 10));
+		assert_eq!(x, 0);
 	}
 }

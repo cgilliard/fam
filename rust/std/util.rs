@@ -1,3 +1,5 @@
+use core::ptr::copy_nonoverlapping;
+
 pub fn u32_to_str(num: u32) -> &'static str {
 	match num {
 		0 => "0",
@@ -46,6 +48,12 @@ pub fn strcmp(a: &str, b: &str) -> i32 {
 		-1
 	} else {
 		0
+	}
+}
+
+pub fn copy_slice(src: &[u8], dest: &mut [u8], len: usize) {
+	unsafe {
+		copy_nonoverlapping(src.as_ptr(), dest.as_mut_ptr(), len);
 	}
 }
 
