@@ -4,6 +4,7 @@ pub mod error;
 pub mod exit;
 #[macro_use]
 pub mod macros;
+pub mod boxed;
 pub mod option;
 pub mod rc;
 pub mod result;
