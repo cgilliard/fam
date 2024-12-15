@@ -1,11 +1,12 @@
 use core::mem::size_of;
+use core::ops::Drop;
 use err;
 use std::blob::Blob;
 use std::error::Error;
 use std::error::ErrorKind::{Alloc, CapacityExceeded, IllegalArgument};
 use std::result::{Result, Result::Err, Result::Ok};
 use std::util::{divide_usize, rem_usize};
-use sys::{ctzl, map};
+use sys::{ctzl, map, unmap};
 
 macro_rules! bits_len {
 	() => {{
@@ -17,6 +18,24 @@ pub struct BitMap {
 	blob: Blob,
 	page_count: usize,
 	last_index: usize,
+}
+
+impl Drop for BitMap {
+	fn drop(&mut self) {
+		let pages = self.blob.pages();
+		let page_size = page_size!();
+
+		// SAFETY: this is ok because we are getting the sizes from blob itself
+		let blob = self.blob.get_mut(0, pages * page_size).unwrap();
+		let mut cur = blob.as_ptr() as *mut u64;
+
+		while unsafe { *cur != 0 } {
+			cur = cur.wrapping_add(1);
+			unsafe {
+				unmap(*cur as *mut u8, 1);
+			}
+		}
+	}
 }
 
 impl BitMap {
