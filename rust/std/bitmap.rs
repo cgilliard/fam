@@ -23,6 +23,9 @@ pub struct BitMap {
 impl Drop for BitMap {
 	fn drop(&mut self) {
 		let pages = self.blob.pages();
+		if pages == 0 {
+			return;
+		}
 		let page_size = page_size!();
 
 		// SAFETY: this is ok because we are getting the sizes from blob itself
@@ -30,10 +33,10 @@ impl Drop for BitMap {
 		let mut cur = blob.as_ptr() as *mut u64;
 
 		while unsafe { *cur != 0 } {
-			cur = cur.wrapping_add(1);
 			unsafe {
 				unmap(*cur as *mut u8, 1);
 			}
+			cur = cur.wrapping_add(1);
 		}
 	}
 }
