@@ -37,7 +37,9 @@ impl BitMap {
 
 	pub fn extend(&mut self) -> Result<(), Error> {
 		let pages = self.blob.pages();
-		if (self.page_count + 1) >= bits_len!() * self.blob.pages() {
+		if self.page_count >= usize::MAX - 1
+			|| (self.page_count + 1) >= bits_len!() * self.blob.pages()
+		{
 			return Err(err!(CapacityExceeded));
 		}
 		let next_page = unsafe { map(1) };
@@ -45,6 +47,7 @@ impl BitMap {
 			return Err(err!(Alloc));
 		}
 
+		// SAFETY: this is ok because we are getting the sizes from blob itself
 		let blob = self.blob.get_mut(0, pages * page_size!()).unwrap();
 
 		let ptr = blob
@@ -64,13 +67,14 @@ impl BitMap {
 		let bits_len = bits_len!();
 		let page_size = page_size!();
 		let u64_size = size_of::<u64>();
-		let mut index = aload!(&(self.last_index as u64)) as usize;
+		let last_index_ptr = &self.last_index as *const usize as *const u64;
+		let mut index = aload!(last_index_ptr) as usize;
 		let first = index;
+		// SAFETY: this is ok because we are getting the sizes from blob itself
 		let blob = self.blob.get_mut(0, pages * page_size).unwrap();
-		let ptr = blob
+		let mut cur = blob
 			.as_ptr()
-			.wrapping_add(divide_usize(index, bits_len) * u64_size);
-		let mut cur = ptr as *mut u64;
+			.wrapping_add(divide_usize(index, bits_len) * u64_size) as *mut u64;
 
 		while unsafe { *cur != 0 } {
 			let mut ptr = unsafe { *cur } as *mut u64;
@@ -122,6 +126,8 @@ impl BitMap {
 		let x = 1 << (id & 0x3F);
 		id >>= 6;
 		let len = pages * page_size;
+
+		// SAFETY: this is ok because we are getting the sizes from blob itself
 		let blob = self.blob.get_mut(0, len).unwrap();
 		let ptr = blob
 			.as_ptr()
