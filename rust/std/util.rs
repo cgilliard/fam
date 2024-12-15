@@ -1,6 +1,36 @@
 use core::intrinsics::{unchecked_div, unchecked_rem};
 use core::ptr::copy_nonoverlapping;
 
+pub fn u64_to_str(mut n: u64, buf: &mut [u8]) -> usize {
+	let mut i = buf.len() - 1;
+
+	while n > 0 {
+		if i == 0 {
+			break;
+		}
+		if i < buf.len() {
+			buf[i] = b'0' + (n % 10) as u8;
+		}
+		n /= 10;
+		i -= 1;
+	}
+	let mut len = buf.len() - i - 1;
+
+	if len == 0 && buf.len() > 0 {
+		buf[0] = b'0';
+		len = 1;
+	} else {
+		let mut k = 0;
+		for j in i + 1..buf.len() {
+			if k < buf.len() {
+				buf[k] = buf[j];
+			}
+			k += 1;
+		}
+	}
+	len
+}
+
 pub fn u32_to_str(num: u32) -> &'static str {
 	match num {
 		0 => "0",
@@ -59,10 +89,16 @@ pub fn copy_slice(src: &[u8], dest: &mut [u8], len: usize) {
 }
 
 pub fn divide_usize(n: usize, d: usize) -> usize {
+	if d == 0 {
+		panic!("divide by 0");
+	}
 	unsafe { unchecked_div(n, d) }
 }
 
 pub fn rem_usize(n: usize, d: usize) -> usize {
+	if d == 0 {
+		panic!("rem by 0");
+	}
 	unsafe { unchecked_rem(n, d) }
 }
 

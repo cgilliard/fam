@@ -10,23 +10,43 @@ pub struct Lock {
 
 pub struct LockReadGuard<'a> {
 	lock: &'a Lock,
+	unlock: bool,
 }
 
 pub struct LockWriteGuard<'a> {
 	lock: &'a Lock,
+	unlock: bool,
+}
+
+impl LockWriteGuard<'_> {
+	pub fn unlock(&mut self) {
+		if !self.unlock {
+			let state = unsafe { &mut *self.lock.state.get() };
+			astore!(&mut *state, 0);
+			self.unlock = true;
+		}
+	}
+}
+
+impl LockReadGuard<'_> {
+	pub fn unlock(&mut self) {
+		if !self.unlock {
+			let state = unsafe { &mut *self.lock.state.get() };
+			asub!(&mut *state, 1);
+			self.unlock = true;
+		}
+	}
 }
 
 impl Drop for LockWriteGuard<'_> {
 	fn drop(&mut self) {
-		let state = unsafe { &mut *self.lock.state.get() };
-		astore!(&mut *state, 0);
+		self.unlock();
 	}
 }
 
 impl Drop for LockReadGuard<'_> {
 	fn drop(&mut self) {
-		let state = unsafe { &mut *self.lock.state.get() };
-		asub!(&mut *state, 1);
+		self.unlock();
 	}
 }
 
@@ -47,7 +67,10 @@ impl Lock {
 			}
 			sched_yield!();
 		}
-		LockReadGuard { lock: self }
+		LockReadGuard {
+			lock: self,
+			unlock: false,
+		}
 	}
 
 	pub fn write<'a>(&'a self) -> LockWriteGuard<'a> {
@@ -59,7 +82,10 @@ impl Lock {
 			}
 			sched_yield!();
 		}
-		LockWriteGuard { lock: self }
+		LockWriteGuard {
+			lock: self,
+			unlock: false,
+		}
 	}
 }
 

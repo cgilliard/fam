@@ -17,7 +17,7 @@ macro_rules! bits_len {
 pub struct BitMap {
 	blob: Blob,
 	page_count: usize,
-	last_index: usize,
+	last_index: u64,
 }
 
 impl Drop for BitMap {
@@ -94,7 +94,7 @@ impl BitMap {
 		let bits_len = bits_len!();
 		let page_size = page_size!();
 		let u64_size = size_of::<u64>();
-		let last_index_ptr = &self.last_index as *const usize as *const u64;
+		let last_index_ptr = &self.last_index as *const u64 as *const u64;
 		let mut index = aload!(last_index_ptr) as usize;
 		let first = index;
 		// SAFETY: this is ok because we are getting the sizes from blob itself
@@ -125,9 +125,15 @@ impl BitMap {
 			}
 
 			if found {
-				astore!(&mut (self.last_index as u64), index as u64);
+				astore!(&mut self.last_index, index as u64);
 				return Ok(index << 6 | x as usize);
 			}
+			/*
+						print_num!(first);
+						print!(" ");
+						print_num!(self.last_index);
+						println!(" bitmaploop");
+			*/
 
 			index += 1;
 			let v = rem_usize(index, bits_len);
@@ -141,7 +147,6 @@ impl BitMap {
 				break;
 			}
 		}
-
 		Err(err!(CapacityExceeded))
 	}
 
@@ -162,7 +167,7 @@ impl BitMap {
 		let cur = ptr as *mut u64;
 
 		if id < aload!(&(self.last_index as u64)) as usize {
-			astore!(&mut (self.last_index as u64), id as u64);
+			astore!(&mut self.last_index, id as u64);
 		}
 
 		let mut ptr = unsafe { *cur } as *mut u64;

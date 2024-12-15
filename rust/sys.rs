@@ -7,6 +7,7 @@ extern "C" {
 	pub fn unmap(ptr: *mut u8, pages: usize);
 	pub fn getpagesize() -> i32;
 	pub fn sched_yield() -> i32;
+	pub fn getmicros() -> u64;
 }
 
 // util

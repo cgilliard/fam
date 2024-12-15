@@ -68,3 +68,46 @@ macro_rules! sched_yield {
 		}
 	}};
 }
+
+#[macro_export]
+macro_rules! print {
+	($s:expr) => {{
+		use sys::write;
+		unsafe {
+			write(2, $s.as_ptr(), $s.len());
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! println {
+	($s:expr) => {{
+		use sys::write;
+		unsafe {
+			write(2, $s.as_ptr(), $s.len());
+			write(2, "\n".as_ptr(), 1);
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! print_num {
+	($n:expr) => {{
+		use core::str::from_utf8_unchecked;
+		use std::util::u64_to_str;
+		use sys::write;
+		let mut buf = [0u8; 32];
+		let len = u64_to_str($n as u64, &mut buf);
+		unsafe {
+			write(2, from_utf8_unchecked(&buf).as_ptr(), len);
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! getmicros {
+	() => {{
+		use sys::getmicros;
+		unsafe { getmicros() }
+	}};
+}
