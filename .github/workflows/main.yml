@@ -24,7 +24,8 @@ jobs:
 
       - name: Check linux version
         run: uname -a
-      
+      - name: linux update nightly
+        run: rustup install nightly
       - name: linux build (rustc)
         run: |
           ./scripts/build.sh
@@ -72,7 +73,8 @@ jobs:
 
       - name: Check macos version
         run: sw_vers
-      
+      - name: macos update nightly
+        run: rustup install nightly
       - name: macos build (rustc)
         run: |
           ./scripts/build.sh
