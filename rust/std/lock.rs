@@ -2,10 +2,10 @@ use core::cell::UnsafeCell;
 use core::convert::Into;
 use core::ops::Drop;
 
-const WFLAG: i64 = 0x1i64 << 63i64;
+const WFLAG: u64 = 0x1u64 << 63u64;
 
 pub struct Lock {
-	state: UnsafeCell<i64>,
+	state: UnsafeCell<u64>,
 }
 
 pub struct LockReadGuard<'a> {
@@ -33,7 +33,7 @@ impl Drop for LockReadGuard<'_> {
 impl Lock {
 	pub fn new() -> Self {
 		Self {
-			state: 0_i64.into(),
+			state: 0_u64.into(),
 		}
 	}
 

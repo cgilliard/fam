@@ -15,7 +15,7 @@ pub struct Rc<T> {
 }
 
 struct RcInner<T> {
-	count: i64,
+	count: u64,
 	value: T,
 }
 

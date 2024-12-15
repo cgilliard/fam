@@ -12,11 +12,12 @@ extern "C" {
 // util
 extern "C" {
 	pub fn cstring_len(s: *const u8) -> usize;
-	pub fn atomic_store_i64(ptr: *mut i64, value: i64);
-	pub fn atomic_load_i64(ptr: *mut i64) -> i64;
-	pub fn atomic_fetch_add_i64(ptr: *mut i64, value: i64) -> i64;
-	pub fn atomic_fetch_sub_i64(ptr: *mut i64, value: i64) -> i64;
-	pub fn cas_release(ptr: *mut i64, expect: *const i64, desired: i64) -> bool;
+	pub fn atomic_store_u64(ptr: *mut u64, value: u64);
+	pub fn atomic_load_u64(ptr: *mut u64) -> u64;
+	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
+	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
+	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
+	pub fn ctzl(v: u64) -> i32;
 }
 
 #[cfg(test)]
@@ -29,21 +30,21 @@ mod test {
 
 	#[test]
 	fn test_sys() {
-		let mut x: i64 = 1;
+		let mut x: u64 = 1;
 		aadd!(&mut x, 1);
 		assert_eq!(aload!(&mut x), 2);
 		asub!(&mut x, 1);
 		assert_eq!(aload!(&mut x), 1);
 		astore!(&mut x, 100);
 		assert_eq!(aload!(&mut x), 100);
-		let mut x = 0i64;
-		let mut y = 0i64;
+		let mut x = 0u64;
+		let mut y = 0u64;
 
 		assert!(cas!(&mut x, &mut y, 10));
 		assert_eq!(x, 10);
 
-		x = 0i64;
-		y = 1i64;
+		x = 0u64;
+		y = 1u64;
 		assert!(!cas!(&mut x, &mut y, 10));
 		assert_eq!(x, 0);
 	}

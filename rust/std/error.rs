@@ -10,6 +10,8 @@ pub enum ErrorKind {
 	NoError,
 	Alloc,
 	OutOfBounds,
+	IllegalArgument,
+	CapacityExceeded,
 	Todo,
 }
 

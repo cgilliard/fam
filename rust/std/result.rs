@@ -19,4 +19,8 @@ impl<T, E> Result<T, E> {
 			_ => true,
 		}
 	}
+
+	pub fn is_ok(&self) -> bool {
+		!self.is_err()
+	}
 }

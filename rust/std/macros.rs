@@ -22,32 +22,32 @@ macro_rules! page_size {
 #[macro_export]
 macro_rules! aadd {
 	($a:expr, $v:expr) => {{
-		use sys::atomic_fetch_add_i64;
-		unsafe { atomic_fetch_add_i64($a, $v) }
+		use sys::atomic_fetch_add_u64;
+		unsafe { atomic_fetch_add_u64($a, $v) }
 	}};
 }
 
 #[macro_export]
 macro_rules! asub {
 	($a:expr, $v:expr) => {{
-		use sys::atomic_fetch_sub_i64;
-		unsafe { atomic_fetch_sub_i64($a, $v) }
+		use sys::atomic_fetch_sub_u64;
+		unsafe { atomic_fetch_sub_u64($a, $v) }
 	}};
 }
 
 #[macro_export]
 macro_rules! aload {
 	($a:expr) => {{
-		use sys::atomic_load_i64;
-		unsafe { atomic_load_i64($a) }
+		use sys::atomic_load_u64;
+		unsafe { atomic_load_u64($a) }
 	}};
 }
 
 #[macro_export]
 macro_rules! astore {
 	($a:expr, $v:expr) => {{
-		use sys::atomic_store_i64;
-		unsafe { atomic_store_i64($a, $v) }
+		use sys::atomic_store_u64;
+		unsafe { atomic_store_u64($a, $v) }
 	}};
 }
 
