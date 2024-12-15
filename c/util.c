@@ -1,5 +1,6 @@
 typedef long long i64;
 typedef unsigned long long u64;
+typedef unsigned int u32;
 
 u64 cstring_len(const char *X) {
 	const char *Y = X;
@@ -24,3 +25,5 @@ u64 cas_release(u64 *ptr, u64 *expect, u64 desired) {
 }
 
 int ctzl(u64 v) { return __builtin_ctzl(v); }
+
+int ctz(u32 v) { return __builtin_ctz(v); }

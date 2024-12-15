@@ -18,6 +18,7 @@ extern "C" {
 	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
 	pub fn ctzl(v: u64) -> i32;
+	pub fn ctz(v: u32) -> i32;
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ pub mod lock;
 pub mod option;
 pub mod rc;
 pub mod result;
+pub mod slabs;
 pub mod string;
 pub mod util;
 pub mod vec;

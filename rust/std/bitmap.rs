@@ -31,12 +31,17 @@ impl Drop for BitMap {
 		// SAFETY: this is ok because we are getting the sizes from blob itself
 		let blob = self.blob.get_mut(0, pages * page_size).unwrap();
 		let mut cur = blob.as_ptr() as *mut u64;
+		let mut count = 0;
 
 		while unsafe { *cur != 0 } {
 			unsafe {
 				unmap(*cur as *mut u8, 1);
 			}
 			cur = cur.wrapping_add(1);
+			count += 1;
+			if count >= divide_usize(pages, size_of::<u64>()) {
+				break;
+			}
 		}
 	}
 }
