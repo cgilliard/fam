@@ -1,3 +1,4 @@
+use core::intrinsics::{unchecked_div, unchecked_rem};
 use core::ptr::copy_nonoverlapping;
 
 pub fn u32_to_str(num: u32) -> &'static str {
@@ -55,6 +56,14 @@ pub fn copy_slice(src: &[u8], dest: &mut [u8], len: usize) {
 	unsafe {
 		copy_nonoverlapping(src.as_ptr(), dest.as_mut_ptr(), len);
 	}
+}
+
+pub fn divide_usize(n: usize, d: usize) -> usize {
+	unsafe { unchecked_div(n, d) }
+}
+
+pub fn rem_usize(n: usize, d: usize) -> usize {
+	unsafe { unchecked_rem(n, d) }
 }
 
 #[cfg(test)]
