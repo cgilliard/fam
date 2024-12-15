@@ -184,12 +184,12 @@ mod test {
 		let mut b1 = BitMap::new(1).unwrap();
 		assert!(b1.allocate().is_err());
 		assert!(b1.extend().is_ok());
-		for i in 0..16384 * 8 {
+		for i in 0..page_size!() * 8 {
 			assert_eq!(b1.allocate().unwrap(), i);
 		}
 		assert!(b1.allocate().is_err());
 		assert!(b1.extend().is_ok());
-		assert_eq!(b1.allocate().unwrap(), 16384 * 8);
+		assert_eq!(b1.allocate().unwrap(), page_size!() * 8);
 
 		let mut b2 = BitMap::new(1).unwrap();
 		assert!(b2.extend().is_ok());
