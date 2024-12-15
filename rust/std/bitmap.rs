@@ -59,7 +59,7 @@ impl BitMap {
 
 	pub fn extend(&mut self) -> Result<(), Error> {
 		let pages = self.blob.pages();
-		if self.page_count >= usize::MAX - 1
+		if self.page_count >= 0xFFFFFFFFFFFFFFFFusize - 1
 			|| (self.page_count + 1) >= bits_len!() * self.blob.pages()
 		{
 			return Err(err!(CapacityExceeded));
