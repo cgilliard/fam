@@ -22,6 +22,6 @@ void unmap(void *ptr, unsigned long long pages) {
 unsigned long long getmicros() {
 	struct timespec now;
 	clock_gettime(CLOCK_REALTIME, &now);
-	return (unsigned long long)now.tv_sec * (__int128_t)1e9 +
+	return (unsigned long long)((__int128_t)now.tv_sec * 1000000) +
 	       (unsigned long long)(now.tv_nsec / 1000);
 }

@@ -37,9 +37,10 @@ macro_rules! mask {
 
 pub struct SlabAllocator {
 	data: *mut *mut *mut *mut u8,
-	_head: *mut u8,
-	_tail: *mut u8,
+	head: *mut u8,
+	tail: *mut u8,
 	bitmap: BitMap,
+	slab_struct_size: usize,
 	slab_size: usize,
 	_max_free_slabs: usize,
 	_max_total_slabs: usize,
@@ -50,13 +51,30 @@ pub struct SlabAllocator {
 
 #[derive(Copy, Clone)]
 pub struct Slab {
-	_next: *mut Slab,
 	data: *mut u8,
+	next: *mut Slab,
 	id: usize,
 	len: usize,
 }
 
+use core::ptr;
+
 impl Slab {
+	pub fn new(ptr: *mut Slab, len: usize, id: usize) -> Self {
+		let data_ptr = unsafe { (ptr as *mut u8).add(size_of::<Slab>()) };
+
+		let ret = Slab {
+			data: data_ptr,
+			next: null_mut(),
+			id,
+			len,
+		};
+		unsafe {
+			ptr::write(ptr, ret);
+		}
+		ret
+	}
+
 	pub fn get(&self) -> &[u8] {
 		unsafe { from_raw_parts(self.data, self.len) }
 	}
@@ -108,26 +126,89 @@ impl SlabAllocator {
 			Err(e) => return Err(e),
 		};
 
-		let ret = Self {
+		let slab_struct_size = slab_size + size_of::<Slab>();
+
+		let mut ret = Self {
 			data: null_mut(),
-			_head: null_mut(),
-			_tail: null_mut(),
+			head: null_mut(),
+			tail: null_mut(),
 			bitmap,
 			slab_size,
+			slab_struct_size,
 			_max_free_slabs,
 			_max_total_slabs,
 			lock: Lock::new(),
 			_free_slabs: 0,
 			_total_slabs: 0,
 		};
+		ret.head = match ret.grow() {
+			Ok(s) => s.data,
+			Err(e) => return Err(e),
+		};
+		ret.tail = ret.head;
 		Ok(ret)
 	}
 
 	pub fn free(&mut self, slab: &Slab) {
-		self.bitmap.free(slab.id);
+		//	 self.bitmap.free(slab.id);
+		loop {
+			let tail = self.tail;
+			let next_ptr: *mut *mut Slab = unsafe { &mut (*(self.tail as *mut Slab)).next };
+
+			if tail == self.tail {
+				let tail_next_ptr: *mut *mut Slab =
+					unsafe { &mut (*(self.tail as *mut Slab)).next };
+
+				if cas!(
+					tail_next_ptr as *mut u64,
+					next_ptr as *const u64,
+					slab.data as u64
+				) {
+					let tail_ptr: *mut *mut u8 = &mut self.tail;
+					let tail_ref_ptr: *const *mut u8 = &tail;
+
+					cas!(
+						tail_ptr as *mut u64,
+						tail_ref_ptr as *const u64,
+						slab.data as u64
+					);
+
+					break;
+				}
+			}
+		}
 	}
 
 	pub fn alloc(&mut self) -> Result<Slab, Error> {
+		let mut ret;
+		loop {
+			let head = self.head;
+			let tail = self.tail;
+			let next = unsafe { (*(self.head as *mut Slab)).next };
+
+			if head == self.head {
+				if head == tail {
+					return self.grow();
+				} else {
+					ret = head;
+					let head_ptr: *mut *mut u8 = &mut self.head;
+					let head_ref_ptr: *const *mut u8 = &head;
+					if cas!(
+						head_ptr as *mut u64,
+						head_ref_ptr as *const u64,
+						next as u64
+					) {
+						break;
+					}
+				}
+			}
+		}
+
+		unsafe { Ok(*((ret as *mut u8).sub(size_of::<Slab>()) as *mut Slab)) }
+		//unsafe { Ok(*(ret as *mut Slab)) }
+	}
+
+	fn grow(&mut self) -> Result<Slab, Error> {
 		let id = match self.bitmap.allocate() {
 			Ok(id) => id,
 			Err(e) => match e.kind {
@@ -149,12 +230,12 @@ impl SlabAllocator {
 		};
 
 		let page_size = page_size!();
-		let next = id >> unsafe { ctz(divide_usize(page_size, self.slab_size) as u32) };
+		let next = id >> unsafe { ctz(divide_usize(page_size, self.slab_struct_size) as u32) };
 		let k = next & mask!();
 		let j = (next >> shift_per_level!()) & mask!();
 		let i = (next >> 2 * shift_per_level!()) & mask!();
 
-		let offset = offset!(id, self.slab_size);
+		let offset = offset!(id, self.slab_struct_size);
 
 		unsafe {
 			let mut lock = self.lock.read();
@@ -213,12 +294,11 @@ impl SlabAllocator {
 			}
 		}
 
-		let ret = Slab {
-			_next: null_mut(),
+		let ret = Slab::new(
+			unsafe { (*(*(*self.data.add(i)).add(j)).add(k)).add(offset) } as *mut Slab,
+			self.slab_size,
 			id,
-			data: unsafe { (*(*(*self.data.add(i)).add(j)).add(k)).add(offset) },
-			len: self.slab_size,
-		};
+		);
 		Ok(ret)
 	}
 }
@@ -232,16 +312,16 @@ mod test {
 	#[test]
 	fn test_slab1() {
 		let _start = getmicros!();
-		let mut sa1 = SlabAllocator::new(128, 128, 256, 1).unwrap();
+		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
 		let mut slab1 = sa1.alloc().unwrap();
-		assert_eq!(slab1.id, 0);
+		assert_eq!(slab1.id, 1);
 
 		for i in 0..128 {
 			slab1.get_mut()[i] = i as u8;
 		}
 
 		let mut slab2 = sa1.alloc().unwrap();
-		assert_eq!(slab2.id, 1);
+		assert_eq!(slab2.id, 2);
 		for i in 0..128 {
 			slab2.get_mut()[i] = (i + 1) as u8;
 		}
@@ -259,7 +339,55 @@ mod test {
 				*/
 	}
 
-	const SIZE: usize = 8;
+	#[test]
+	fn test_slab_free() {
+		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
+		let slab1 = sa1.alloc().unwrap();
+		assert_eq!(slab1.id, 1);
+
+		sa1.free(&slab1);
+
+		let slab2 = sa1.alloc().unwrap();
+		assert_eq!(slab2.id, 0);
+
+		let slab3 = sa1.alloc().unwrap();
+		assert_eq!(slab3.id, 2);
+
+		let slab4 = sa1.alloc().unwrap();
+		assert_eq!(slab4.id, 3);
+		let slab5 = sa1.alloc().unwrap();
+		assert_eq!(slab5.id, 4);
+		let slab6 = sa1.alloc().unwrap();
+		assert_eq!(slab6.id, 5);
+
+		sa1.free(&slab5);
+		let slab7 = sa1.alloc().unwrap();
+		assert_eq!(slab7.id, 1);
+
+		let slab8 = sa1.alloc().unwrap();
+		assert_eq!(slab8.id, 6);
+
+		sa1.free(&slab4);
+		sa1.free(&slab3);
+		sa1.free(&slab2);
+
+		let slab9 = sa1.alloc().unwrap();
+		assert_eq!(slab9.id, 4);
+
+		let slab10 = sa1.alloc().unwrap();
+		assert_eq!(slab10.id, 3);
+
+		let slab11 = sa1.alloc().unwrap();
+		assert_eq!(slab11.id, 2);
+
+		let slab12 = sa1.alloc().unwrap();
+		assert_eq!(slab12.id, 7);
+
+		let slab13 = sa1.alloc().unwrap();
+		assert_eq!(slab13.id, 8);
+	}
+
+	const SIZE: usize = 32;
 	const COUNT: usize = 1024 * 1024;
 
 	#[test]
@@ -280,7 +408,7 @@ mod test {
 				}
 			}
 			slabs[i] = sa1.alloc().unwrap();
-			assert_eq!(slabs[i].id, i);
+			assert_eq!(slabs[i].id, i + 1);
 			for j in 0..SIZE {
 				slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
 			}
@@ -358,10 +486,10 @@ mod test {
 		}
 
 		/*
-				print!("micros=");
-				print_num!(getmicros!() - _start);
-				println!("");
-		*/
+		print!("mallocmicros=");
+		print_num!(getmicros!() - _start);
+		println!("");
+				*/
 
 		unsafe {
 			unmap(slabs_ptr, pages_needed);

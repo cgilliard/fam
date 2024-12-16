@@ -19,9 +19,14 @@ u64 atomic_fetch_sub_u64(u64 *ptr, u64 value) {
 	return __atomic_fetch_sub(ptr, value, __ATOMIC_SEQ_CST);
 }
 
+int printf(const char *, ...);
 u64 cas_release(u64 *ptr, u64 *expect, u64 desired) {
-	return __atomic_compare_exchange_n(ptr, expect, desired, 0,
-					   __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+	/*printf("cas release: ptr=%p,expect=%p,desired=%llx\n", ptr, expect,
+	       desired);*/
+	u64 ret = __atomic_compare_exchange_n(
+	    ptr, expect, desired, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+
+	return ret;
 }
 
 int ctzl(u64 v) { return __builtin_ctzl(v); }

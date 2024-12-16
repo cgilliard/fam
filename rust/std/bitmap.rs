@@ -128,12 +128,6 @@ impl BitMap {
 				astore!(&mut self.last_index, index as u64);
 				return Ok(index << 6 | x as usize);
 			}
-			/*
-						print_num!(first);
-						print!(" ");
-						print_num!(self.last_index);
-						println!(" bitmaploop");
-			*/
 
 			index += 1;
 			let v = rem_usize(index, bits_len);
