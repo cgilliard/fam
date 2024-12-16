@@ -1,5 +1,6 @@
 use core::mem::size_of;
 use core::ops::Drop;
+use core::ptr;
 use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use err;
@@ -42,11 +43,11 @@ pub struct SlabAllocator {
 	bitmap: BitMap,
 	slab_struct_size: usize,
 	slab_size: usize,
-	_max_free_slabs: usize,
-	_max_total_slabs: usize,
+	max_free_slabs: u64,
+	max_total_slabs: u64,
 	lock: Lock,
-	_free_slabs: usize,
-	_total_slabs: usize,
+	free_slabs: u64,
+	total_slabs: u64,
 }
 
 #[derive(Copy, Clone)]
@@ -57,7 +58,13 @@ pub struct Slab {
 	len: usize,
 }
 
-use core::ptr;
+const RESERVED: Slab = Slab {
+	data: null_mut(),
+	next: null_mut(),
+	id: 0,
+	len: 0,
+};
+const RESERVED_PTR: *const Slab = &RESERVED;
 
 impl Slab {
 	pub fn new(ptr: *mut Slab, len: usize, id: usize) -> Self {
@@ -65,7 +72,7 @@ impl Slab {
 
 		let ret = Slab {
 			data: data_ptr,
-			next: null_mut(),
+			next: RESERVED_PTR as *mut Slab,
 			id,
 			len,
 		};
@@ -117,8 +124,8 @@ impl Drop for SlabAllocator {
 impl SlabAllocator {
 	pub fn new(
 		slab_size: usize,
-		_max_free_slabs: usize,
-		_max_total_slabs: usize,
+		max_free_slabs: u64,
+		max_total_slabs: u64,
 		bitmap_pages: usize,
 	) -> Result<Self, Error> {
 		let bitmap = match BitMap::new(bitmap_pages) {
@@ -135,11 +142,11 @@ impl SlabAllocator {
 			bitmap,
 			slab_size,
 			slab_struct_size,
-			_max_free_slabs,
-			_max_total_slabs,
+			max_free_slabs,
+			max_total_slabs,
 			lock: Lock::new(),
-			_free_slabs: 0,
-			_total_slabs: 0,
+			free_slabs: 1,
+			total_slabs: 0,
 		};
 		ret.head = match ret.grow() {
 			Ok(s) => s.data,
@@ -149,8 +156,23 @@ impl SlabAllocator {
 		Ok(ret)
 	}
 
-	pub fn free(&mut self, slab: &Slab) {
-		//	 self.bitmap.free(slab.id);
+	pub fn free(&mut self, slab: &mut Slab) {
+		let slab_next_ptr = &mut slab.next as *mut *mut Slab as *mut u64;
+		let reserved_ptr = RESERVED_PTR as *mut Slab;
+
+		if !cas!(
+			slab_next_ptr,
+			&reserved_ptr as *const *mut Slab as *const u64,
+			0u64
+		) {
+			exit!("double free attempt!");
+		}
+
+		if aadd!(&mut self.free_slabs, 1) > self.max_free_slabs {
+			asub!(&mut self.free_slabs, 1);
+			self.bitmap.free(slab.id);
+			return;
+		}
 		loop {
 			let tail = self.tail;
 			let next_ptr: *mut *mut Slab = unsafe { &mut (*(self.tail as *mut Slab)).next };
@@ -204,11 +226,18 @@ impl SlabAllocator {
 			}
 		}
 
-		unsafe { Ok(*((ret as *mut u8).sub(size_of::<Slab>()) as *mut Slab)) }
-		//unsafe { Ok(*(ret as *mut Slab)) }
+		unsafe {
+			(*(ret as *mut Slab)).next = RESERVED_PTR as *mut Slab;
+			Ok(*((ret as *mut u8).sub(size_of::<Slab>()) as *mut Slab))
+		}
 	}
 
 	fn grow(&mut self) -> Result<Slab, Error> {
+		if aadd!(&mut self.total_slabs, 1) > self.max_total_slabs {
+			asub!(&mut self.total_slabs, 1);
+			return Err(err!(CapacityExceeded));
+		}
+
 		let id = match self.bitmap.allocate() {
 			Ok(id) => id,
 			Err(e) => match e.kind {
@@ -342,34 +371,34 @@ mod test {
 	#[test]
 	fn test_slab_free() {
 		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
-		let slab1 = sa1.alloc().unwrap();
+		let mut slab1 = sa1.alloc().unwrap();
 		assert_eq!(slab1.id, 1);
 
-		sa1.free(&slab1);
+		sa1.free(&mut slab1);
 
-		let slab2 = sa1.alloc().unwrap();
+		let mut slab2 = sa1.alloc().unwrap();
 		assert_eq!(slab2.id, 0);
 
-		let slab3 = sa1.alloc().unwrap();
+		let mut slab3 = sa1.alloc().unwrap();
 		assert_eq!(slab3.id, 2);
 
-		let slab4 = sa1.alloc().unwrap();
+		let mut slab4 = sa1.alloc().unwrap();
 		assert_eq!(slab4.id, 3);
-		let slab5 = sa1.alloc().unwrap();
+		let mut slab5 = sa1.alloc().unwrap();
 		assert_eq!(slab5.id, 4);
 		let slab6 = sa1.alloc().unwrap();
 		assert_eq!(slab6.id, 5);
 
-		sa1.free(&slab5);
+		sa1.free(&mut slab5);
 		let slab7 = sa1.alloc().unwrap();
 		assert_eq!(slab7.id, 1);
 
 		let slab8 = sa1.alloc().unwrap();
 		assert_eq!(slab8.id, 6);
 
-		sa1.free(&slab4);
-		sa1.free(&slab3);
-		sa1.free(&slab2);
+		sa1.free(&mut slab4);
+		sa1.free(&mut slab3);
+		sa1.free(&mut slab2);
 
 		let slab9 = sa1.alloc().unwrap();
 		assert_eq!(slab9.id, 4);
@@ -383,8 +412,11 @@ mod test {
 		let slab12 = sa1.alloc().unwrap();
 		assert_eq!(slab12.id, 7);
 
-		let slab13 = sa1.alloc().unwrap();
+		let mut slab13 = sa1.alloc().unwrap();
 		assert_eq!(slab13.id, 8);
+
+		sa1.free(&mut slab13);
+		//sa1.free(&mut slab13);
 	}
 
 	const SIZE: usize = 32;
@@ -392,7 +424,8 @@ mod test {
 
 	#[test]
 	fn test_slab2() {
-		let mut sa1 = SlabAllocator::new(SIZE, 128, 256, 20).unwrap();
+		let mut sa1 =
+			SlabAllocator::new(SIZE, (COUNT + 10) as u64, (COUNT + 10) as u64, 20).unwrap();
 
 		let pages_needed = 1 + divide_usize(COUNT * size_of::<Slab>(), page_size!());
 		let slabs_ptr = unsafe { map(pages_needed) };
@@ -425,7 +458,7 @@ mod test {
 			for j in 0..SIZE {
 				assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
 			}
-			sa1.free(&slabs[i]);
+			sa1.free(&mut slabs[i]);
 		}
 
 		/*
