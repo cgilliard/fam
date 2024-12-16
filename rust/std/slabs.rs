@@ -68,7 +68,25 @@ impl Slab {
 impl Drop for SlabAllocator {
 	fn drop(&mut self) {
 		unsafe {
-			unmap(self.data as *mut u8, 1);
+			if !self.data.is_null() {
+				let mut i = 0;
+				while !(*self.data.add(i)).is_null() {
+					let mut j = 0;
+					while !(*(*self.data.add(i)).add(j)).is_null() {
+						let mut k = 0;
+						while !(*(*(*self.data.add(i)).add(j)).add(k)).is_null() {
+							unmap(*(*(*self.data.add(i)).add(j)).add(k), 1);
+							k += 1;
+						}
+						unmap(*(*self.data.add(i)).add(j) as *mut u8, 1);
+						j += 1;
+					}
+					unmap(*self.data.add(i) as *mut u8, 1);
+					i += 1;
+				}
+
+				unmap(self.data as *mut u8, 1);
+			}
 		}
 	}
 }

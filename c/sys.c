@@ -1,5 +1,5 @@
 #include <sys/mman.h>
-#include <sys/time.h>
+#include <time.h>
 
 int getpagesize();
 void _exit(int);
