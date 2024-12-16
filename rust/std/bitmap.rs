@@ -213,4 +213,25 @@ mod test {
 		assert_eq!(b2.allocate().unwrap(), 77);
 		assert_eq!(b2.allocate().unwrap(), 101);
 	}
+
+	#[test]
+	fn test_bitmap2() {
+		let mut b1 = BitMap::new(1).unwrap();
+		assert!(b1.allocate().is_err());
+		assert!(b1.extend().is_ok());
+
+		for i in 0..100 {
+			assert_eq!(b1.allocate().unwrap(), i);
+		}
+
+		for i in 0..50 {
+			b1.free(i);
+		}
+		for i in 0..50 {
+			assert_eq!(b1.allocate().unwrap(), i);
+		}
+		for i in 0..50 {
+			assert_eq!(b1.allocate().unwrap(), i + 100);
+		}
+	}
 }

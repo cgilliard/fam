@@ -342,7 +342,6 @@ mod test {
 
 	#[test]
 	fn test_slab1() {
-		let _start = getmicros!();
 		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
 		let mut slab1 = sa1.alloc().unwrap();
 		assert_eq!(slab1.id, 1);
@@ -363,11 +362,6 @@ mod test {
 		for i in 0..128 {
 			assert_eq!(slab2.get()[i], (i + 1) as u8);
 		}
-		/*
-		print!("Micros: ");
-		print_num!(getmicros!() - _start);
-		println!("");
-				*/
 	}
 
 	#[test]
