@@ -2,10 +2,10 @@ macro_rules! pages {
 	($v:expr) => {{
 		use sys::getpagesize;
 		let size = unsafe { getpagesize() };
-		if size > 0 {
+		if size > 0 && $v > 0 {
 			1 + ($v as usize - 1 as usize) / size as usize
 		} else {
-			0
+			1
 		}
 	}};
 }
