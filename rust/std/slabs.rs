@@ -156,22 +156,6 @@ impl SlabAllocator {
 
 		let offset = offset!(id, self.slab_size);
 
-		/*
-		print!("i=");
-		print_num!(i);
-		print!(",j=");
-		print_num!(j);
-		print!(",k=");
-		print_num!(k);
-		print!(",off=");
-		print_num!(offset);
-		print!(",next=");
-		print_num!(next);
-		print!(",mask=");
-		print_num!(mask!());
-		println!("");
-				*/
-
 		unsafe {
 			let mut lock = self.lock.read();
 
@@ -374,10 +358,10 @@ mod test {
 		}
 
 		/*
-		print!("micros=");
-		print_num!(getmicros!() - _start);
-		println!("");
-				*/
+				print!("micros=");
+				print_num!(getmicros!() - _start);
+				println!("");
+		*/
 
 		unsafe {
 			unmap(slabs_ptr, pages_needed);
