@@ -226,9 +226,11 @@ impl SlabAllocator {
 			}
 		}
 
+		asub!(&mut self.free_slabs, 1);
 		unsafe {
-			(*(ret as *mut Slab)).next = RESERVED_PTR as *mut Slab;
-			Ok(*((ret as *mut u8).sub(size_of::<Slab>()) as *mut Slab))
+			let mut slab = *((ret as *mut u8).sub(size_of::<Slab>()) as *mut Slab);
+			slab.next = RESERVED_PTR as *mut Slab;
+			Ok(slab)
 		}
 	}
 
@@ -420,7 +422,8 @@ mod test {
 	}
 
 	const SIZE: usize = 32;
-	const COUNT: usize = 1024 * 1024;
+	const COUNT: usize = 1024 * 100;
+	const ITER: usize = 10;
 
 	#[test]
 	fn test_slab2() {
@@ -432,33 +435,34 @@ mod test {
 		let slabs = unsafe { from_raw_parts_mut(slabs_ptr as *mut Slab, COUNT) };
 
 		let _start = getmicros!();
-		for i in 0..COUNT {
-			if i % (1024 * 1024) == 0 {
-				if i != 0 {
-					print!("loop: ");
-					print_num!(i);
-					println!("");
+		for _ in 0..ITER {
+			for i in 0..COUNT {
+				if i % (1024 * 1024) == 0 {
+					if i != 0 {
+						print!("loop: ");
+						print_num!(i);
+						println!("");
+					}
+				}
+				slabs[i] = sa1.alloc().unwrap();
+				for j in 0..SIZE {
+					slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
 				}
 			}
-			slabs[i] = sa1.alloc().unwrap();
-			assert_eq!(slabs[i].id, i + 1);
-			for j in 0..SIZE {
-				slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
-			}
-		}
 
-		for i in 0..COUNT {
-			if i % (1024 * 1024) == 0 {
-				if i != 0 {
-					print!("free loop: ");
-					print_num!(i);
-					println!("");
+			for i in 0..COUNT {
+				if i % (1024 * 1024) == 0 {
+					if i != 0 {
+						print!("free loop: ");
+						print_num!(i);
+						println!("");
+					}
 				}
+				for j in 0..SIZE {
+					assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
+				}
+				sa1.free(&mut slabs[i]);
 			}
-			for j in 0..SIZE {
-				assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
-			}
-			sa1.free(&mut slabs[i]);
 		}
 
 		/*
@@ -466,6 +470,9 @@ mod test {
 		print_num!(getmicros!() - _start);
 		println!("");
 				*/
+
+		assert_eq!(aload!(&sa1.total_slabs), (COUNT + 1) as u64);
+		assert_eq!(sa1.free_slabs, (COUNT + 1) as u64);
 
 		unsafe {
 			unmap(slabs_ptr, pages_needed);
@@ -480,41 +487,43 @@ mod test {
 
 	#[test]
 	fn test_malloc() {
-		let pages_needed = divide_usize(COUNT * size_of::<Slab>(), page_size!());
+		let pages_needed = 1 + divide_usize(COUNT * size_of::<Slab>(), page_size!());
 		let slabs_ptr = unsafe { map(pages_needed) };
 		let slabs = unsafe { from_raw_parts_mut(slabs_ptr as *mut Slab, COUNT) };
 
 		let _start = getmicros!();
-		for i in 0..COUNT {
-			if i % (1024 * 1024) == 0 {
-				if i != 0 {
-					print!("loop: ");
-					print_num!(i);
-					println!("");
+		for _ in 0..ITER {
+			for i in 0..COUNT {
+				if i % (1024 * 1024) == 0 {
+					if i != 0 {
+						print!("loop: ");
+						print_num!(i);
+						println!("");
+					}
+				}
+				unsafe {
+					slabs[i].data = malloc(SIZE);
+				}
+				slabs[i].len = SIZE;
+				for j in 0..SIZE {
+					slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
 				}
 			}
-			unsafe {
-				slabs[i].data = malloc(SIZE);
-			}
-			slabs[i].len = SIZE;
-			for j in 0..SIZE {
-				slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
-			}
-		}
 
-		for i in 0..COUNT {
-			if i % (1024 * 1024) == 0 {
-				if i != 0 {
-					print!("free loop: ");
-					print_num!(i);
-					println!("");
+			for i in 0..COUNT {
+				if i % (1024 * 1024) == 0 {
+					if i != 0 {
+						print!("free loop: ");
+						print_num!(i);
+						println!("");
+					}
 				}
-			}
-			for j in 0..SIZE {
-				assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
-			}
-			unsafe {
-				free(slabs[i].data);
+				for j in 0..SIZE {
+					assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
+				}
+				unsafe {
+					free(slabs[i].data);
+				}
 			}
 		}
 
