@@ -1,3 +1,4 @@
+use core::mem::size_of;
 use core::ops::Drop;
 use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
@@ -67,14 +68,19 @@ impl Slab {
 
 impl Drop for SlabAllocator {
 	fn drop(&mut self) {
+		let page_size = page_size!();
 		unsafe {
 			if !self.data.is_null() {
 				let mut i = 0;
-				while !(*self.data.add(i)).is_null() {
+				while i < (page_size / size_of::<*mut u8>()) && !(*self.data.add(i)).is_null() {
 					let mut j = 0;
-					while !(*(*self.data.add(i)).add(j)).is_null() {
+					while j < (page_size / size_of::<*mut u8>())
+						&& !(*(*self.data.add(i)).add(j)).is_null()
+					{
 						let mut k = 0;
-						while !(*(*(*self.data.add(i)).add(j)).add(k)).is_null() {
+						while k < (page_size / size_of::<*mut u8>())
+							&& !(*(*(*self.data.add(i)).add(j)).add(k)).is_null()
+						{
 							unmap(*(*(*self.data.add(i)).add(j)).add(k), 1);
 							k += 1;
 						}
@@ -84,7 +90,6 @@ impl Drop for SlabAllocator {
 					unmap(*self.data.add(i) as *mut u8, 1);
 					i += 1;
 				}
-
 				unmap(self.data as *mut u8, 1);
 			}
 		}
@@ -216,7 +221,7 @@ impl SlabAllocator {
 				lock.unlock();
 				let _lock = self.lock.write();
 				if (*(*(*self.data.add(i)).add(j)).add(k)).is_null() {
-					*(*(*self.data.add(i)).add(j)).add(k) = map(1);
+					*(*(*self.data.add(i)).add(j)).add(k) = map(1) as *mut u8;
 					if (*(*(*self.data.add(i)).add(j)).add(k)).is_null() {
 						return Err(err!(Alloc));
 					}
@@ -241,7 +246,7 @@ mod test {
 	use core::slice::from_raw_parts_mut;
 
 	#[test]
-	fn test_slab() {
+	fn test_slab1() {
 		let _start = getmicros!();
 		let mut sa1 = SlabAllocator::new(128, 128, 256, 1).unwrap();
 		let mut slab1 = sa1.alloc().unwrap();
