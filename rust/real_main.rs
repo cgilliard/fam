@@ -1,10 +1,35 @@
 use crate::sys::write;
+use box_dyn;
 use exit;
+use std::boxed::Box;
+use std::result::Result::{Err, Ok};
 use sys::cstring_len;
 use vec;
 
+trait GetData {
+	fn get_data(&self) -> i32;
+}
+
+struct TestSample {
+	data: i32,
+}
+
+impl GetData for TestSample {
+	fn get_data(&self) -> i32 {
+		self.data
+	}
+}
+
 #[no_mangle]
 pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
+	// create a dynamic dispatch to trait GetData
+	let v: Box<dyn GetData> = match box_dyn!(TestSample { data: 2 }, GetData) {
+		Ok(v) => v,
+		Err(_e) => exit!("box_dyn failed!"),
+	};
+
+	let _v = v.get_data();
+
 	let mut v = vec![1, 2, 3].unwrap();
 	v[0] = 1;
 	let mut print_len = 10;

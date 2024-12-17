@@ -87,44 +87,67 @@ fn get_slab_allocator(size: usize) -> Option<&'static mut SlabAllocator> {
 				sa = SLAB_4064.as_mut();
 			}
 		}
-
 		sa
 	}
 }
 
+pub enum BoxInner<T: ?Sized> {
+	Slab { value: *mut T, slab: Slab },
+	Mapped { value: *mut T, pages: usize },
+}
+
+impl<T> Clone for BoxInner<T>
+where
+	T: ?Sized,
+{
+	fn clone(&self) -> Result<Self, Error> {
+		match self {
+			BoxInner::Slab { value, slab } => match slab.clone() {
+				Ok(slab) => Ok(BoxInner::Slab {
+					value: *value as *mut T,
+					slab,
+				}),
+				Err(e) => Err(e),
+			},
+			BoxInner::Mapped { value, pages } => Ok(BoxInner::Mapped {
+				value: *value as *mut T,
+				pages: *pages,
+			}),
+		}
+	}
+}
+
 pub struct Box<T: ?Sized> {
-	pub value: *mut T,
-	pub pages: usize,
+	pub inner: BoxInner<T>,
 	pub leak: bool,
-	pub slab: Option<Slab>,
 }
 
 impl<T: ?Sized> Drop for Box<T> {
 	fn drop(&mut self) {
 		if !self.leak {
-			let pages = self.pages;
-
-			unsafe {
-				ptr::drop_in_place(self.value);
-				match self.slab {
-					Some(mut slab) => match get_slab_allocator(slab.len()) {
-						Some(sa) => {
-							sa.free(&mut slab);
-						}
+			match self.inner {
+				BoxInner::Slab { value, mut slab } => unsafe {
+					ptr::drop_in_place(value);
+					match get_slab_allocator(slab.len()) {
+						Some(sa) => sa.free(&mut slab),
 						_ => {}
-					},
-					None => unmap(self.value as *mut u8, pages),
-				}
+					}
+				},
+				BoxInner::Mapped { value, pages } => unsafe {
+					unmap(value as *mut u8, pages);
+				},
 			}
 		}
 	}
 }
 
-impl<T: Clone> Clone for Box<T> {
+impl<T> Clone for Box<T> {
 	fn clone(&self) -> Result<Self, Error> {
-		let value = self.as_ref();
-		match value.clone() {
-			Ok(v) => Box::new(v),
+		match self.inner.clone() {
+			Ok(inner) => Ok(Box {
+				inner,
+				leak: self.leak,
+			}),
 			Err(e) => Err(e),
 		}
 	}
@@ -137,7 +160,12 @@ where
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target {
-		unsafe { &*self.value }
+		unsafe {
+			match self.inner {
+				BoxInner::Slab { value, slab: _ } => &*value,
+				BoxInner::Mapped { value, pages: _ } => &*value,
+			}
+		}
 	}
 }
 
@@ -147,23 +175,18 @@ impl<T> Box<T> {
 		let pages = pages!(size);
 		let sa = get_slab_allocator(size);
 
-		let leak = false;
-		let value;
-
 		match sa {
 			Some(sa) => {
 				match sa.alloc() {
 					Ok(slab) => {
-						value = slab.get_raw() as *mut T;
+						let value = slab.get_raw() as *mut T;
 
 						unsafe {
 							ptr::write(value, t);
 						}
 						return Ok(Self {
-							value,
-							pages,
-							leak,
-							slab: Some(slab),
+							inner: BoxInner::Slab { value, slab },
+							leak: false,
 						});
 					}
 					Err(_e) => {
@@ -173,28 +196,37 @@ impl<T> Box<T> {
 			}
 			None => {}
 		}
+
 		unsafe {
-			value = map(pages) as *mut T;
+			let value = map(pages) as *mut T;
 			if value.is_null() {
 				return Err(err!(Alloc));
 			}
 			ptr::write(value, t);
+
+			Ok(Self {
+				inner: BoxInner::Mapped { value, pages },
+				leak: false,
+			})
 		}
-
-		Ok(Self {
-			value,
-			pages,
-			leak,
-			slab: None,
-		})
 	}
 
-	pub fn value(&self) -> *mut T {
-		self.value
+	pub fn get_inner(&self) -> &BoxInner<T> {
+		&self.inner
 	}
 
-	pub fn pages(&self) -> usize {
-		self.pages
+	pub fn set_inner(&mut self, inner: &BoxInner<T>) -> Result<(), Error> {
+		match inner.clone() {
+			Ok(inner) => {
+				self.inner = inner;
+				Ok(())
+			}
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn get_leak(&self) -> bool {
+		self.leak
 	}
 
 	pub unsafe fn leak(&mut self) {
@@ -202,27 +234,36 @@ impl<T> Box<T> {
 	}
 
 	pub fn as_ref(&self) -> &T {
-		unsafe { &*self.value }
+		match self.inner {
+			BoxInner::Slab { value, slab: _ } => unsafe { &*value },
+			BoxInner::Mapped { value, pages: _ } => unsafe { &*value },
+		}
 	}
 
 	pub fn as_mut(&mut self) -> &mut T {
-		unsafe { &mut *self.value }
+		match self.inner {
+			BoxInner::Slab { value, slab: _ } => unsafe { &mut *value },
+			BoxInner::Mapped { value, pages: _ } => unsafe { &mut *value },
+		}
 	}
 }
 
 #[macro_export]
 macro_rules! box_dyn {
 	($type:expr, $trait:ident) => {{
+		use std::boxed::{Box, BoxInner};
+		use std::result::Result::Ok;
 		match Box::new($type) {
 			Ok(mut boxv) => {
 				unsafe {
 					boxv.leak();
 				}
 				let boxv_dyn: Box<dyn $trait> = Box {
-					value: boxv.value(),
-					pages: boxv.pages(),
-					leak: false,
-					slab: boxv.slab.clone().unwrap(),
+					inner: match boxv.inner {
+						BoxInner::Slab { value, slab } => BoxInner::Slab { value, slab },
+						BoxInner::Mapped { value, pages } => BoxInner::Mapped { value, pages },
+					},
+					leak: boxv.leak,
 				};
 				Ok(boxv_dyn)
 			}
@@ -234,6 +275,7 @@ macro_rules! box_dyn {
 #[cfg(test)]
 mod test {
 	use std::boxed::Box;
+	use std::boxed::BoxInner;
 	use std::clone::Clone;
 	use std::result::{Result::Err, Result::Ok};
 
@@ -273,10 +315,11 @@ mod test {
 			sample.leak();
 		}
 		let sample_b: Box<dyn GetData> = Box {
-			value: sample.value,
-			pages: sample.pages,
+			inner: match sample.inner {
+				BoxInner::Slab { value, slab } => BoxInner::Slab { value, slab },
+				BoxInner::Mapped { value, pages } => BoxInner::Mapped { value, pages },
+			},
 			leak: false,
-			slab: sample.slab.clone().unwrap(),
 		};
 
 		assert_eq!(sample_b.get_data(), 1);
