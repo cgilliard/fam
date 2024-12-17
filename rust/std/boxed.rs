@@ -263,7 +263,7 @@ macro_rules! box_dyn {
 						BoxInner::Slab { value, slab } => BoxInner::Slab { value, slab },
 						BoxInner::Mapped { value, pages } => BoxInner::Mapped { value, pages },
 					},
-					leak: boxv.leak,
+					leak: false,
 				};
 				Ok(boxv_dyn)
 			}
