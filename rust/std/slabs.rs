@@ -1,3 +1,5 @@
+use core::marker::Send;
+use core::marker::Sync;
 use core::mem::size_of;
 use core::ops::Drop;
 use core::ptr;
@@ -5,9 +7,10 @@ use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use err;
 use std::bitmap::BitMap;
+use std::clone::Clone;
 use std::error::{
 	Error,
-	ErrorKind::{Alloc, CapacityExceeded},
+	ErrorKind::{Alloc, CapacityExceeded, IllegalArgument},
 };
 use std::lock::Lock;
 use std::result::{Result, Result::Err, Result::Ok};
@@ -50,6 +53,9 @@ pub struct SlabAllocator {
 	total_slabs: u64,
 }
 
+unsafe impl Send for SlabAllocator {}
+unsafe impl Sync for SlabAllocator {}
+
 #[derive(Copy, Clone)]
 pub struct Slab {
 	data: *mut u8,
@@ -65,6 +71,17 @@ const RESERVED: Slab = Slab {
 	len: 0,
 };
 const RESERVED_PTR: *const Slab = &RESERVED;
+
+impl Clone for Slab {
+	fn clone(&self) -> Result<Self, Error> {
+		Ok(Self {
+			data: self.data,
+			next: self.next,
+			id: self.id,
+			len: self.len,
+		})
+	}
+}
 
 impl Slab {
 	pub fn new(ptr: *mut Slab, len: usize, id: usize) -> Self {
@@ -88,6 +105,27 @@ impl Slab {
 
 	pub fn get_mut(&mut self) -> &mut [u8] {
 		unsafe { from_raw_parts_mut(self.data, self.len) }
+	}
+
+	pub fn get_raw(&self) -> *mut u8 {
+		self.data
+	}
+
+	pub fn get_id(&self) -> usize {
+		self.id
+	}
+
+	pub fn len(&self) -> usize {
+		self.len
+	}
+
+	pub fn from_raw(data: *mut u8, id: usize) -> Self {
+		Self {
+			data,
+			id,
+			next: RESERVED_PTR as *mut Slab,
+			len: 0,
+		}
 	}
 }
 
@@ -128,12 +166,18 @@ impl SlabAllocator {
 		max_total_slabs: u64,
 		bitmap_pages: usize,
 	) -> Result<Self, Error> {
+		let slab_struct_size = slab_size + size_of::<Slab>();
+
+		if slab_struct_size > page_size!()
+			|| (slab_struct_size != 0 && page_size!() % slab_struct_size != 0)
+		{
+			return Err(err!(IllegalArgument));
+		}
+
 		let bitmap = match BitMap::new(bitmap_pages) {
 			Ok(bitmap) => bitmap,
 			Err(e) => return Err(e),
 		};
-
-		let slab_struct_size = slab_size + size_of::<Slab>();
 
 		let mut ret = Self {
 			data: null_mut(),

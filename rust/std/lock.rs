@@ -5,7 +5,7 @@ use core::ops::Drop;
 const WFLAG: u64 = 0x1u64 << 63u64;
 
 pub struct Lock {
-	state: UnsafeCell<u64>,
+	pub(crate) state: UnsafeCell<u64>,
 }
 
 pub struct LockReadGuard<'a> {
