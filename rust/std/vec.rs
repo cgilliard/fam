@@ -1,4 +1,5 @@
 use crate::*;
+use core::cmp::PartialEq;
 use core::iter::{IntoIterator, Iterator};
 use core::marker::PhantomData;
 use core::mem::{replace, size_of, zeroed};
@@ -7,12 +8,27 @@ use core::ptr::copy_nonoverlapping;
 use core::slice::from_raw_parts;
 
 // TODO: PartialEq should be implemented differently item by item comparison
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct Vec<T> {
 	value: Box<[u8]>,
 	capacity: usize,
 	elements: usize,
 	_marker: PhantomData<T>,
+}
+
+impl<T: PartialEq> PartialEq for Vec<T> {
+	fn eq(&self, other: &Vec<T>) -> bool {
+		if self.len() != other.len() {
+			false
+		} else {
+			for i in 0..self.len() {
+				if self[i] != other[i] {
+					return false;
+				}
+			}
+			true
+		}
+	}
 }
 
 #[macro_export]
@@ -246,8 +262,8 @@ impl<T> Vec<T> {
 			}
 		}
 
+		let dest_ptr = self.value.as_mut_ptr() as *mut u8;
 		unsafe {
-			let dest_ptr = self.value.as_mut_ptr() as *mut u8;
 			let dest_ptr = dest_ptr.add(size * len) as *mut u8;
 			copy_nonoverlapping(v.value.as_ptr() as *mut u8, dest_ptr, size * len);
 		}
@@ -255,62 +271,6 @@ impl<T> Vec<T> {
 		self.elements += len;
 		Ok(())
 	}
-
-	/*
-	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
-		let size = size_of::<T>();
-		let len = v.len();
-		let needed = size * (self.elements + len);
-		if needed < self.svo.len() {
-			unsafe {
-				let dest_ptr = self.svo.as_mut_ptr().add(self.elements * size);
-				copy_nonoverlapping(v.ptr, dest_ptr, size * len);
-			}
-		} else {
-			let copy_svo = self.capacity == 0 && self.elements != 0;
-			if needed > self.capacity * page_size!() {
-				if !self.resize_impl(needed) {
-					return Err(err!(Alloc));
-				}
-			}
-			if copy_svo {
-				unsafe {
-					copy_nonoverlapping(&self.svo as *const u8, self.ptr, self.elements * size);
-				}
-			}
-
-			unsafe {
-				let dest_ptr = self.ptr.add(self.elements * size);
-				copy_nonoverlapping(v.ptr, dest_ptr, size * len);
-			}
-		}
-
-		self.elements += len;
-		Ok(())
-	}
-
-	pub fn resize(&mut self, n: usize) -> Result<(), Error> {
-		let size = size_of::<T>();
-		let needed = size * n;
-		if needed > self.svo.len() {
-			if !self.resize_impl(needed) {
-				Err(err!(Alloc))
-			} else {
-				self.elements = n;
-				Ok(())
-			}
-		} else {
-			if self.capacity > 0 {
-				unsafe {
-					unmap(self.ptr, self.capacity);
-				}
-			}
-			self.elements = n;
-			self.capacity = 0;
-			Ok(())
-		}
-	}
-		*/
 }
 
 #[cfg(test)]
@@ -346,6 +306,8 @@ mod test {
 		let v2 = vec![4, 5, 6].unwrap();
 		v1.append(&v2);
 
-		assert_eq!(v1.len(), vec![1, 2, 3, 4, 5, 6].unwrap().len());
+		assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
+		assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
+		assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
 	}
 }

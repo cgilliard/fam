@@ -1,5 +1,4 @@
 use crate::*;
-use core::mem::{drop, replace, zeroed};
 use core::ops::{Deref, DerefMut, Drop};
 
 struct RcInner<T> {
@@ -23,12 +22,21 @@ impl<T> Clone for Rc<T> {
 		}
 	}
 }
+
+use core::mem::{drop, replace, zeroed};
 impl<T> Drop for Rc<T> {
 	fn drop(&mut self) {
 		let rci = self.inner.as_mut();
-		if asub!(&mut rci.count, 1) == 1 {
+		let count = asub!(&mut rci.count, 1);
+		if count == 1 {
 			let value = replace(&mut rci.value, unsafe { zeroed() });
 			drop(value);
+		}
+
+		if count == 1 {
+			unsafe {
+				self.inner.unleak();
+			}
 		}
 	}
 }
@@ -49,7 +57,12 @@ impl<T> DerefMut for RcInner<T> {
 impl<T> Rc<T> {
 	pub fn new(value: T) -> Result<Self, Error> {
 		match Box::new(RcInner { value, count: 1 }) {
-			Ok(inner) => Ok(Self { inner }),
+			Ok(mut inner) => {
+				unsafe {
+					inner.leak();
+				}
+				Ok(Self { inner })
+			}
 			Err(e) => Err(e),
 		}
 	}
@@ -73,11 +86,12 @@ impl<T> Rc<T> {
 
 #[cfg(test)]
 mod test {
+	#![allow(static_mut_refs)]
 	use super::*;
 	use std::string::String;
 
 	#[test]
-	fn test_rc() {
+	fn test_rc1() {
 		let mut x1 = Rc::new(1).unwrap();
 		assert!(x1.get_mut().is_some());
 		let mut x2 = x1.clone().unwrap();
@@ -99,5 +113,32 @@ mod test {
 		assert_eq!(y1.get().len(), 58);
 		assert_eq!(y2.get().len(), 58);
 		assert_eq!(y3.get().len(), 58);
+	}
+
+	static mut VTEST: usize = 0;
+
+	struct MyType {
+		v: usize,
+	}
+
+	impl Drop for MyType {
+		fn drop(&mut self) {
+			unsafe {
+				VTEST += 1;
+			}
+		}
+	}
+
+	#[test]
+	fn test_rc2() {
+		{
+			let x = Rc::new(MyType { v: 1 }).unwrap();
+			assert_eq!(x.get().v, 1);
+			let _y = x.clone();
+			let _z = MyType { v: 2 };
+		}
+		unsafe {
+			assert_eq!(VTEST, 2);
+		}
 	}
 }

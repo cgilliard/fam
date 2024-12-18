@@ -225,7 +225,7 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
-impl<T> Clone for Box<T> {
+impl<T: ?Sized> Clone for Box<T> {
 	fn clone(&self) -> Result<Self, Error> {
 		Ok(Self {
 			ptr: self.ptr,
@@ -257,6 +257,10 @@ where
 {
 	pub unsafe fn from_raw(ptr: *mut T, metadata: u64) -> Box<T> {
 		Box { ptr, metadata }
+	}
+
+	pub unsafe fn unleak(&mut self) {
+		self.metadata &= !METADATA_LEAK_FLAG;
 	}
 
 	pub unsafe fn leak(&mut self) {
@@ -332,32 +336,6 @@ impl<T> Box<T> {
 			Ok(Self { ptr, metadata })
 		}
 	}
-
-	/*
-	pub unsafe fn leak(&mut self) {
-		self.metadata |= METADATA_LEAK_FLAG;
-	}
-
-	pub fn metadata(&self) -> u64 {
-		self.metadata
-	}
-
-	pub fn as_ref(&self) -> &T {
-		unsafe { &*self.ptr }
-	}
-
-	pub fn as_mut(&mut self) -> &mut T {
-		unsafe { &mut *self.ptr }
-	}
-
-	pub fn as_ptr(&self) -> *const T {
-		self.ptr
-	}
-
-	pub fn as_mut_ptr(&mut self) -> *mut T {
-		self.ptr
-	}
-		*/
 }
 
 impl Box<[u8]> {
