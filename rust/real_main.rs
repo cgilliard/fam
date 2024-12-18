@@ -1,10 +1,10 @@
 use crate::sys::write;
-use exit;
+use crate::*;
 use sys::cstring_len;
-use vec;
 
 #[no_mangle]
 pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
+	let _micros = getmicros!();
 	let mut v = vec![1, 2, 3].unwrap();
 	v[0] = 1;
 	let mut print_len = 10;
