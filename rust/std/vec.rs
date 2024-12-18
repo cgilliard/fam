@@ -1,56 +1,39 @@
+use crate::*;
 use core::iter::{IntoIterator, Iterator};
 use core::marker::PhantomData;
 use core::mem::{replace, size_of, zeroed};
-use core::ops::Drop;
-use core::ops::{Index, IndexMut};
-use core::option::{Option, Option::None, Option::Some};
-use core::ptr::{copy_nonoverlapping, null_mut};
-use err;
-use std::error::{Error, ErrorKind::Alloc};
-use std::result::{Result, Result::Err, Result::Ok};
-use sys::{map, unmap};
+use core::ops::{Index, IndexMut, Range};
+use core::ptr::copy_nonoverlapping;
+use core::slice::from_raw_parts;
 
+// TODO: PartialEq should be implemented differently item by item comparison
+#[derive(PartialEq, Debug)]
 pub struct Vec<T> {
-	ptr: *mut u8,
+	value: Box<[u8]>,
 	capacity: usize,
 	elements: usize,
-	_phantom_data: PhantomData<T>,
-	svo: [u8; 40],
+	_marker: PhantomData<T>,
 }
 
 #[macro_export]
 macro_rules! vec {
-        ($($elem:expr),*) => {{
-                use std::vec::Vec;
-                use std::result::Result::{Err,Ok};
-                use std::error::{ErrorKind::NoError, Error};
-                use err;
-                let mut vec = Vec::new();
-                let mut err = err!(NoError);
-                $(
-                    if err.kind == NoError {
-                        match vec.push($elem) {
-                            Ok(_) => {},
-                            Err(e) => err = e,
-                        }
-                    }
-                )*
-                if(err.kind != NoError) {
-                    Err(err)
-                } else {
-                    Ok(vec)
-                }
-        }};
-}
-
-impl<T> Drop for Vec<T> {
-	fn drop(&mut self) {
-		if self.capacity > 0 {
-			unsafe {
-				unmap(self.ptr, self.capacity);
-			}
-		}
-	}
+		($($elem:expr),*) => {{
+				let mut vec = Vec::new();
+				let mut err = err!(NoError);
+				$(
+					if err.kind == NoError {
+						match vec.push($elem) {
+							Ok(_) => {},
+							Err(e) => err = e,
+						}
+					}
+				)*
+				if(err.kind != NoError) {
+					Err(err)
+				} else {
+					Ok(vec)
+				}
+		}};
 }
 
 pub struct VecIterator<T> {
@@ -58,23 +41,21 @@ pub struct VecIterator<T> {
 	index: usize,
 }
 
+use core::option::Option as CoreOption;
+
 impl<T> Iterator for VecIterator<T> {
 	type Item = T;
 
-	fn next(&mut self) -> Option<Self::Item> {
+	fn next(&mut self) -> CoreOption<Self::Item> {
 		let size = size_of::<T>();
 		if self.index < self.vec.elements {
-			let element = if self.vec.capacity == 0 {
-				let ptr = unsafe { self.vec.svo.as_ptr().add(self.index * size) as *mut T };
-				unsafe { replace(&mut *ptr, zeroed()) }
-			} else {
-				let ptr = unsafe { self.vec.ptr.add(self.index * size) as *mut T };
-				unsafe { replace(&mut *ptr, zeroed()) }
-			};
+			let ptr = self.vec.value.as_ptr() as *const u8;
+			let ptr = unsafe { ptr.add(self.index * size) as *mut T };
+			let element = unsafe { replace(&mut *ptr, zeroed()) };
 			self.index += 1;
-			Some(element)
+			CoreOption::Some(element)
 		} else {
-			None
+			CoreOption::None
 		}
 	}
 }
@@ -100,11 +81,8 @@ impl<T> Index<usize> for Vec<T> {
 		}
 
 		unsafe {
-			let target = if self.capacity != 0 {
-				self.ptr.add(index * size_of::<T>())
-			} else {
-				self.svo.as_ptr().add(index * size_of::<T>())
-			};
+			let target = self.value.as_ptr() as *const T;
+			let target = target.add(index);
 			&*(target as *const T)
 		}
 	}
@@ -117,12 +95,27 @@ impl<T> IndexMut<usize> for Vec<T> {
 		}
 
 		unsafe {
-			let target = if self.capacity != 0 {
-				self.ptr.add(index * size_of::<T>())
-			} else {
-				self.svo.as_mut_ptr().add(index * size_of::<T>())
-			};
+			let target = self.value.as_mut_ptr() as *mut T;
+			let target = target.add(index);
 			&mut *(target as *mut T)
+		}
+	}
+}
+
+impl<T> Index<Range<usize>> for Vec<T> {
+	type Output = [T];
+
+	fn index(&self, range: Range<usize>) -> &Self::Output {
+		if range.start > range.end || range.end > self.elements {
+			panic!("Index out of bounds");
+		}
+
+		let element_size = core::mem::size_of::<T>();
+		let start_offset = range.start * element_size;
+
+		unsafe {
+			let ptr = (self.value.as_ptr() as *mut T).add(start_offset) as *const T;
+			from_raw_parts(ptr, range.end - range.start)
 		}
 	}
 }
@@ -130,45 +123,140 @@ impl<T> IndexMut<usize> for Vec<T> {
 impl<T> Vec<T> {
 	pub fn new() -> Self {
 		Self {
-			ptr: null_mut(),
+			value: Box::new([]).unwrap(),
 			capacity: 0,
 			elements: 0,
-			_phantom_data: PhantomData,
-			svo: [0u8; 40],
+			_marker: PhantomData,
 		}
 	}
 
 	pub fn push(&mut self, v: T) -> Result<(), Error> {
 		let size = size_of::<T>();
 		let needed = size * (self.elements + 1);
-		if needed < self.svo.len() {
-			unsafe {
-				let dest_ptr = self.svo.as_mut_ptr().add(self.elements * size);
-				copy_nonoverlapping(&v as *const T as *const u8, dest_ptr, size);
-			}
-		} else {
-			let copy_svo = self.capacity == 0 && self.elements != 0;
-			if needed > self.capacity * page_size!() {
-				if !self.resize_impl(needed) {
-					return Err(err!(Alloc));
-				}
-			}
-			if copy_svo {
-				unsafe {
-					copy_nonoverlapping(&self.svo as *const u8, self.ptr, self.elements * size);
-				}
-			}
-
-			unsafe {
-				let dest_ptr = self.ptr.add(self.elements * size);
-				copy_nonoverlapping(&v as *const T as *const u8, dest_ptr, size);
+		if needed > self.capacity {
+			if !self.resize_impl(needed) {
+				return Err(err!(Alloc));
 			}
 		}
-
+		let elem = self.elements;
 		self.elements += 1;
+		self[elem] = v;
 		Ok(())
 	}
 
+	fn copy_box(&mut self, needed: usize, mut newbox: Box<[u8]>) {
+		let copy_size = if self.capacity > needed {
+			needed
+		} else {
+			self.capacity
+		};
+		if copy_size > 0 {
+			unsafe {
+				copy_nonoverlapping(
+					self.value.as_ptr() as *const u8,
+					newbox.as_mut_ptr() as *mut u8,
+					copy_size,
+				);
+			}
+		}
+		self.value = newbox;
+	}
+
+	fn resize_impl(&mut self, needed: usize) -> bool {
+		// use slab sizes for resize boundaries
+		if needed > 4064 {
+			let npages = 1 + pages!(needed);
+			match Box::new_zeroed_byte_slice(npages * page_size!()) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = npages * page_size!();
+		} else if needed > 2016 {
+			match Box::new([0u8; 4064]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 4064;
+		} else if needed > 992 {
+			match Box::new([0u8; 2016]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 2016;
+		} else if needed > 480 {
+			match Box::new([0u8; 992]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 992;
+		} else if needed > 224 {
+			match Box::new([0u8; 480]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 480;
+		} else if needed > 96 {
+			match Box::new([0u8; 224]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 224;
+		} else if needed > 32 {
+			match Box::new([0u8; 96]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 96;
+		} else {
+			match Box::new([0u8; 32]) {
+				Ok(newbox) => self.copy_box(needed, newbox),
+				Err(_) => return false,
+			}
+			self.capacity = 32;
+		};
+		return true;
+	}
+
+	pub fn len(&self) -> usize {
+		self.elements
+	}
+
+	pub fn clear(&mut self) {
+		self.elements = 0;
+	}
+
+	pub fn resize(&mut self, n: usize) -> Result<(), Error> {
+		let size = size_of::<T>();
+		let needed = size * n;
+		if !self.resize_impl(needed) {
+			Err(err!(Alloc))
+		} else {
+			self.elements = n;
+			Ok(())
+		}
+	}
+
+	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
+		let size = size_of::<T>();
+		let len = v.len();
+		let needed = size * (self.elements + len);
+		if needed > self.capacity {
+			if !self.resize_impl(needed) {
+				return Err(err!(Alloc));
+			}
+		}
+
+		unsafe {
+			let dest_ptr = self.value.as_mut_ptr() as *mut u8;
+			let dest_ptr = dest_ptr.add(size * len) as *mut u8;
+			copy_nonoverlapping(v.value.as_ptr() as *mut u8, dest_ptr, size * len);
+		}
+
+		self.elements += len;
+		Ok(())
+	}
+
+	/*
 	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
 		let size = size_of::<T>();
 		let len = v.len();
@@ -222,35 +310,7 @@ impl<T> Vec<T> {
 			Ok(())
 		}
 	}
-
-	pub fn len(&self) -> usize {
-		self.elements
-	}
-
-	pub fn clear(&mut self) {
-		self.elements = 0;
-	}
-
-	fn resize_impl(&mut self, needed: usize) -> bool {
-		let pages = pages!(needed);
-		let tmp = unsafe { map(pages) };
-		if tmp.is_null() {
-			false
-		} else {
-			let size = pages * page_size!();
-			let cur = self.capacity * page_size!();
-
-			unsafe {
-				let n = if size > cur { cur } else { size };
-				if n > 0 {
-					copy_nonoverlapping(tmp, self.ptr, n);
-				}
-			}
-			self.ptr = tmp;
-			self.capacity = pages;
-			true
-		}
-	}
+		*/
 }
 
 #[cfg(test)]
@@ -278,5 +338,14 @@ mod test {
 			assert_eq!(x, count);
 		}
 		assert_eq!(count, 3);
+	}
+
+	#[test]
+	fn test_vec_append() {
+		let mut v1 = vec![1, 2, 3].unwrap();
+		let v2 = vec![4, 5, 6].unwrap();
+		v1.append(&v2);
+
+		assert_eq!(v1.len(), vec![1, 2, 3, 4, 5, 6].unwrap().len());
 	}
 }

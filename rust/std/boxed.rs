@@ -4,6 +4,8 @@ use core::marker::{Sized, Unsize};
 use core::mem::size_of;
 use core::ops::{CoerceUnsized, Deref, DerefMut, Drop};
 use core::ptr;
+use core::ptr::null_mut;
+use core::slice::from_raw_parts_mut;
 use std::lock::Lock;
 use std::slabs::Slab;
 use std::slabs::SlabAllocator;
@@ -191,6 +193,7 @@ fn metadata_pages(metadata: u64) -> usize {
 	metadata as usize & 0xFFFFFFFFFFFFusize
 }
 
+#[derive(PartialEq, Debug)]
 pub struct Box<T: ?Sized> {
 	ptr: *mut T,
 	metadata: u64,
@@ -201,7 +204,9 @@ impl<T: ?Sized> Drop for Box<T> {
 		if !metadata_leak(self.metadata) {
 			match metadata_type(self.metadata) {
 				MetaDataType::Mapped => unsafe {
-					unmap(self.ptr as *mut u8, metadata_pages(self.metadata));
+					if !self.ptr.is_null() {
+						unmap(self.ptr as *mut u8, metadata_pages(self.metadata));
+					}
 				},
 				MetaDataType::Slab => {
 					match metadata_slab_allocator(self.metadata) {
@@ -253,6 +258,30 @@ where
 	pub unsafe fn from_raw(ptr: *mut T, metadata: u64) -> Box<T> {
 		Box { ptr, metadata }
 	}
+
+	pub unsafe fn leak(&mut self) {
+		self.metadata |= METADATA_LEAK_FLAG;
+	}
+
+	pub fn metadata(&self) -> u64 {
+		self.metadata
+	}
+
+	pub fn as_ref(&self) -> &T {
+		unsafe { &*self.ptr }
+	}
+
+	pub fn as_mut(&mut self) -> &mut T {
+		unsafe { &mut *self.ptr }
+	}
+
+	pub fn as_ptr(&self) -> *const T {
+		self.ptr
+	}
+
+	pub fn as_mut_ptr(&mut self) -> *mut T {
+		self.ptr
+	}
 }
 
 impl<T, U> CoerceUnsized<Box<U>> for Box<T>
@@ -265,6 +294,14 @@ where
 impl<T> Box<T> {
 	pub fn new(t: T) -> Result<Self, Error> {
 		let size = size_of::<T>();
+		if size == 0 {
+			let metadata = 0 as u64 | METADATA_TYPE_FLAG;
+			return Ok(Self {
+				ptr: null_mut(),
+				metadata,
+			});
+		}
+
 		match get_slab_allocator(size) {
 			Some(sa) => {
 				match sa.alloc() {
@@ -296,6 +333,7 @@ impl<T> Box<T> {
 		}
 	}
 
+	/*
 	pub unsafe fn leak(&mut self) {
 		self.metadata |= METADATA_LEAK_FLAG;
 	}
@@ -318,6 +356,45 @@ impl<T> Box<T> {
 
 	pub fn as_mut_ptr(&mut self) -> *mut T {
 		self.ptr
+	}
+		*/
+}
+
+impl Box<[u8]> {
+	pub fn new_zeroed_byte_slice(len: usize) -> Result<Box<[u8]>, Error> {
+		if len == 0 {
+			// SAFETY: unwrap ok because zero sized does not allocate memory
+			return Ok(Box::new([]).unwrap());
+		}
+		match get_slab_allocator(len) {
+			Some(sa) => {
+				match sa.alloc() {
+					Ok(slab) => {
+						let ptr = slab.get_raw() as *mut u8;
+						let metadata = slab.get_id() as u64 | metadata_flags_for(len);
+
+						let slice =
+							unsafe { Box::from_raw(from_raw_parts_mut(ptr, len), metadata) };
+
+						return Ok(slice);
+					}
+					Err(_) => {} // continue to try to map
+				}
+			}
+			None => {}
+		}
+
+		let pages = pages!(len);
+		let ptr = unsafe { map(pages) } as *mut u8;
+
+		if ptr.is_null() {
+			Err(err!(Alloc))
+		} else {
+			let metadata = pages as u64 | METADATA_TYPE_FLAG;
+
+			let slice = unsafe { Box::from_raw(from_raw_parts_mut(ptr, len), metadata) };
+			Ok(slice)
+		}
 	}
 }
 
@@ -415,6 +492,30 @@ mod test {
 		}
 		unsafe {
 			cleanup_slab_allocators();
+		}
+	}
+
+	#[test]
+	fn test_box4() {
+		let mut box1 = Box::new([9u8; 992]).unwrap();
+		for i in 0..992 {
+			assert_eq!(9u8, box1.as_ref()[i]);
+		}
+		let box1_mut = box1.as_mut();
+		for i in 0..992 {
+			box1_mut[i] = 8;
+		}
+		for i in 0..992 {
+			assert_eq!(8u8, box1.as_ref()[i]);
+		}
+
+		let mut box2 = Box::new_zeroed_byte_slice(20000).unwrap();
+		for i in 0..20000 {
+			box2.as_mut()[i] = 10;
+		}
+
+		for i in 0..20000 {
+			assert_eq!(box2.as_ref()[i], 10);
 		}
 	}
 }

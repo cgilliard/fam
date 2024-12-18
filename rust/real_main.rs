@@ -4,9 +4,10 @@ use sys::cstring_len;
 
 #[no_mangle]
 pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
+	let v: Vec<i32> = vec![1, 2, 3, 4, 5, 6].unwrap();
+	let _v2 = &v[0..3];
+
 	let _micros = getmicros!();
-	let mut v = vec![1, 2, 3].unwrap();
-	v[0] = 1;
 	let mut print_len = 10;
 	if argc > 0 {
 		unsafe {
