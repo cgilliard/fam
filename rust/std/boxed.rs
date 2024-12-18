@@ -385,6 +385,11 @@ mod test {
 	{
 		x: Box<dyn GetData>,
 		y: Box<CLOSURE>,
+		z: Box<[u8]>,
+	}
+
+	struct BoxTest2<T> {
+		v: Box<[T]>,
 	}
 
 	#[test]
@@ -393,10 +398,16 @@ mod test {
 			let x = BoxTest {
 				x: Box::new(TestSample { data: 8 }).unwrap(),
 				y: Box::new(|x| x + 4).unwrap(),
+				z: Box::new([3u8; 32]).unwrap(),
 			};
 
 			assert_eq!(x.x.get_data(), 8);
 			assert_eq!((x.y)(14), 18);
+			assert_eq!(x.z[5], 3u8);
+
+			let y = BoxTest2 {
+				v: Box::new([0u64; 40]).unwrap(),
+			};
 		}
 		unsafe {
 			cleanup_slab_allocators();
