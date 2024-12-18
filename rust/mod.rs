@@ -1,4 +1,6 @@
 #![allow(internal_features)]
+#![feature(ptr_metadata)]
+#![feature(unsize)]
 #![feature(core_intrinsics)]
 #![feature(coerce_unsized)]
 #![no_std]

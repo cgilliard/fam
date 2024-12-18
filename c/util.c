@@ -2,6 +2,8 @@ typedef long long i64;
 typedef unsigned long long u64;
 typedef unsigned int u32;
 
+int printf(const char *, ...);
+
 u64 cstring_len(const char *X) {
 	const char *Y = X;
 	while (*X) X++;
@@ -19,12 +21,16 @@ u64 atomic_fetch_sub_u64(u64 *ptr, u64 value) {
 	return __atomic_fetch_sub(ptr, value, __ATOMIC_SEQ_CST);
 }
 
-int printf(const char *, ...);
 u64 cas_release(u64 *ptr, u64 *expect, u64 desired) {
-	/*printf("cas release: ptr=%p,expect=%p,desired=%llx\n", ptr, expect,
-	       desired);*/
 	u64 ret = __atomic_compare_exchange_n(
 	    ptr, expect, desired, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+
+	return ret;
+}
+
+u64 cas_seq(u64 *ptr, u64 *expect, u64 desired) {
+	u64 ret = __atomic_compare_exchange_n(
+	    ptr, expect, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED);
 
 	return ret;
 }

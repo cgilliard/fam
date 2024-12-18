@@ -60,6 +60,14 @@ macro_rules! cas {
 }
 
 #[macro_export]
+macro_rules! cas_seq {
+	($v:expr, $expect:expr, $desired:expr) => {{
+		use sys::cas_seq;
+		unsafe { cas_seq($v, $expect, $desired) }
+	}};
+}
+
+#[macro_export]
 macro_rules! sched_yield {
 	() => {{
 		use sys::sched_yield;

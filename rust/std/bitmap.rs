@@ -1,5 +1,4 @@
 use core::mem::size_of;
-use core::ops::Drop;
 use err;
 use std::blob::Blob;
 use std::error::Error;
@@ -20,8 +19,23 @@ pub struct BitMap {
 	last_index: u64,
 }
 
-impl Drop for BitMap {
-	fn drop(&mut self) {
+impl BitMap {
+	pub fn new(pages: usize) -> Result<Self, Error> {
+		if pages == 0 {
+			Err(err!(IllegalArgument))
+		} else {
+			match Blob::new(pages) {
+				Ok(blob) => Ok(BitMap {
+					blob,
+					page_count: 0,
+					last_index: 0,
+				}),
+				Err(e) => Err(e),
+			}
+		}
+	}
+
+	pub fn cleanup(&mut self) {
 		let pages = self.blob.pages();
 		if pages == 0 {
 			return;
@@ -41,23 +55,6 @@ impl Drop for BitMap {
 			count += 1;
 			if count >= divide_usize(pages, size_of::<u64>()) {
 				break;
-			}
-		}
-	}
-}
-
-impl BitMap {
-	pub fn new(pages: usize) -> Result<Self, Error> {
-		if pages == 0 {
-			Err(err!(IllegalArgument))
-		} else {
-			match Blob::new(pages) {
-				Ok(blob) => Ok(BitMap {
-					blob,
-					page_count: 0,
-					last_index: 0,
-				}),
-				Err(e) => Err(e),
 			}
 		}
 	}
@@ -212,6 +209,9 @@ mod test {
 		assert_eq!(b2.allocate().unwrap(), 55);
 		assert_eq!(b2.allocate().unwrap(), 77);
 		assert_eq!(b2.allocate().unwrap(), 101);
+
+		b1.cleanup();
+		b2.cleanup();
 	}
 
 	#[test]
@@ -233,5 +233,7 @@ mod test {
 		for i in 0..50 {
 			assert_eq!(b1.allocate().unwrap(), i + 100);
 		}
+
+		b1.cleanup();
 	}
 }

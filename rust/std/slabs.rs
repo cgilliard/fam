@@ -1,7 +1,6 @@
 use core::marker::Send;
 use core::marker::Sync;
 use core::mem::size_of;
-use core::ops::Drop;
 use core::ptr;
 use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
@@ -120,42 +119,19 @@ impl Slab {
 	}
 
 	pub fn from_raw(data: *mut u8, id: usize) -> Self {
-		Self {
+		let mut ret = Self {
 			data,
 			id,
-			next: RESERVED_PTR as *mut Slab,
+			next: null_mut(),
 			len: 0,
-		}
-	}
-}
-
-impl Drop for SlabAllocator {
-	fn drop(&mut self) {
-		let page_size = page_size!();
-		unsafe {
-			if !self.data.is_null() {
-				let mut i = 0;
-				while i < (page_size / size_of::<*mut u8>()) && !(*self.data.add(i)).is_null() {
-					let mut j = 0;
-					while j < (page_size / size_of::<*mut u8>())
-						&& !(*(*self.data.add(i)).add(j)).is_null()
-					{
-						let mut k = 0;
-						while k < (page_size / size_of::<*mut u8>())
-							&& !(*(*(*self.data.add(i)).add(j)).add(k)).is_null()
-						{
-							unmap(*(*(*self.data.add(i)).add(j)).add(k), 1);
-							k += 1;
-						}
-						unmap(*(*self.data.add(i)).add(j) as *mut u8, 1);
-						j += 1;
-					}
-					unmap(*self.data.add(i) as *mut u8, 1);
-					i += 1;
-				}
-				unmap(self.data as *mut u8, 1);
-			}
-		}
+		};
+		let slab_next_ptr = &mut ret.next as *mut *mut Slab as *mut u64;
+		let reserved_ptr = RESERVED_PTR as *mut Slab;
+		astore!(
+			slab_next_ptr,
+			*(&reserved_ptr as *const *mut Slab as *const u64)
+		);
+		ret
 	}
 }
 
@@ -198,6 +174,35 @@ impl SlabAllocator {
 		};
 		ret.tail = ret.head;
 		Ok(ret)
+	}
+
+	pub fn cleanup(&mut self) {
+		let page_size = page_size!();
+		unsafe {
+			if !self.data.is_null() {
+				let mut i = 0;
+				while i < (page_size / size_of::<*mut u8>()) && !(*self.data.add(i)).is_null() {
+					let mut j = 0;
+					while j < (page_size / size_of::<*mut u8>())
+						&& !(*(*self.data.add(i)).add(j)).is_null()
+					{
+						let mut k = 0;
+						while k < (page_size / size_of::<*mut u8>())
+							&& !(*(*(*self.data.add(i)).add(j)).add(k)).is_null()
+						{
+							unmap(*(*(*self.data.add(i)).add(j)).add(k), 1);
+							k += 1;
+						}
+						unmap(*(*self.data.add(i)).add(j) as *mut u8, 1);
+						j += 1;
+					}
+					unmap(*self.data.add(i) as *mut u8, 1);
+					i += 1;
+				}
+				unmap(self.data as *mut u8, 1);
+			}
+		}
+		self.bitmap.cleanup();
 	}
 
 	pub fn free(&mut self, slab: &mut Slab) {
@@ -406,6 +411,8 @@ mod test {
 		for i in 0..128 {
 			assert_eq!(slab2.get()[i], (i + 1) as u8);
 		}
+
+		sa1.cleanup();
 	}
 
 	#[test]
@@ -457,6 +464,8 @@ mod test {
 
 		sa1.free(&mut slab13);
 		//sa1.free(&mut slab13);
+
+		sa1.cleanup();
 	}
 
 	const SIZE: usize = 32;
@@ -511,6 +520,7 @@ mod test {
 
 		assert_eq!(aload!(&sa1.total_slabs), (COUNT + 1) as u64);
 		assert_eq!(sa1.free_slabs, (COUNT + 1) as u64);
+		sa1.cleanup();
 
 		unsafe {
 			unmap(slabs_ptr, pages_needed);
@@ -574,5 +584,23 @@ mod test {
 		unsafe {
 			unmap(slabs_ptr, pages_needed);
 		}
+	}
+
+	#[test]
+	fn test_reconstruct() {
+		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
+		let slab1 = sa1.alloc().unwrap();
+		assert_eq!(slab1.id, 1);
+		let mut slab2 = Slab::from_raw(slab1.get_raw(), slab1.id);
+
+		assert_eq!(aload!(&sa1.total_slabs), 2);
+		assert_eq!(sa1.free_slabs, 1);
+
+		sa1.free(&mut slab2);
+
+		assert_eq!(aload!(&sa1.total_slabs), 2);
+		assert_eq!(sa1.free_slabs, 2);
+
+		sa1.cleanup();
 	}
 }

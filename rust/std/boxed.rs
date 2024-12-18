@@ -1,8 +1,7 @@
 use core::cell::UnsafeCell;
-use core::marker::Sized;
+use core::marker::{Sized, Unsize};
 use core::mem::size_of;
-use core::ops::Deref;
-use core::ops::Drop;
+use core::ops::{CoerceUnsized, Deref, Drop};
 use core::ptr;
 use err;
 use std::clone::Clone;
@@ -14,128 +13,212 @@ use std::slabs::Slab;
 use std::slabs::SlabAllocator;
 use sys::{map, unmap};
 
-static mut SLAB_32: Option<SlabAllocator> = None;
-static mut SLAB_96: Option<SlabAllocator> = None;
-static mut SLAB_224: Option<SlabAllocator> = None;
-static mut SLAB_480: Option<SlabAllocator> = None;
-static mut SLAB_992: Option<SlabAllocator> = None;
-static mut SLAB_2016: Option<SlabAllocator> = None;
-static mut SLAB_4064: Option<SlabAllocator> = None;
+struct SlabAllocators {
+	sa32: Option<SlabAllocator>,
+	sa96: Option<SlabAllocator>,
+	sa224: Option<SlabAllocator>,
+	sa480: Option<SlabAllocator>,
+	sa992: Option<SlabAllocator>,
+	sa2016: Option<SlabAllocator>,
+	sa4064: Option<SlabAllocator>,
+}
+
+static mut SLABS: SlabAllocators = SlabAllocators {
+	sa32: None,
+	sa96: None,
+	sa224: None,
+	sa480: None,
+	sa992: None,
+	sa2016: None,
+	sa4064: None,
+};
+
 static mut SLAB_INIT: Lock = Lock {
 	state: UnsafeCell::new(0),
 };
 
+macro_rules! init_lock {
+	($size:expr, $name:ident) => {{
+		let _ = SLAB_INIT.write();
+		if SLABS.$name.is_none() {
+			SLABS.$name = match SlabAllocator::new($size, 0xFFFFFFFF, 0xFFFFFFFF, 20) {
+				Ok(sa) => Some(sa),
+				_ => None,
+			};
+		}
+	}};
+}
+
+macro_rules! match_lock {
+	($size:expr, $name:ident, $r:expr) => {{
+		match SLABS.$name.as_mut() {
+			Some(_) => SLABS.$name.as_mut(),
+			None => {
+				$r.unlock();
+				init_lock!($size, $name);
+				SLABS.$name.as_mut()
+			}
+		}
+	}};
+}
+
+macro_rules! cleanup_sa {
+	($size:expr, $name:ident) => {{
+		match SLABS.$name.as_mut() {
+			Some(s) => {
+				s.cleanup();
+				SLABS.$name = None;
+			}
+			None => {}
+		}
+	}};
+}
+
+#[allow(static_mut_refs)]
+pub unsafe fn cleanup_slab_allocators() {
+	let _ = SLAB_INIT.write();
+	cleanup_sa!(32, sa32);
+	cleanup_sa!(96, sa96);
+	cleanup_sa!(224, sa224);
+	cleanup_sa!(480, sa480);
+	cleanup_sa!(992, sa992);
+	cleanup_sa!(2016, sa2016);
+	cleanup_sa!(4064, sa4064);
+}
+
 #[allow(static_mut_refs)]
 fn get_slab_allocator(size: usize) -> Option<&'static mut SlabAllocator> {
 	unsafe {
-		let mut sa: Option<&mut SlabAllocator> = None;
-		let mut lock = SLAB_INIT.read();
+		let mut r = SLAB_INIT.read();
 		if size <= 32 {
-			sa = SLAB_32.as_mut();
+			match_lock!(32, sa32, r)
 		} else if size <= 96 {
-			sa = SLAB_96.as_mut();
+			match_lock!(96, sa96, r)
 		} else if size <= 224 {
-			sa = SLAB_224.as_mut();
+			match_lock!(224, sa224, r)
 		} else if size <= 480 {
-			sa = SLAB_480.as_mut();
+			match_lock!(480, sa480, r)
 		} else if size <= 992 {
-			sa = SLAB_992.as_mut();
+			match_lock!(992, sa992, r)
 		} else if size <= 2016 {
-			sa = SLAB_2016.as_mut();
+			match_lock!(2016, sa2016, r)
 		} else if size <= 4064 {
-			sa = SLAB_4064.as_mut();
+			match_lock!(4064, sa4064, r)
+		} else {
+			None
 		}
-
-		if sa.is_none() && size < 4064 {
-			lock.unlock();
-			let _ = SLAB_INIT.write();
-
-			if size <= 32 {
-				SLAB_32 = crate::std::option::Option::Some(
-					SlabAllocator::new(32, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_32.as_mut();
-			} else if size <= 92 {
-				SLAB_96 = crate::std::option::Option::Some(
-					SlabAllocator::new(96, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_96.as_mut();
-			} else if size <= 224 {
-				SLAB_224 = crate::std::option::Option::Some(
-					SlabAllocator::new(224, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_224.as_mut();
-			} else if size <= 480 {
-				SLAB_480 = crate::std::option::Option::Some(
-					SlabAllocator::new(480, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_480.as_mut();
-			} else if size <= 992 {
-				SLAB_992 = crate::std::option::Option::Some(
-					SlabAllocator::new(992, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_992.as_mut();
-			} else if size <= 2016 {
-				SLAB_2016 = crate::std::option::Option::Some(
-					SlabAllocator::new(2016, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_2016.as_mut();
-			} else {
-				SLAB_4064 = crate::std::option::Option::Some(
-					SlabAllocator::new(4064, 0xFFFFFFFF, 0xFFFFFFFF, 20).unwrap(),
-				);
-				sa = SLAB_4064.as_mut();
-			}
-		}
-		sa
 	}
 }
 
-pub enum BoxInner<T: ?Sized> {
-	Slab { value: *mut T, slab: Slab },
-	Mapped { value: *mut T, pages: usize },
+const METADATA_TYPE_FLAG: u64 = 0x1 << 63;
+const METADATA_LEAK_FLAG: u64 = 0x1 << 62;
+const METADATA_SLAB_TYPE_FLAG1: u64 = 0x1 << 61;
+const METADATA_SLAB_TYPE_FLAG2: u64 = 0x1 << 60;
+const METADATA_SLAB_TYPE_FLAG3: u64 = 0x1 << 59;
+const METADATA_SLABMASK: u64 =
+	METADATA_SLAB_TYPE_FLAG1 | METADATA_SLAB_TYPE_FLAG2 | METADATA_SLAB_TYPE_FLAG3;
+const METADATA_SLAB32_FLAG: u64 =
+	METADATA_SLAB_TYPE_FLAG1 | METADATA_SLAB_TYPE_FLAG2 | METADATA_SLAB_TYPE_FLAG3;
+const METADATA_SLAB96_FLAG: u64 = METADATA_SLAB_TYPE_FLAG1 | METADATA_SLAB_TYPE_FLAG2;
+const METADATA_SLAB224_FLAG: u64 = METADATA_SLAB_TYPE_FLAG1 | METADATA_SLAB_TYPE_FLAG3;
+const METADATA_SLAB480_FLAG: u64 = METADATA_SLAB_TYPE_FLAG2 | METADATA_SLAB_TYPE_FLAG3;
+const METADATA_SLAB992_FLAG: u64 = METADATA_SLAB_TYPE_FLAG1;
+const METADATA_SLAB2016_FLAG: u64 = METADATA_SLAB_TYPE_FLAG2;
+const METADATA_SLAB4064_FLAG: u64 = METADATA_SLAB_TYPE_FLAG3;
+
+enum MetaDataType {
+	Mapped,
+	Slab,
 }
 
-impl<T> Clone for BoxInner<T>
-where
-	T: ?Sized,
-{
-	fn clone(&self) -> Result<Self, Error> {
-		match self {
-			BoxInner::Slab { value, slab } => match slab.clone() {
-				Ok(slab) => Ok(BoxInner::Slab {
-					value: *value as *mut T,
-					slab,
-				}),
-				Err(e) => Err(e),
-			},
-			BoxInner::Mapped { value, pages } => Ok(BoxInner::Mapped {
-				value: *value as *mut T,
-				pages: *pages,
-			}),
-		}
+fn metadata_type(metadata: u64) -> MetaDataType {
+	if metadata & METADATA_TYPE_FLAG != 0 {
+		MetaDataType::Mapped
+	} else {
+		MetaDataType::Slab
 	}
+}
+
+#[allow(static_mut_refs)]
+fn metadata_slab_allocator(metadata: u64) -> Option<&'static mut SlabAllocator> {
+	let mask = metadata & METADATA_SLABMASK;
+	if mask == 0 {
+		exit!("invalid slab allocator metadata!");
+	} else if mask == METADATA_SLAB32_FLAG {
+		unsafe { SLABS.sa32.as_mut() }
+	} else if mask == METADATA_SLAB96_FLAG {
+		unsafe { SLABS.sa96.as_mut() }
+	} else if mask == METADATA_SLAB224_FLAG {
+		unsafe { SLABS.sa224.as_mut() }
+	} else if mask == METADATA_SLAB480_FLAG {
+		unsafe { SLABS.sa480.as_mut() }
+	} else if mask == METADATA_SLAB992_FLAG {
+		unsafe { SLABS.sa992.as_mut() }
+	} else if mask == METADATA_SLAB2016_FLAG {
+		unsafe { SLABS.sa2016.as_mut() }
+	} else if mask == METADATA_SLAB4064_FLAG {
+		unsafe { SLABS.sa4064.as_mut() }
+	} else {
+		None
+	}
+}
+
+fn metadata_flags_for(size: usize) -> u64 {
+	if size <= 32 {
+		METADATA_SLAB32_FLAG
+	} else if size <= 96 {
+		METADATA_SLAB96_FLAG
+	} else if size <= 224 {
+		METADATA_SLAB224_FLAG
+	} else if size <= 480 {
+		METADATA_SLAB480_FLAG
+	} else if size <= 992 {
+		METADATA_SLAB992_FLAG
+	} else if size <= 2016 {
+		METADATA_SLAB2016_FLAG
+	} else if size <= 4064 {
+		METADATA_SLAB4064_FLAG
+	} else {
+		0
+	}
+}
+
+fn metadata_leak(metadata: u64) -> bool {
+	metadata & METADATA_LEAK_FLAG != 0
+}
+
+fn metadata_id(metadata: u64) -> usize {
+	metadata as usize & 0xFFFFFFFFFFFFusize
+}
+
+fn metadata_pages(metadata: u64) -> usize {
+	metadata as usize & 0xFFFFFFFFFFFFusize
 }
 
 pub struct Box<T: ?Sized> {
-	pub inner: BoxInner<T>,
-	pub leak: bool,
+	ptr: *mut T,
+	metadata: u64,
 }
 
 impl<T: ?Sized> Drop for Box<T> {
 	fn drop(&mut self) {
-		if !self.leak {
-			match self.inner {
-				BoxInner::Slab { value, mut slab } => unsafe {
-					ptr::drop_in_place(value);
-					match get_slab_allocator(slab.len()) {
-						Some(sa) => sa.free(&mut slab),
-						_ => {}
+		if !metadata_leak(self.metadata) {
+			match metadata_type(self.metadata) {
+				MetaDataType::Mapped => unsafe {
+					unmap(self.ptr as *mut u8, metadata_pages(self.metadata));
+				},
+				MetaDataType::Slab => {
+					match metadata_slab_allocator(self.metadata) {
+						Some(sa) => {
+							let mut slab =
+								Slab::from_raw(self.ptr as *mut u8, metadata_id(self.metadata));
+							sa.free(&mut slab);
+						}
+						None => {
+							// TODO: handle error
+						}
 					}
-				},
-				BoxInner::Mapped { value, pages } => unsafe {
-					unmap(value as *mut u8, pages);
-				},
+				}
 			}
 		}
 	}
@@ -143,13 +226,10 @@ impl<T: ?Sized> Drop for Box<T> {
 
 impl<T> Clone for Box<T> {
 	fn clone(&self) -> Result<Self, Error> {
-		match self.inner.clone() {
-			Ok(inner) => Ok(Box {
-				inner,
-				leak: self.leak,
-			}),
-			Err(e) => Err(e),
-		}
+		Ok(Self {
+			ptr: self.ptr,
+			metadata: self.metadata,
+		})
 	}
 }
 
@@ -160,137 +240,107 @@ where
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target {
-		unsafe {
-			match self.inner {
-				BoxInner::Slab { value, slab: _ } => &*value,
-				BoxInner::Mapped { value, pages: _ } => &*value,
-			}
-		}
+		unsafe { &*self.ptr }
 	}
+}
+
+impl<T> Box<T>
+where
+	T: ?Sized,
+{
+	pub unsafe fn from_raw(ptr: *mut T, metadata: u64) -> Box<T> {
+		Box { ptr, metadata }
+	}
+}
+
+impl<T, U> CoerceUnsized<Box<U>> for Box<T>
+where
+	T: Unsize<U> + ?Sized,
+	U: ?Sized,
+{
 }
 
 impl<T> Box<T> {
 	pub fn new(t: T) -> Result<Self, Error> {
 		let size = size_of::<T>();
-		let pages = pages!(size);
-		let sa = get_slab_allocator(size);
-
-		match sa {
+		match get_slab_allocator(size) {
 			Some(sa) => {
 				match sa.alloc() {
 					Ok(slab) => {
-						let value = slab.get_raw() as *mut T;
-
+						let ptr = slab.get_raw() as *mut T;
 						unsafe {
-							ptr::write(value, t);
+							ptr::write(ptr, t);
 						}
-						return Ok(Self {
-							inner: BoxInner::Slab { value, slab },
-							leak: false,
-						});
+						let metadata = slab.get_id() as u64 | metadata_flags_for(size);
+						return Ok(Self { ptr, metadata });
 					}
-					Err(_e) => {
-						// continue and try to call map below
-					}
+					Err(_) => {} // continue to try to map
 				}
 			}
 			None => {}
 		}
 
-		unsafe {
-			let value = map(pages) as *mut T;
-			if value.is_null() {
-				return Err(err!(Alloc));
+		let pages = pages!(size);
+		let ptr = unsafe { map(pages) } as *mut T;
+
+		if ptr.is_null() {
+			Err(err!(Alloc))
+		} else {
+			unsafe {
+				ptr::write(ptr, t);
 			}
-			ptr::write(value, t);
-
-			Ok(Self {
-				inner: BoxInner::Mapped { value, pages },
-				leak: false,
-			})
+			let metadata = pages as u64 | METADATA_TYPE_FLAG;
+			Ok(Self { ptr, metadata })
 		}
-	}
-
-	pub fn get_inner(&self) -> &BoxInner<T> {
-		&self.inner
-	}
-
-	pub fn set_inner(&mut self, inner: &BoxInner<T>) -> Result<(), Error> {
-		match inner.clone() {
-			Ok(inner) => {
-				self.inner = inner;
-				Ok(())
-			}
-			Err(e) => Err(e),
-		}
-	}
-
-	pub fn get_leak(&self) -> bool {
-		self.leak
 	}
 
 	pub unsafe fn leak(&mut self) {
-		self.leak = true;
+		self.metadata |= METADATA_LEAK_FLAG;
+	}
+
+	pub fn metadata(&self) -> u64 {
+		self.metadata
 	}
 
 	pub fn as_ref(&self) -> &T {
-		match self.inner {
-			BoxInner::Slab { value, slab: _ } => unsafe { &*value },
-			BoxInner::Mapped { value, pages: _ } => unsafe { &*value },
-		}
+		unsafe { &*self.ptr }
 	}
 
 	pub fn as_mut(&mut self) -> &mut T {
-		match self.inner {
-			BoxInner::Slab { value, slab: _ } => unsafe { &mut *value },
-			BoxInner::Mapped { value, pages: _ } => unsafe { &mut *value },
-		}
+		unsafe { &mut *self.ptr }
 	}
-}
 
-#[macro_export]
-macro_rules! box_dyn {
-	($type:expr, $trait:ident) => {{
-		use std::boxed::{Box, BoxInner};
-		use std::result::Result::Ok;
-		match Box::new($type) {
-			Ok(mut boxv) => {
-				unsafe {
-					boxv.leak();
-				}
-				let boxv_dyn: Box<dyn $trait> = Box {
-					inner: match boxv.inner {
-						BoxInner::Slab { value, slab } => BoxInner::Slab { value, slab },
-						BoxInner::Mapped { value, pages } => BoxInner::Mapped { value, pages },
-					},
-					leak: false,
-				};
-				Ok(boxv_dyn)
-			}
-			Err(e) => Err(e),
-		}
-	}};
+	pub fn as_ptr(&self) -> *const T {
+		self.ptr
+	}
+
+	pub fn as_mut_ptr(&mut self) -> *mut T {
+		self.ptr
+	}
 }
 
 #[cfg(test)]
 mod test {
-	use std::boxed::Box;
-	use std::boxed::BoxInner;
-	use std::clone::Clone;
-	use std::result::{Result::Err, Result::Ok};
+	use super::*;
+	use core::ops::Fn;
 
 	#[test]
-	fn test_box() {
-		let mut x = Box::new(4).unwrap();
-		let y = x.as_ref();
-		assert_eq!(*y, 4);
+	fn test_box1() {
+		{
+			let mut x = Box::new(4).unwrap();
+			let y = x.as_ref();
+			assert_eq!(*y, 4);
 
-		let z = x.as_mut();
-		*z = 10;
-		assert_eq!(*z, 10);
-		let a = x.clone().unwrap();
-		let b = a.as_ref();
-		assert_eq!(*b, 10);
+			let z = x.as_mut();
+			*z = 10;
+			assert_eq!(*z, 10);
+			let a = x.clone().unwrap();
+			let b = a.as_ref();
+			assert_eq!(*b, 10);
+		}
+		unsafe {
+			cleanup_slab_allocators();
+		}
 	}
 
 	trait GetData {
@@ -308,27 +358,48 @@ mod test {
 	}
 
 	#[test]
-	fn test_dyn() {
-		let t = TestSample { data: 1 };
-		let mut sample = Box::new(t).unwrap();
-		unsafe {
-			sample.leak();
+	fn test_box2() {
+		{
+			let mut b1: Box<TestSample> = Box::new(TestSample { data: 1 }).unwrap();
+			let metadata = b1.metadata();
+			unsafe {
+				b1.leak();
+			}
+			let b2: Box<dyn GetData> = unsafe { Box::from_raw(b1.as_mut_ptr(), metadata) };
+			assert_eq!(b2.get_data(), 1);
+
+			let b3: Box<dyn GetData> = Box::new(TestSample { data: 2 }).unwrap();
+			assert_eq!(b3.get_data(), 2);
+
+			let b4 = Box::new(|x| 5 + x).unwrap();
+			assert_eq!(b4(5), 10);
 		}
-		let sample_b: Box<dyn GetData> = Box {
-			inner: match sample.inner {
-				BoxInner::Slab { value, slab } => BoxInner::Slab { value, slab },
-				BoxInner::Mapped { value, pages } => BoxInner::Mapped { value, pages },
-			},
-			leak: false,
-		};
+		unsafe {
+			cleanup_slab_allocators();
+		}
+	}
 
-		assert_eq!(sample_b.get_data(), 1);
+	struct BoxTest<CLOSURE>
+	where
+		CLOSURE: Fn(i32) -> i32,
+	{
+		x: Box<dyn GetData>,
+		y: Box<CLOSURE>,
+	}
 
-		// create a dynamic dispatch to trait GetData
-		let v: Box<dyn GetData> = match box_dyn!(TestSample { data: 2 }, GetData) {
-			Ok(v) => v,
-			Err(_e) => exit!("box_dyn failed!"),
-		};
-		assert_eq!(v.get_data(), 2);
+	#[test]
+	fn test_box3() {
+		{
+			let x = BoxTest {
+				x: Box::new(TestSample { data: 8 }).unwrap(),
+				y: Box::new(|x| x + 4).unwrap(),
+			};
+
+			assert_eq!(x.x.get_data(), 8);
+			assert_eq!((x.y)(14), 18);
+		}
+		unsafe {
+			cleanup_slab_allocators();
+		}
 	}
 }
