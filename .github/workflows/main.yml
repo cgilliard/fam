@@ -34,7 +34,7 @@ jobs:
           ./scripts/download_mrust_bin_linux.sh
       - name: linux tests
         run: |
-          ./scripts/test.sh
+          ./scripts/fasttest.sh
       - name: linux code coverage dependencies
         run: |
           cargo install grcov
@@ -83,7 +83,7 @@ jobs:
           ./scripts/download_mrust_bin_macos.sh
       - name: macos tests
         run: |
-          ./scripts/test.sh
+          ./scripts/fasttest.sh
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then

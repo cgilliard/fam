@@ -15,4 +15,4 @@ use crate::std::result::{Result, Result::Err, Result::Ok};
 
 mod real_main;
 pub mod std;
-pub mod sys;
+mod sys;

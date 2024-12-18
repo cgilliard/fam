@@ -1,6 +1,5 @@
 use crate::*;
-use core::mem;
-use core::mem::drop;
+use core::mem::{drop, replace, zeroed};
 use core::ops::{Deref, DerefMut, Drop};
 
 struct RcInner<T> {
@@ -28,10 +27,8 @@ impl<T> Drop for Rc<T> {
 	fn drop(&mut self) {
 		let rci = self.inner.as_mut();
 		if asub!(&mut rci.count, 1) == 1 {
-			unsafe {
-				let value = mem::replace(&mut rci.value, mem::zeroed());
-				drop(value);
-			}
+			let value = replace(&mut rci.value, unsafe { zeroed() });
+			drop(value);
 		}
 	}
 }
