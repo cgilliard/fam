@@ -1,14 +1,10 @@
+use crate::*;
 use core::cell::UnsafeCell;
 use core::marker::{Sized, Unsize};
 use core::mem::size_of;
-use core::ops::{CoerceUnsized, Deref, Drop};
+use core::ops::{CoerceUnsized, Deref, DerefMut, Drop};
 use core::ptr;
-use err;
-use std::clone::Clone;
-use std::error::{Error, ErrorKind::Alloc};
 use std::lock::Lock;
-use std::option::{Option, Option::None, Option::Some};
-use std::result::{Result, Result::Err, Result::Ok};
 use std::slabs::Slab;
 use std::slabs::SlabAllocator;
 use sys::{map, unmap};
@@ -244,6 +240,12 @@ where
 	}
 }
 
+impl<T> DerefMut for Box<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		unsafe { &mut *self.ptr }
+	}
+}
+
 impl<T> Box<T>
 where
 	T: ?Sized,
@@ -406,8 +408,10 @@ mod test {
 			assert_eq!(x.z[5], 3u8);
 
 			let y = BoxTest2 {
-				v: Box::new([0u64; 40]).unwrap(),
+				v: Box::new([5u64; 40]).unwrap(),
 			};
+
+			assert_eq!(y.v[9], 5);
 		}
 		unsafe {
 			cleanup_slab_allocators();

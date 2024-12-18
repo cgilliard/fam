@@ -1,75 +1,76 @@
+use crate::*;
 use core::mem;
 use core::mem::drop;
-use core::mem::size_of;
-use core::ops::Drop;
-use core::ptr;
-use err;
-use std::clone::Clone;
-use std::error::{Error, ErrorKind::Alloc};
-use std::option::{Option, Option::None, Option::Some};
-use std::result::{Result, Result::Err, Result::Ok};
-use sys::{map, unmap};
-
-pub struct Rc<T> {
-	inner: *mut RcInner<T>,
-}
+use core::ops::{Deref, DerefMut, Drop};
 
 struct RcInner<T> {
 	count: u64,
 	value: T,
 }
 
+pub struct Rc<T> {
+	inner: Box<RcInner<T>>,
+}
+
 impl<T> Clone for Rc<T> {
 	fn clone(&self) -> Result<Self, Error> {
-		let inner = unsafe { &mut *self.inner };
-		aadd!(&mut inner.count, 1);
-		Ok(Self { inner: self.inner })
+		match self.inner.clone() {
+			Ok(mut inner) => {
+				let rci = inner.as_mut();
+				aadd!(&mut rci.count, 1);
+				Ok(Self { inner })
+			}
+			Err(e) => Err(e),
+		}
+	}
+}
+impl<T> Drop for Rc<T> {
+	fn drop(&mut self) {
+		let rci = self.inner.as_mut();
+		if asub!(&mut rci.count, 1) == 1 {
+			unsafe {
+				let value = mem::replace(&mut rci.value, mem::zeroed());
+				drop(value);
+			}
+		}
 	}
 }
 
-impl<T> Drop for Rc<T> {
-	fn drop(&mut self) {
-		let inner = unsafe { &mut *self.inner };
-		if asub!(&mut inner.count, 1) == 1 {
-			let pages = pages!(size_of::<T>());
-			unsafe {
-				let value = mem::replace(&mut inner.value, mem::zeroed());
-				drop(value);
-				unmap(self.inner as *mut u8, pages);
-			}
-		}
+impl<T> Deref for RcInner<T> {
+	type Target = T;
+	fn deref(&self) -> &Self::Target {
+		&self.value
+	}
+}
+
+impl<T> DerefMut for RcInner<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.value
 	}
 }
 
 impl<T> Rc<T> {
 	pub fn new(value: T) -> Result<Self, Error> {
-		let pages = pages!(size_of::<T>());
-		let inner;
-		unsafe {
-			inner = map(pages) as *mut RcInner<T>;
-			if inner.is_null() {
-				return Err(err!(Alloc));
-			}
-			ptr::write(inner, RcInner { count: 1, value });
+		match Box::new(RcInner { value, count: 1 }) {
+			Ok(inner) => Ok(Self { inner }),
+			Err(e) => Err(e),
 		}
-
-		Ok(Self { inner })
 	}
 
 	pub fn get(&self) -> &T {
-		unsafe { &(&*self.inner).value }
+		&self.inner.value
 	}
 
 	pub fn get_mut(&mut self) -> Option<&mut T> {
 		if aload!(&mut (*self.inner).count) == 1 {
-			unsafe { Some(&mut (&mut *self.inner).value) }
+			Some(&mut self.inner.value)
 		} else {
 			None
 		}
 	}
 
 	pub unsafe fn get_mut_unchecked(&mut self) -> &mut T {
-		unsafe { &mut (&mut *self.inner).value }
+		&mut self.inner.value
 	}
 }
 
