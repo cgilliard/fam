@@ -85,3 +85,15 @@ jobs:
       - name: macos tests
         run: |
           ./fam fasttest
+      - name: macos bootstrap (mrustc)
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            git clone https://github.com/cgilliard/famc
+            cd famc
+            export CC=/usr/local/bin/gcc-13
+            export CXX=/usr/local/bin/g++-13
+            export PATH="/usr/local/bin:$PATH"
+            ./build.sh
+            cd ..
+            ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
+          fi
