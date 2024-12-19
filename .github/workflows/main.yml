@@ -59,7 +59,7 @@ jobs:
           make RUSTCSRC
           make -f minicargo.mk
           cd ..
-           ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+           ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
 
   macos:
@@ -77,13 +77,13 @@ jobs:
         run: rustup install nightly
       - name: macos build (rustc)
         run: |
-          ./scripts/build.sh
+          ./fam
       - name: macos build (mrustc)
         run: |
           ./scripts/download_mrust_bin_macos.sh
       - name: macos tests
         run: |
-          ./scripts/fasttest.sh
+          ./fam fasttest
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -92,5 +92,5 @@ jobs:
             make RUSTCSRC
             make -f minicargo.mk
             cd ..
-            ./scripts/mrbuild.sh --mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
