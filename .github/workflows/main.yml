@@ -55,11 +55,13 @@ jobs:
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-          git clone https://github.com/thepowersgang/mrustc
-          cd mrustc
-          make RUSTCSRC
-          make -f minicargo.mk
-          cd ..
+            git clone https://github.com/thepowersgang/mrustc
+            cd mrustc
+            git fetch --tags
+            git checkout v0.11.0
+            make RUSTCSRC
+            make -f minicargo.mk
+            cd ..
            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
 
@@ -89,8 +91,10 @@ jobs:
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-          git clone https://github.com/thepowersgang/mrustc
+            git clone https://github.com/thepowersgang/mrustc
             cd mrustc
+            git fetch --tags
+            git checkout v0.11.0
             make RUSTCSRC
             make -f minicargo.mk
             cd ..
