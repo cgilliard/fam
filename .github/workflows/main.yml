@@ -31,7 +31,7 @@ jobs:
           ./fam
       - name: linux build (mrustc)
         run: |
-          ./fam --mrustc
+          ./scripts/download_mrust_bin_linux.sh
       - name: linux tests
         run: |
           ./fam fasttest
