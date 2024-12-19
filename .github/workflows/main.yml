@@ -88,9 +88,9 @@ jobs:
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/cgilliard/famc
-            cd famc
-            ./build.sh
-            cd ..
-            ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
+            #git clone https://github.com/cgilliard/famc
+            #cd famc
+            #./build.sh
+            #cd ..
+            #./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
           fi
