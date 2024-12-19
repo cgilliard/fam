@@ -32,3 +32,6 @@ if [ "$all" = "1" ]; then
 	${cc} ${ccflags} -o bin/fam *.o || { rm -f bin/fam *.o; exit 1; }
 	rm -f *.o libmod.rlib*
 fi
+if [ "$coverage" ]; then
+	./scripts/coverage.sh
+fi
