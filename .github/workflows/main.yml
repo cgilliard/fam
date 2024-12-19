@@ -63,7 +63,7 @@ jobs:
           fi
 
   macos:
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       matrix:
         platform: [macos]
