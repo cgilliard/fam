@@ -72,7 +72,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Check macos version
-        run: sw_vers
+        run: |
+          sw_vers
+          ls /usr/local/bin | grep gcc
       - name: macos update nightly
         run: rustup install nightly
       - name: macos build (rustc)
