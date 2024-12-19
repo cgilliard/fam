@@ -1,8 +1,5 @@
 #!/bin/sh
 
-export LLVM_PROFILE_FILE="/tmp/file.profraw"
-
-rm -f libtest.a *.o
 update_docs=0;
 for var in "$@"
 do
@@ -11,12 +8,6 @@ case "$var" in --update-docs)
         ;;
 esac
 done
-
-git log -1 > /tmp/coverage.txt || exit 1;
-grcov \
-	/tmp/file.profraw \
-	--branch --binary-path \
-	./bin > /tmp/coverage.txt || exit 1;
 
 cur_file='';
 line_count=0;

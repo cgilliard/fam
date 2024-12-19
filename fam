@@ -19,10 +19,14 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	${cc} ${ccflags} -c -Ic c/sys.c || { rm -f libtest.a *o; exit 1; }
 	ar rcs libtest.a *.o || { rm -f libtest.a *o; exit 1; }
 	rustc +nightly --test rust/mod.rs -o bin/test_fam -L . -l static=test ${rustflags} || { rm -f libtest.a *o; exit 1; }
+	./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
 	if [ "$coverage" = "1" ]; then
-        	./scripts/coverage.sh ${updatedocs}
-	else
-		./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
+		git log -1 > /tmp/coverage.txt || exit 1;
+		grcov \
+        		/tmp/file.profraw \
+        		--branch --binary-path \
+        		./bin > /tmp/coverage.txt || exit 1;
+		./scripts/coverage.sh ${updatedocs}
 	fi
 	rm -f libtest.a *.o
 fi
