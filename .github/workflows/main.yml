@@ -58,10 +58,11 @@ jobs:
             git clone https://github.com/thepowersgang/mrustc
             cd mrustc
             git fetch --tags
-            git checkout v0.11.0
-            ./build-1.74.0.sh
+            git checkout rustc_bootstrapped-v1.74
+            make RUSTCSRC
+            make -f minicargo.mk
             cd ..
-            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.74.0
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
 
   macos:
@@ -93,8 +94,9 @@ jobs:
             git clone https://github.com/thepowersgang/mrustc
             cd mrustc
             git fetch --tags
-            git checkout v0.11.0
-            ./build-1.74.0.sh
+            git checkout rustc_bootstrapped-v1.74
+            make RUSTCSRC
+            make -f minicargo.mk
             cd ..
-            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.74.0
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
