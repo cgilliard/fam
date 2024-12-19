@@ -17,7 +17,7 @@ for var in "$@"; do
 		all=1;
 		ccflags=-O3
 		;;
-	--output)
+	--output=*)
 		output=${var#*=}
 		;;
 	fasttest)
