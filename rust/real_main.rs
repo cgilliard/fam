@@ -1,5 +1,8 @@
+use sys::getmicros;
+
 #[no_mangle]
 pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
+	let _x = unsafe { getmicros() };
 	0
 }
 

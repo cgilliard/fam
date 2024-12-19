@@ -1,14 +1,12 @@
 #[macro_export]
 macro_rules! exit {
 	($msg:expr) => {{
-		#[allow(unused_unsafe)]
 		unsafe {
 			use core::panic::Location;
 			use std::util::u32_to_str;
 			use sys::{_exit, write};
 
 			write(2, "Panic:\n".as_ptr(), 7);
-
 			#[cfg(not(mrustc))]
 			{
 				let location = Location::caller();
