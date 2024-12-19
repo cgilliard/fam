@@ -92,6 +92,7 @@ jobs:
             git clone https://github.com/cgilliard/famc
             cd famc
             export CXX=/opt/homebrew/bin/g++-13
+            export CC=/opt/homebrew/bin/gcc-13
             export PATH="/usr/local/bin:$PATH"
             ./build.sh
             cd ..
