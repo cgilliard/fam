@@ -1,0 +1,34 @@
+#!/bin/sh
+
+cc=clang
+output=../mrustc/output
+mrustc=mrustc
+ccflags=
+filter=
+
+. scripts/parse_params.sh
+
+if [ "$test" = "1" ] || [ "$fasttest" = "1" ]; then
+	rm -f libtest.a *.o
+	${cc} ${ccflags} -c -Ic c/util.c || { rm -f libtest.a *o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/sys.c || { rm -f libtest.a *o; exit 1; }
+	ar rcs libtest.a *.o || { rm -f libtest.a *o; exit 1; }
+	rustc +nightly --test rust/mod.rs -o bin/test_fam -L . -l static=test || { rm -f libtest.a *o; exit 1; }
+	./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
+	rm -f libtest.a *.o
+fi
+if [ "$all" = "1" ]; then
+	rm -f bin/fam *.o
+	${cc} ${ccflags} -c -Ic c/sys.c || { rm -f bin/fam *.o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/main.c || { rm -f bin/fam *.o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/util.c || { rm -f bin/fam *.o; exit 1; }
+	if [ "$usemrustc" = "1" ]; then
+		${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -C panic=abort \
+			|| { rm -f bin/fam *.o; exit 1; }
+	else
+		rustc +nightly -C panic=abort -C opt-level=3 --emit=obj --crate-type=lib -o rust.o rust/mod.rs \
+			|| { rm -f bin/fam *.o; exit 1;}
+	fi
+	${cc} ${ccflags} -o bin/fam *.o || { rm -f bin/fam *.o; exit 1; }
+	rm -f *.o libmod.rlib*
+fi

@@ -28,13 +28,13 @@ jobs:
         run: rustup install nightly
       - name: linux build (rustc)
         run: |
-          ./scripts/build.sh
+          ./fam
       - name: linux build (mrustc)
         run: |
-          ./scripts/download_mrust_bin_linux.sh
+          ./fam --mrustc
       - name: linux tests
         run: |
-          ./scripts/fasttest.sh
+          ./fam fasttest
       - name: linux code coverage dependencies
         run: |
           cargo install grcov

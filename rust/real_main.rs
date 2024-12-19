@@ -1,37 +1,5 @@
-use crate::sys::write;
-use crate::*;
-use sys::cstring_len;
-
 #[no_mangle]
-pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
-	let v: Vec<i32> = vec![1, 2, 3, 4, 5, 6].unwrap();
-	let _v2 = &v[0..3];
-
-	let _micros = getmicros!();
-	let mut print_len = 10;
-	if argc > 0 {
-		unsafe {
-			let arg_ptr = *argv.offset(0);
-			let len = cstring_len(arg_ptr);
-			let mut buf = [0u8; 128];
-			for i in 0..len {
-				if i < 128 {
-					buf[i] = *arg_ptr.add(i);
-				}
-			}
-			if buf[0] == b't' && buf[1] == b'e' && buf[2] == b's' && buf[3] == b't' {
-				print_len = 0;
-			}
-			if argc > 5 {
-				exit!("argc > 5");
-			}
-		}
-	} else {
-		print_len = 0;
-	}
-	unsafe {
-		write(2, "real_main\n".as_ptr(), print_len);
-	}
+pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
 	0
 }
 
@@ -70,12 +38,13 @@ mod panic_mod {
 mod test {
 	use core::ptr::null;
 	use real_main::real_main;
+	use sys::write;
 
 	#[test]
 	fn test_real_main() {
-		let arg_silent = b"test\0";
-		let argv: [*const u8; 2] = [arg_silent.as_ptr(), null()];
-		assert_eq!(real_main(1, argv.as_ptr()), 0);
 		assert_eq!(real_main(0, null()), 0);
+		unsafe {
+			write(2, "".as_ptr(), 0);
+		}
 	}
 }
