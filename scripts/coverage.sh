@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export LLVM_PROFILE_FILE="/tmp/file.profraw"
+
 rm -f libtest.a *.o
 update_docs=0;
 for var in "$@"
