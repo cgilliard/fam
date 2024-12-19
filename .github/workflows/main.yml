@@ -59,10 +59,9 @@ jobs:
             cd mrustc
             git fetch --tags
             git checkout v0.11.0
-            make RUSTCSRC
-            make -f minicargo.mk
+            ./build-1.74.0.sh
             cd ..
-           ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.74.0
           fi
 
   macos:
@@ -95,8 +94,7 @@ jobs:
             cd mrustc
             git fetch --tags
             git checkout v0.11.0
-            make RUSTCSRC
-            make -f minicargo.mk
+            ./build-1.74.0.sh
             cd ..
-            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output-1.74.0
           fi
