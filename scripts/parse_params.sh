@@ -23,6 +23,7 @@ for var in "$@"; do
 	fasttest)
 		fasttest=1;
 		ccflags=-O3
+		rustflags="-C opt-level=3"
 		;;
 	--with-cc=*)
                 cc=${var#*=}
@@ -32,6 +33,7 @@ for var in "$@"; do
 		;;
 	coverage)
 		coverage=1;
+		rustflags="-C instrument-coverage -C opt-level=0"
 		;;
 	test)
 		test=1;

@@ -4,17 +4,23 @@ cc=clang
 output=../mrustc/output
 mrustc=mrustc
 ccflags=
+rustflags=
 filter=
 
 . scripts/parse_params.sh
 
-if [ "$test" = "1" ] || [ "$fasttest" = "1" ]; then
+if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	rm -f libtest.a *.o
 	${cc} ${ccflags} -c -Ic c/util.c || { rm -f libtest.a *o; exit 1; }
 	${cc} ${ccflags} -c -Ic c/sys.c || { rm -f libtest.a *o; exit 1; }
 	ar rcs libtest.a *.o || { rm -f libtest.a *o; exit 1; }
-	rustc +nightly --test rust/mod.rs -o bin/test_fam -L . -l static=test || { rm -f libtest.a *o; exit 1; }
-	./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
+	export LLVM_PROFILE_FILE="/tmp/file.profraw"
+	rustc +nightly --test rust/mod.rs -o bin/test_fam -L . -l static=test ${rustflags} || { rm -f libtest.a *o; exit 1; }
+	if [ "$coverage" ]; then
+        	./scripts/coverage.sh
+	else
+		./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
+	fi
 	rm -f libtest.a *.o
 fi
 if [ "$all" = "1" ]; then
@@ -31,7 +37,4 @@ if [ "$all" = "1" ]; then
 	fi
 	${cc} ${ccflags} -o bin/fam *.o || { rm -f bin/fam *.o; exit 1; }
 	rm -f *.o libmod.rlib*
-fi
-if [ "$coverage" ]; then
-	./scripts/coverage.sh
 fi
