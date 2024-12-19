@@ -31,7 +31,8 @@ jobs:
           ./fam
       - name: linux build (mrustc)
         run: |
-          ./scripts/download_mrust_bin_linux.sh
+          git clone https://github.com/cgilliard/rust-bins
+          ./fam --mrustc --with-mrustc=./rust-bins/linux/mrustc --output=./rust-bins/linux/output
       - name: linux tests
         run: |
           ./fam fasttest
@@ -80,7 +81,8 @@ jobs:
           ./fam
       - name: macos build (mrustc)
         run: |
-          ./scripts/download_mrust_bin_macos.sh
+          git clone https://github.com/cgilliard/rust-bins
+          ./fam --mrustc --with-mrustc=./rust-bins/macos/mrustc --output=./rust-bins/macos/output
       - name: macos tests
         run: |
           ./fam fasttest
