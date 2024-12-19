@@ -47,7 +47,7 @@ jobs:
           git config user.name "Coverage-Bot"
           git config user.email "noreply@pipeline.com"
           git checkout main
-          ./fam coverage
+          ./scripts/coverage_complete.sh --update-docs
           git commit -am "Coverage-Bot: Updated repo (via main.yml script) Source Version is $GITHUB_SHA";
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git push https://${{ secrets.FamPat }}@github.com/cgilliard/fam.git
