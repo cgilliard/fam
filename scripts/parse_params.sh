@@ -17,7 +17,7 @@ for var in "$@"; do
 		all=1;
 		ccflags=-O3
 		;;
-	output)
+	--output)
 		output=${var#*=}
 		;;
 	fasttest)
@@ -41,7 +41,7 @@ for var in "$@"; do
 	*)
 		echo "Unrecognized option: '$var'"
 		echo $usage;
-		exit;
+		exit 1;
 	esac
 done
 

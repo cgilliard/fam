@@ -7,7 +7,7 @@ ccflags=
 rustflags=
 filter=
 
-. scripts/parse_params.sh
+. scripts/parse_params.sh || exit 1;
 
 if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	rm -f libtest.a *.o
