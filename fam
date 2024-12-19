@@ -4,6 +4,7 @@ cc=clang
 output=../mrustc/output
 mrustc=mrustc
 ccflags=
+updatedocs=
 rustflags=
 filter=
 
@@ -17,7 +18,7 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	export LLVM_PROFILE_FILE="/tmp/file.profraw"
 	rustc +nightly --test rust/mod.rs -o bin/test_fam -L . -l static=test ${rustflags} || { rm -f libtest.a *o; exit 1; }
 	if [ "$coverage" ]; then
-        	./scripts/coverage.sh
+        	./scripts/coverage.sh ${updatedocs}
 	else
 		./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
 	fi

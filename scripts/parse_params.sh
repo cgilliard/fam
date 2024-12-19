@@ -20,6 +20,9 @@ for var in "$@"; do
 	--output=*)
 		output=${var#*=}
 		;;
+	--update-docs)
+		updatedocs=--update-docs
+		;;
 	fasttest)
 		fasttest=1;
 		ccflags=-O3
