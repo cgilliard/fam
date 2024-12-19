@@ -245,7 +245,10 @@ where
 	}
 }
 
-impl<T> DerefMut for Box<T> {
+impl<T> DerefMut for Box<T>
+where
+	T: ?Sized,
+{
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		unsafe { &mut *self.ptr }
 	}
@@ -257,6 +260,10 @@ where
 {
 	pub unsafe fn from_raw(ptr: *mut T, metadata: u64) -> Box<T> {
 		Box { ptr, metadata }
+	}
+
+	pub unsafe fn set_metadata(&mut self, metadata: u64) {
+		self.metadata = metadata;
 	}
 
 	pub unsafe fn unleak(&mut self) {
