@@ -74,7 +74,10 @@ jobs:
       - name: Check macos version
         run: |
           sw_vers
-          ls /usr/local/bin | grep gcc
+          ls -l /usr/local/Cellar/gcc*/bin || exit 0;
+          ls -l /usr/local/bin || exit 0;
+          which g++-13 || exit 0;
+          which gcc-13 || exit 0;
       - name: macos update nightly
         run: rustup install nightly
       - name: macos build (rustc)
