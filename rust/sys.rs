@@ -9,6 +9,14 @@ extern "C" {
 	pub fn getpagesize() -> i32;
 	pub fn sched_yield() -> i32;
 	pub fn getmicros() -> u64;
+	pub fn thread_create(
+		handle: *mut u8,
+		start_routine: extern "C" fn(*mut u64) -> *mut u64,
+		arg: *mut u64,
+	) -> i32;
+	pub fn thread_join(handle: *mut u8) -> i32;
+	pub fn thread_detach(handle: *mut u8) -> i32;
+	pub fn thread_handle_size() -> usize;
 }
 
 // util

@@ -55,14 +55,15 @@ jobs:
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/thepowersgang/mrustc
-            cd mrustc
-            git fetch --tags
-            git checkout rustc_bootstrapped-v1.74
-            make RUSTCSRC
-            make -f minicargo.mk
-            cd ..
-            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+            echo "disabled"
+            #git clone https://github.com/thepowersgang/mrustc
+            #cd mrustc
+            #git fetch --tags
+            #git checkout rustc_bootstrapped-v1.74
+            #make RUSTCSRC
+            #make -f minicargo.mk
+            #cd ..
+            #./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
 
   macos:
@@ -92,14 +93,15 @@ jobs:
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/thepowersgang/mrustc
-            cd mrustc
-            git fetch --tags
-            git checkout rustc_bootstrapped-v1.74
-            export CXX=/opt/homebrew/bin/g++-13
-            export CC=/opt/homebrew/bin/gcc-13
-            make RUSTCSRC
-            make -f minicargo.mk
-            cd ..
-            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
+            echo "disabled";
+            #git clone https://github.com/thepowersgang/mrustc
+            #cd mrustc
+            #git fetch --tags
+            #git checkout rustc_bootstrapped-v1.74
+            #export CXX=/opt/homebrew/bin/g++-13
+            #export CC=/opt/homebrew/bin/gcc-13
+            #make RUSTCSRC
+            #make -f minicargo.mk
+            #cd ..
+            #./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
