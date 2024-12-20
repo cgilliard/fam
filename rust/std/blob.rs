@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use prelude::*;
 use core::ops::Drop;
 use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};

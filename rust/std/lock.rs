@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use prelude::*;
 use core::cell::UnsafeCell;
 use core::ops::Drop;
 

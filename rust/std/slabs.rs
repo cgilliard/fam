@@ -1,10 +1,10 @@
-use crate::prelude::*;
 use core::marker::Send;
 use core::marker::Sync;
 use core::mem::size_of;
 use core::ptr;
 use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
+use prelude::*;
 use std::bitmap::BitMap;
 use std::result::{Result, Result::Err, Result::Ok};
 use sys::{ctz, map, unmap};
@@ -167,6 +167,14 @@ impl SlabAllocator {
 		};
 		ret.tail = ret.head;
 		Ok(ret)
+	}
+
+	pub fn free_slabs(&self) -> u64 {
+		aload!(&self.free_slabs)
+	}
+
+	pub fn total_slabs(&self) -> u64 {
+		aload!(&self.total_slabs)
 	}
 
 	pub fn cleanup(&mut self) {

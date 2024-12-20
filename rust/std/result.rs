@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use prelude::*;
 
 pub enum Result<T, E> {
 	Ok(T),

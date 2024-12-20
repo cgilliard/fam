@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use prelude::*;
 
 #[derive(PartialEq)]
 pub enum ErrorKind {

@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use prelude::*;
 use core::mem::size_of;
 use sys::{ctzl, map, unmap};
 
