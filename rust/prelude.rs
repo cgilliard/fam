@@ -7,7 +7,8 @@ pub use crate::std::rc::Rc;
 pub use crate::std::result::{Result, Result::Err, Result::Ok};
 pub use crate::std::util::{divide_usize, rem_usize};
 pub use crate::{
-	aadd, aload, astore, asub, cas, exit, lock, page_size, print, print_num, println, sched_yield,
+	aadd, aload, astore, asub, cas, exit, lock, page_size, pages, print, print_num, println,
+	sched_yield,
 };
 pub use core::convert::From;
 pub use core::convert::Into;

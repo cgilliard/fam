@@ -5,6 +5,7 @@ pub mod lock;
 pub mod rc;
 pub mod result;
 pub mod string;
+pub mod vec;
 #[macro_use]
 pub mod macros;
 pub mod boxed;
