@@ -55,11 +55,12 @@ jobs:
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/cgilliard/famc
-            cd famc
-            ./build.sh
+            git clone https://github.com/thepowersgang/mrustc
+            cd mrustc
+            make RUSTCSRC
+            make -f minicargo.mk
             cd ..
-            ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
 
   macos:
@@ -89,12 +90,12 @@ jobs:
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/cgilliard/famc
-            cd famc
+            git clone https://github.com/thepowersgang/mrustc
+            cd mrustc
             export CXX=/opt/homebrew/bin/g++-13
             export CC=/opt/homebrew/bin/gcc-13
-            export PATH="/usr/local/bin:$PATH"
-            ./build.sh
+            make RUSTCSRC
+            make -f minicargo.mk
             cd ..
-            ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
+            ./fam --mrustc --with-mrustc=./mrustc/bin/mrustc --output=./mrustc/output
           fi
