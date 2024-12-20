@@ -2,6 +2,8 @@
 #include <sys/mman.h>
 #include <time.h>
 
+long long __alloc_count = 0;
+
 int getpagesize();
 void _exit(int);
 
@@ -10,11 +12,13 @@ void *map(unsigned long long pages) {
 			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (ret == MAP_FAILED) return 0;
 	// fprintf(stderr, "map %llu %p\n", pages, ret);
+	__alloc_count += pages;
 	return ret;
 }
 
 void unmap(void *ptr, unsigned long long pages) {
 	// fprintf(stderr, "unmap %llu %p\n", pages, ptr);
+	__alloc_count -= pages;
 	if (munmap(ptr, getpagesize() * pages)) {
 		fprintf(stderr, "Could not unmap address %p [pages=%llu]\n",
 			ptr, pages);
@@ -28,3 +32,5 @@ unsigned long long getmicros() {
 	return (unsigned long long)((__int128_t)now.tv_sec * 1000000) +
 	       (unsigned long long)(now.tv_nsec / 1000);
 }
+
+long long getalloccount() { return __alloc_count; }

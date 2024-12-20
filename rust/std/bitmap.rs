@@ -176,60 +176,70 @@ impl BitMap {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use sys::getalloccount;
+
 	#[test]
 	fn test_bitmap1() {
-		let mut b1 = BitMap::new(1).unwrap();
-		assert!(b1.allocate().is_err());
-		assert!(b1.extend().is_ok());
-		for i in 0..page_size!() * 8 {
-			assert_eq!(b1.allocate().unwrap(), i);
+		let initial = unsafe { getalloccount() };
+		{
+			let mut b1 = BitMap::new(1).unwrap();
+			assert!(b1.allocate().is_err());
+			assert!(b1.extend().is_ok());
+			for i in 0..page_size!() * 8 {
+				assert_eq!(b1.allocate().unwrap(), i);
+			}
+			assert!(b1.allocate().is_err());
+			assert!(b1.extend().is_ok());
+			assert_eq!(b1.allocate().unwrap(), page_size!() * 8);
+
+			let mut b2 = BitMap::new(1).unwrap();
+			assert!(b2.extend().is_ok());
+			for i in 0..100 {
+				assert_eq!(b2.allocate().unwrap(), i);
+			}
+
+			b2.free(3);
+			assert_eq!(b2.allocate().unwrap(), 3);
+			assert_eq!(b2.allocate().unwrap(), 100);
+
+			b2.free(49);
+			b2.free(55);
+			b2.free(77);
+			assert_eq!(b2.allocate().unwrap(), 49);
+			assert_eq!(b2.allocate().unwrap(), 55);
+			assert_eq!(b2.allocate().unwrap(), 77);
+			assert_eq!(b2.allocate().unwrap(), 101);
+
+			b1.cleanup();
+			b2.cleanup();
 		}
-		assert!(b1.allocate().is_err());
-		assert!(b1.extend().is_ok());
-		assert_eq!(b1.allocate().unwrap(), page_size!() * 8);
-
-		let mut b2 = BitMap::new(1).unwrap();
-		assert!(b2.extend().is_ok());
-		for i in 0..100 {
-			assert_eq!(b2.allocate().unwrap(), i);
-		}
-
-		b2.free(3);
-		assert_eq!(b2.allocate().unwrap(), 3);
-		assert_eq!(b2.allocate().unwrap(), 100);
-
-		b2.free(49);
-		b2.free(55);
-		b2.free(77);
-		assert_eq!(b2.allocate().unwrap(), 49);
-		assert_eq!(b2.allocate().unwrap(), 55);
-		assert_eq!(b2.allocate().unwrap(), 77);
-		assert_eq!(b2.allocate().unwrap(), 101);
-
-		b1.cleanup();
-		b2.cleanup();
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 
 	#[test]
 	fn test_bitmap2() {
-		let mut b1 = BitMap::new(1).unwrap();
-		assert!(b1.allocate().is_err());
-		assert!(b1.extend().is_ok());
+		let initial = unsafe { getalloccount() };
+		{
+			let mut b1 = BitMap::new(1).unwrap();
+			assert!(b1.allocate().is_err());
+			assert!(b1.extend().is_ok());
 
-		for i in 0..100 {
-			assert_eq!(b1.allocate().unwrap(), i);
-		}
+			for i in 0..100 {
+				assert_eq!(b1.allocate().unwrap(), i);
+			}
 
-		for i in 0..50 {
-			b1.free(i);
-		}
-		for i in 0..50 {
-			assert_eq!(b1.allocate().unwrap(), i);
-		}
-		for i in 0..50 {
-			assert_eq!(b1.allocate().unwrap(), i + 100);
-		}
+			for i in 0..50 {
+				b1.free(i);
+			}
+			for i in 0..50 {
+				assert_eq!(b1.allocate().unwrap(), i);
+			}
+			for i in 0..50 {
+				assert_eq!(b1.allocate().unwrap(), i + 100);
+			}
 
-		b1.cleanup();
+			b1.cleanup();
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 }

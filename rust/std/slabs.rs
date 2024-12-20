@@ -381,84 +381,93 @@ mod test {
 	use super::*;
 	use core::mem::size_of;
 	use core::slice::from_raw_parts_mut;
+	use sys::getalloccount;
 
 	#[test]
 	fn test_slab1() {
-		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
-		let mut slab1 = sa1.alloc().unwrap();
-		assert_eq!(slab1.id, 1);
+		let initial = unsafe { getalloccount() };
+		{
+			let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
+			let mut slab1 = sa1.alloc().unwrap();
+			assert_eq!(slab1.id, 1);
 
-		for i in 0..128 {
-			slab1.get_mut()[i] = i as u8;
-		}
+			for i in 0..128 {
+				slab1.get_mut()[i] = i as u8;
+			}
 
-		let mut slab2 = sa1.alloc().unwrap();
-		assert_eq!(slab2.id, 2);
-		for i in 0..128 {
-			slab2.get_mut()[i] = (i + 1) as u8;
-		}
+			let mut slab2 = sa1.alloc().unwrap();
+			assert_eq!(slab2.id, 2);
+			for i in 0..128 {
+				slab2.get_mut()[i] = (i + 1) as u8;
+			}
 
-		for i in 0..128 {
-			assert_eq!(slab1.get()[i], i as u8);
-		}
-		for i in 0..128 {
-			assert_eq!(slab2.get()[i], (i + 1) as u8);
-		}
+			for i in 0..128 {
+				assert_eq!(slab1.get()[i], i as u8);
+			}
+			for i in 0..128 {
+				assert_eq!(slab2.get()[i], (i + 1) as u8);
+			}
 
-		sa1.cleanup();
+			sa1.cleanup();
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 
 	#[test]
 	fn test_slab_free() {
-		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
-		let mut slab1 = sa1.alloc().unwrap();
-		assert_eq!(slab1.id, 1);
+		let initial = unsafe { getalloccount() };
+		{
+			let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
+			let mut slab1 = sa1.alloc().unwrap();
+			assert_eq!(slab1.id, 1);
 
-		sa1.free(&mut slab1);
+			sa1.free(&mut slab1);
 
-		let mut slab2 = sa1.alloc().unwrap();
-		assert_eq!(slab2.id, 0);
+			let mut slab2 = sa1.alloc().unwrap();
+			assert_eq!(slab2.id, 0);
 
-		let mut slab3 = sa1.alloc().unwrap();
-		assert_eq!(slab3.id, 2);
+			let mut slab3 = sa1.alloc().unwrap();
+			assert_eq!(slab3.id, 2);
 
-		let mut slab4 = sa1.alloc().unwrap();
-		assert_eq!(slab4.id, 3);
-		let mut slab5 = sa1.alloc().unwrap();
-		assert_eq!(slab5.id, 4);
-		let slab6 = sa1.alloc().unwrap();
-		assert_eq!(slab6.id, 5);
+			let mut slab4 = sa1.alloc().unwrap();
+			assert_eq!(slab4.id, 3);
+			let mut slab5 = sa1.alloc().unwrap();
+			assert_eq!(slab5.id, 4);
+			let slab6 = sa1.alloc().unwrap();
+			assert_eq!(slab6.id, 5);
 
-		sa1.free(&mut slab5);
-		let slab7 = sa1.alloc().unwrap();
-		assert_eq!(slab7.id, 1);
+			sa1.free(&mut slab5);
+			let slab7 = sa1.alloc().unwrap();
+			assert_eq!(slab7.id, 1);
 
-		let slab8 = sa1.alloc().unwrap();
-		assert_eq!(slab8.id, 6);
+			let slab8 = sa1.alloc().unwrap();
+			assert_eq!(slab8.id, 6);
 
-		sa1.free(&mut slab4);
-		sa1.free(&mut slab3);
-		sa1.free(&mut slab2);
+			sa1.free(&mut slab4);
+			sa1.free(&mut slab3);
+			sa1.free(&mut slab2);
 
-		let slab9 = sa1.alloc().unwrap();
-		assert_eq!(slab9.id, 4);
+			let slab9 = sa1.alloc().unwrap();
+			assert_eq!(slab9.id, 4);
 
-		let slab10 = sa1.alloc().unwrap();
-		assert_eq!(slab10.id, 3);
+			let slab10 = sa1.alloc().unwrap();
+			assert_eq!(slab10.id, 3);
 
-		let slab11 = sa1.alloc().unwrap();
-		assert_eq!(slab11.id, 2);
+			let slab11 = sa1.alloc().unwrap();
+			assert_eq!(slab11.id, 2);
 
-		let slab12 = sa1.alloc().unwrap();
-		assert_eq!(slab12.id, 7);
+			let slab12 = sa1.alloc().unwrap();
+			assert_eq!(slab12.id, 7);
 
-		let mut slab13 = sa1.alloc().unwrap();
-		assert_eq!(slab13.id, 8);
+			let mut slab13 = sa1.alloc().unwrap();
+			assert_eq!(slab13.id, 8);
 
-		sa1.free(&mut slab13);
-		//sa1.free(&mut slab13);
+			sa1.free(&mut slab13);
+			//sa1.free(&mut slab13);
 
-		sa1.cleanup();
+			sa1.cleanup();
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 
 	const SIZE: usize = 32;
@@ -467,57 +476,61 @@ mod test {
 
 	#[test]
 	fn test_slab2() {
-		let mut sa1 =
-			SlabAllocator::new(SIZE, (COUNT + 10) as u64, (COUNT + 10) as u64, 20).unwrap();
+		let initial = unsafe { getalloccount() };
+		{
+			let mut sa1 =
+				SlabAllocator::new(SIZE, (COUNT + 10) as u64, (COUNT + 10) as u64, 20).unwrap();
 
-		let pages_needed = 1 + divide_usize(COUNT * size_of::<Slab>(), page_size!());
-		let slabs_ptr = unsafe { map(pages_needed) };
-		let slabs = unsafe { from_raw_parts_mut(slabs_ptr as *mut Slab, COUNT) };
+			let pages_needed = 1 + divide_usize(COUNT * size_of::<Slab>(), page_size!());
+			let slabs_ptr = unsafe { map(pages_needed) };
+			let slabs = unsafe { from_raw_parts_mut(slabs_ptr as *mut Slab, COUNT) };
 
-		let _start = getmicros!();
-		for _ in 0..ITER {
-			for i in 0..COUNT {
-				if i % (1024 * 1024) == 0 {
-					if i != 0 {
-						print!("loop: ");
-						print_num!(i);
-						println!("");
+			let _start = getmicros!();
+			for _ in 0..ITER {
+				for i in 0..COUNT {
+					if i % (1024 * 1024) == 0 {
+						if i != 0 {
+							print!("loop: ");
+							print_num!(i);
+							println!("");
+						}
+					}
+					slabs[i] = sa1.alloc().unwrap();
+					for j in 0..SIZE {
+						slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
 					}
 				}
-				slabs[i] = sa1.alloc().unwrap();
-				for j in 0..SIZE {
-					slabs[i].get_mut()[j] = b'a' + ((i + j) % 26) as u8;
+
+				for i in 0..COUNT {
+					if i % (1024 * 1024) == 0 {
+						if i != 0 {
+							print!("free loop: ");
+							print_num!(i);
+							println!("");
+						}
+					}
+					for j in 0..SIZE {
+						assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
+					}
+					sa1.free(&mut slabs[i]);
 				}
 			}
 
-			for i in 0..COUNT {
-				if i % (1024 * 1024) == 0 {
-					if i != 0 {
-						print!("free loop: ");
-						print_num!(i);
-						println!("");
-					}
-				}
-				for j in 0..SIZE {
-					assert_eq!(slabs[i].get()[j], b'a' + ((i + j) % 26) as u8);
-				}
-				sa1.free(&mut slabs[i]);
+			/*
+			print!("micros=");
+			print_num!(getmicros!() - _start);
+			println!("");
+					*/
+
+			assert_eq!(aload!(&sa1.total_slabs), (COUNT + 1) as u64);
+			assert_eq!(sa1.free_slabs, (COUNT + 1) as u64);
+			sa1.cleanup();
+
+			unsafe {
+				unmap(slabs_ptr, pages_needed);
 			}
 		}
-
-		/*
-		print!("micros=");
-		print_num!(getmicros!() - _start);
-		println!("");
-				*/
-
-		assert_eq!(aload!(&sa1.total_slabs), (COUNT + 1) as u64);
-		assert_eq!(sa1.free_slabs, (COUNT + 1) as u64);
-		sa1.cleanup();
-
-		unsafe {
-			unmap(slabs_ptr, pages_needed);
-		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 
 	// test malloc/free for comparison
@@ -581,19 +594,23 @@ mod test {
 
 	#[test]
 	fn test_reconstruct() {
-		let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
-		let slab1 = sa1.alloc().unwrap();
-		assert_eq!(slab1.id, 1);
-		let mut slab2 = Slab::from_raw(slab1.get_raw(), slab1.id);
+		let initial = unsafe { getalloccount() };
+		{
+			let mut sa1 = SlabAllocator::new(224, 128, 256, 1).unwrap();
+			let slab1 = sa1.alloc().unwrap();
+			assert_eq!(slab1.id, 1);
+			let mut slab2 = Slab::from_raw(slab1.get_raw(), slab1.id);
 
-		assert_eq!(aload!(&sa1.total_slabs), 2);
-		assert_eq!(sa1.free_slabs, 1);
+			assert_eq!(aload!(&sa1.total_slabs), 2);
+			assert_eq!(sa1.free_slabs, 1);
 
-		sa1.free(&mut slab2);
+			sa1.free(&mut slab2);
 
-		assert_eq!(aload!(&sa1.total_slabs), 2);
-		assert_eq!(sa1.free_slabs, 2);
+			assert_eq!(aload!(&sa1.total_slabs), 2);
+			assert_eq!(sa1.free_slabs, 2);
 
-		sa1.cleanup();
+			sa1.cleanup();
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 }
