@@ -2,6 +2,7 @@ pub mod bitmap;
 pub mod blob;
 pub mod error;
 pub mod lock;
+pub mod rc;
 pub mod result;
 #[macro_use]
 pub mod macros;
