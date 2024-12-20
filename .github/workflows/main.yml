@@ -72,7 +72,8 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Check macos version
-        run: sw_vers
+        run: |
+          sw_vers
       - name: macos update nightly
         run: rustup install nightly
       - name: macos build (rustc)
@@ -90,6 +91,9 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/cgilliard/famc
             cd famc
+            export CXX=/opt/homebrew/bin/g++-13
+            export CC=/opt/homebrew/bin/gcc-13
+            export PATH="/usr/local/bin:$PATH"
             ./build.sh
             cd ..
             ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
