@@ -57,6 +57,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/thepowersgang/mrustc
             cd mrustc
+            git fetch --tags
+            git checkout v0.11.1
             make RUSTCSRC
             make -f minicargo.mk
             cd ..
@@ -92,6 +94,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/thepowersgang/mrustc
             cd mrustc
+            git fetch --tags
+            git checkout v0.11.1
             export CXX=/opt/homebrew/bin/g++-13
             export CC=/opt/homebrew/bin/gcc-13
             make RUSTCSRC
