@@ -1,7 +1,7 @@
-use prelude::*;
 use core::ops::Drop;
 use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
+use prelude::*;
 use sys::{map, unmap};
 
 pub struct Blob {

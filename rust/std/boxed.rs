@@ -1,7 +1,7 @@
 use core::marker::{Sized, Unsize};
 use core::mem::size_of;
 use core::ops::{CoerceUnsized, Deref, DerefMut, Drop};
-use core::ptr::{self, null_mut};
+use core::ptr::{self, drop_in_place, null_mut};
 use core::slice::from_raw_parts_mut;
 use prelude::*;
 use std::slabs::Slab;
@@ -200,11 +200,17 @@ impl<T: ?Sized> Drop for Box<T> {
 			match metadata_type(self.metadata) {
 				MetaDataType::Mapped => unsafe {
 					if !self.ptr.is_null() {
+						let value_ptr: *mut T = self.as_mut_ptr();
+						drop_in_place(value_ptr);
 						unmap(self.ptr as *mut u8, metadata_pages(self.metadata));
 					}
 				},
 				MetaDataType::Slab => match metadata_slab_allocator(self.metadata) {
 					Some(sa) => {
+						unsafe {
+							let value_ptr: *mut T = self.as_mut_ptr();
+							drop_in_place(value_ptr);
+						}
 						let mut slab =
 							Slab::from_raw(self.ptr as *mut u8, metadata_id(self.metadata));
 						sa.free(&mut slab);
@@ -564,6 +570,40 @@ mod test {
 					assert_eq!(box2.as_ref()[i], 10);
 				}
 			}
+			assert_all_slabs_free();
+			unsafe {
+				cleanup_slab_allocators();
+			}
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	static mut COUNT: i32 = 0;
+
+	struct DropBox {
+		x: u32,
+	}
+
+	impl Drop for DropBox {
+		fn drop(&mut self) {
+			assert_eq!(self.x, 1);
+			unsafe {
+				COUNT += 1;
+			}
+		}
+	}
+
+	#[test]
+	fn test_drop_box() {
+		let initial = unsafe { getalloccount() };
+		{
+			{
+				let _big = Box::new_zeroed_byte_slice(100000);
+				let _v = Box::new(DropBox { x: 1 }).unwrap();
+				assert_eq!(unsafe { COUNT }, 0);
+			}
+			assert_eq!(unsafe { COUNT }, 1);
+
 			assert_all_slabs_free();
 			unsafe {
 				cleanup_slab_allocators();

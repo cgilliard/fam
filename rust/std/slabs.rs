@@ -1,5 +1,3 @@
-use core::marker::Send;
-use core::marker::Sync;
 use core::mem::size_of;
 use core::ptr;
 use core::ptr::null_mut;
@@ -44,9 +42,6 @@ pub struct SlabAllocator {
 	free_slabs: u64,
 	total_slabs: u64,
 }
-
-unsafe impl Send for SlabAllocator {}
-unsafe impl Sync for SlabAllocator {}
 
 #[derive(Copy, Clone)]
 pub struct Slab {
