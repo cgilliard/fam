@@ -80,20 +80,32 @@ impl<T> Rc<T> {
 mod test {
 	#![allow(static_mut_refs)]
 	use super::*;
+	use std::boxed::assert_all_slabs_free;
+	use sys::getalloccount;
 
 	#[test]
 	fn test_rc1() {
-		let mut x1 = Rc::new(1).unwrap();
-		assert!(x1.get_mut().is_some());
-		let mut x2 = x1.clone().unwrap();
-		assert!(x1.get_mut().is_none());
-		assert!(x2.get_mut().is_none());
+		let initial = unsafe { getalloccount() };
+		{
+			{
+				let mut x1 = Rc::new(1).unwrap();
+				assert!(x1.get_mut().is_some());
+				let mut x2 = x1.clone().unwrap();
+				assert!(x1.get_mut().is_none());
+				assert!(x2.get_mut().is_none());
 
-		unsafe {
-			*x1.get_mut_unchecked() += 1;
+				unsafe {
+					*x1.get_mut_unchecked() += 1;
+				}
+				assert_eq!(*x1.get(), 2);
+				assert_eq!(*x2.get(), 2);
+			}
+			assert_all_slabs_free();
+			unsafe {
+				cleanup_slab_allocators();
+			}
 		}
-		assert_eq!(*x1.get(), 2);
-		assert_eq!(*x2.get(), 2);
+		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	static mut VTEST: usize = 0;
@@ -112,14 +124,25 @@ mod test {
 
 	#[test]
 	fn test_rc2() {
+		let initial = unsafe { getalloccount() };
 		{
-			let x = Rc::new(MyType { v: 1 }).unwrap();
-			assert_eq!(x.get().v, 1);
-			let _y = x.clone();
-			let _z = MyType { v: 2 };
+			{
+				{
+					let x = Rc::new(MyType { v: 1 }).unwrap();
+					assert_eq!(x.get().v, 1);
+					let _y = x.clone();
+					let _z = MyType { v: 2 };
+				}
+				unsafe {
+					assert_eq!(VTEST, 2);
+				}
+			}
+
+			assert_all_slabs_free();
+			unsafe {
+				cleanup_slab_allocators();
+			}
 		}
-		unsafe {
-			assert_eq!(VTEST, 2);
-		}
+		assert_eq!(initial, unsafe { getalloccount() });
 	}
 }

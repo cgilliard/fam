@@ -383,56 +383,57 @@ impl Box<[u8]> {
 }
 
 #[cfg(test)]
+#[allow(static_mut_refs)]
+pub fn assert_all_slabs_free() {
+	match unsafe { &SLABS.sa32 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+	match unsafe { &SLABS.sa96 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+	match unsafe { &SLABS.sa224 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+	match unsafe { &SLABS.sa480 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+	match unsafe { &SLABS.sa992 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+	match unsafe { &SLABS.sa2016 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+	match unsafe { &SLABS.sa4064 } {
+		Some(sa) => {
+			assert_eq!(sa.free_slabs(), sa.total_slabs());
+		}
+		None => {}
+	}
+}
+
+#[cfg(test)]
 mod test {
 	use super::*;
 	use core::ops::Fn;
 	use sys::getalloccount;
-
-	#[allow(static_mut_refs)]
-	fn assert_all_slabs_free() {
-		match unsafe { &SLABS.sa32 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-		match unsafe { &SLABS.sa96 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-		match unsafe { &SLABS.sa224 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-		match unsafe { &SLABS.sa480 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-		match unsafe { &SLABS.sa992 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-		match unsafe { &SLABS.sa2016 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-		match unsafe { &SLABS.sa4064 } {
-			Some(sa) => {
-				assert_eq!(sa.free_slabs(), sa.total_slabs());
-			}
-			None => {}
-		}
-	}
 
 	#[test]
 	fn test_box1() {
