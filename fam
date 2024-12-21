@@ -27,6 +27,14 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	ar rcs .obj/libtest.a .obj/*.o || exit 1;
 	rustc +nightly --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
 	./bin/test_fam ${filter} --test-threads=1 || exit 1;
+	if [ "$coverage" = "1" ]; then
+                git log -1 > /tmp/coverage.txt || exit 1;
+                grcov \
+                        /tmp/file.profraw \
+                        --branch --binary-path \
+                        ./bin > /tmp/coverage.txt || exit 1;
+                ./scripts/coverage.sh ${updatedocs}
+        fi
 fi
 if [ "$all" = "1" ]; then
 	cd c
@@ -40,7 +48,7 @@ if [ "$all" = "1" ]; then
 	cd ..
 	if [ "$usemrustc" = "1" ]; then
 		echo "${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust.o -C panic=abort";
-                ${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust.o -C panic=abort \
+                ${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust -C panic=abort \
                         || exit 1;
         else
 		echo "rustc +nightly -C panic=abort -C opt-level=3 --emit=obj --crate-type=lib -o .obj/rust.o rust/mod.rs";

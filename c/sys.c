@@ -1,16 +1,25 @@
 #include <time.h>
 
+int printf(const char *, ...);
 void *malloc(unsigned long);
 void free(void *);
 long long __alloc_count = 0;
+void _exit(int);
 
 void *alloc(unsigned long size) {
-	void *ret = malloc(size);
+	if (size == 0) {
+		printf("Attempt to allocate 0 bytes!\n");
+		_exit(-1);
+	}
+
+	void *ptr = malloc(size);
+	// printf("malloc %p (%lu)\n", ptr, size);
 	__alloc_count++;
-	return ret;
+	return ptr;
 }
 
 void release(void *ptr) {
+	// printf("free %p\n", ptr);
 	__alloc_count--;
 	free(ptr);
 }
