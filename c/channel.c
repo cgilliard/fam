@@ -12,13 +12,14 @@ typedef struct Message {
 typedef struct Channel {
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
-	Message *pending;
+	Message *head;
+	Message *tail;
 } Channel;
 
 int channel_init(Channel *handle) {
 	if (pthread_mutex_init(&handle->lock, NULL)) return -1;
 	if (pthread_cond_init(&handle->cond, NULL)) return -1;
-	handle->pending = NULL;
+	handle->head = handle->tail = NULL;
 	return 0;
 }
 int channel_send(Channel *handle, Message *msg) {
@@ -27,14 +28,20 @@ int channel_send(Channel *handle, Message *msg) {
 		_exit(-1);
 	}
 
-	handle->pending = msg;
-	if (pthread_cond_signal(&handle->cond)) {
-		perror("pthread_cond_signal");
-		_exit(-1);
-	}
+	msg->next = NULL;
+	if (handle->tail)
+		handle->tail->next = msg;
+	else
+		handle->head = msg;
+	handle->tail = msg;
 
 	if (pthread_mutex_unlock(&handle->lock)) {
 		perror("pthread_mutex_unlock");
+		_exit(-1);
+	}
+
+	if (pthread_cond_signal(&handle->cond)) {
+		perror("pthread_cond_signal");
 		_exit(-1);
 	}
 
@@ -46,11 +53,11 @@ Message *channel_recv(Channel *handle) {
 		_exit(1);
 	}
 
-	while (!handle->pending)
-		pthread_cond_wait(&handle->cond, &handle->lock);
+	while (!handle->head) pthread_cond_wait(&handle->cond, &handle->lock);
 
-	Message *ret = handle->pending;
-	handle->pending = NULL;
+	Message *ret = handle->head;
+	handle->head = handle->head->next;
+	if (!handle->head) handle->tail = NULL;
 
 	if (pthread_mutex_unlock(&handle->lock)) {
 		perror("pthread_mutex_lock");
