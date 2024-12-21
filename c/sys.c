@@ -1,29 +1,18 @@
-#include <stdio.h>
-#include <sys/mman.h>
 #include <time.h>
 
+void *malloc(unsigned long);
+void free(void *);
 long long __alloc_count = 0;
 
-int getpagesize();
-void _exit(int);
-
-void *map(unsigned long long pages) {
-	void *ret = mmap(0, getpagesize() * pages, PROT_READ | PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (ret == MAP_FAILED) return 0;
-	// fprintf(stderr, "map %llu %p\n", pages, ret);
-	__alloc_count += pages;
+void *alloc(unsigned long size) {
+	void *ret = malloc(size);
+	__alloc_count++;
 	return ret;
 }
 
-void unmap(void *ptr, unsigned long long pages) {
-	// fprintf(stderr, "unmap %llu %p\n", pages, ptr);
-	__alloc_count -= pages;
-	if (munmap(ptr, getpagesize() * pages)) {
-		fprintf(stderr, "Could not unmap address %p [pages=%llu]\n",
-			ptr, pages);
-		_exit(-1);
-	}
+void release(void *ptr) {
+	__alloc_count--;
+	free(ptr);
 }
 
 unsigned long long getmicros() {
