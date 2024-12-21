@@ -32,6 +32,13 @@ impl<T> Option<T> {
 		!self.is_some()
 	}
 
+	pub fn unwrap(self) -> T {
+		match self {
+			Option::Some(t) => t,
+			Option::None => exit!("unwrap on none!"),
+		}
+	}
+
 	pub const fn as_mut(&mut self) -> Option<&mut T> {
 		match self {
 			Some(v) => Some(v),

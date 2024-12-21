@@ -17,6 +17,8 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 
 	${cc} ${ccflags} -c -Ic c/util.c || { rm -f libtest.a *o; exit 1; }
 	${cc} ${ccflags} -c -Ic c/sys.c || { rm -f libtest.a *o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/channel.c || { rm -f libtest.a *o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/thread.c || { rm -f libtest.a *o; exit 1; }
 	ar rcs libtest.a *.o || { rm -f libtest.a *o; exit 1; }
 	rustc +nightly --test rust/mod.rs -o bin/test_fam -L . -l static=test ${rustflags} || { rm -f libtest.a *o; exit 1; }
 	./bin/test_fam ${filter} --test-threads=1 || { rm -f libtest.a *o; exit 1; }
@@ -35,6 +37,8 @@ if [ "$all" = "1" ]; then
 	${cc} ${ccflags} -c -Ic c/sys.c || { rm -f bin/fam *.o; exit 1; }
 	${cc} ${ccflags} -c -Ic c/main.c || { rm -f bin/fam *.o; exit 1; }
 	${cc} ${ccflags} -c -Ic c/util.c || { rm -f bin/fam *.o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/channel.c || { rm -f bin/fam *.o; exit 1; }
+	${cc} ${ccflags} -c -Ic c/thread.c || { rm -f bin/fam *.o; exit 1; }
 	if [ "$usemrustc" = "1" ]; then
 		${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -C panic=abort \
 			|| { rm -f bin/fam *.o; exit 1; }

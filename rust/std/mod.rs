@@ -1,10 +1,12 @@
 pub mod bitmap;
 pub mod blob;
+pub mod channel;
 pub mod error;
 pub mod lock;
 pub mod rc;
 pub mod result;
 pub mod string;
+pub mod thread;
 pub mod vec;
 #[macro_use]
 pub mod macros;

@@ -292,6 +292,10 @@ where
 	pub fn as_mut_ptr(&mut self) -> *mut T {
 		self.ptr
 	}
+	pub unsafe fn into_inner(self) -> *mut T {
+		let value = self.ptr;
+		value
+	}
 }
 
 impl<T, U> CoerceUnsized<Box<U>> for Box<T>

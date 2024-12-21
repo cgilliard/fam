@@ -31,16 +31,16 @@ impl<T: ?Sized> Drop for Rc<T> {
 	}
 }
 
-impl<T: ?Sized> Deref for RcInner<T> {
+impl<T: ?Sized> Deref for Rc<T> {
 	type Target = T;
 	fn deref(&self) -> &Self::Target {
-		&self.value
+		&self.inner.value
 	}
 }
 
-impl<T: ?Sized> DerefMut for RcInner<T> {
+impl<T: ?Sized> DerefMut for Rc<T> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.value
+		&mut self.inner.value
 	}
 }
 

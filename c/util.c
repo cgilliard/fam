@@ -1,9 +1,3 @@
-#include <pthread.h>
-
-#ifndef NULL
-#define NULL (0(void *))
-#endif	// NULL
-
 typedef long long i64;
 typedef unsigned long long u64;
 typedef unsigned int u32;
@@ -44,12 +38,3 @@ u64 cas_seq(u64 *ptr, u64 *expect, u64 desired) {
 int ctzl(u64 v) { return __builtin_ctzl(v); }
 
 int ctz(u32 v) { return __builtin_ctz(v); }
-
-int thread_create(pthread_t *th, void *(*start_routine)(void *), void *arg) {
-	return pthread_create(th, NULL, start_routine, arg);
-}
-int thread_join(pthread_t *th) { return pthread_join(*th, NULL); }
-
-size_t thread_handle_size() { return sizeof(pthread_t); }
-
-int thread_detach(pthread_t *th) { return pthread_detach(*th); }

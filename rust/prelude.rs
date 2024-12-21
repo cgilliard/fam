@@ -13,6 +13,7 @@ pub use crate::{
 pub use core::convert::From;
 pub use core::convert::Into;
 pub use std::lock::Lock;
+pub use std::thread::spawn;
 
 #[cfg(test)]
 pub use std::boxed::cleanup_slab_allocators;
