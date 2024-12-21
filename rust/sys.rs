@@ -1,6 +1,6 @@
 #[repr(C)]
 pub struct Message {
-	_next: *mut Message,
+	pub(crate) _next: *mut Message,
 	pub payload: *mut u8,
 }
 
@@ -24,9 +24,9 @@ extern "C" {
 	pub fn thread_join(handle: *mut u8) -> i32;
 	pub fn thread_detach(handle: *mut u8) -> i32;
 	pub fn thread_handle_size() -> usize;
-	pub fn channel_init(channel: *mut u8) -> i32;
-	pub fn channel_send(channel: *mut u8, ptr: *mut u8) -> i32;
-	pub fn channel_recv(channel: *mut u8) -> *mut u8;
+	pub fn channel_init(channel: *const u8) -> i32;
+	pub fn channel_send(channel: *const u8, ptr: *const u8) -> i32;
+	pub fn channel_recv(channel: *const u8) -> *mut u8;
 	pub fn channel_handle_size() -> usize;
 	pub fn channel_destroy(channel: *mut u8) -> i32;
 }
