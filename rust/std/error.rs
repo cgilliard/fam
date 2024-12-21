@@ -7,6 +7,8 @@ pub enum ErrorKind {
 	OutOfBounds,
 	IllegalArgument,
 	CapacityExceeded,
+	ThreadCreate,
+	ChannelRecv,
 	Todo,
 }
 

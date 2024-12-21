@@ -19,20 +19,22 @@ where
 	F: FnOnce(),
 {
 	let wrap = wrap as *mut ThreadInfo<F>;
-	let mut slab = unsafe {
+	let (mut slab, closure) = unsafe {
 		let ti = ptr::read(wrap);
 		let v = ti.ptr;
 		let metadata = ti.metadata;
 		let closure_box = Box::from_raw(v, metadata);
 		let closure = closure_box.into_inner();
-		ptr::read(closure)();
-		Slab::from_raw(ti.selfptr, ti.id)
+		(Slab::from_raw(ti.selfptr, ti.id), ptr::read(closure))
 	};
+
 	let sa = match get_slab_allocator(size_of::<ThreadInfo<F>>()) {
 		Some(sa) => sa,
 		None => exit!("slab allocator not found!"),
 	};
 	sa.free(&mut slab);
+
+	closure();
 
 	null_mut()
 }
@@ -72,12 +74,16 @@ where
 				exit!("thread handle is too big!");
 			}
 			unsafe {
-				thread_create(
+				if thread_create(
 					ptr as *mut u8,
 					start_thread::<F>,
 					slab.get_raw() as *mut u8,
 					true,
-				);
+				) != 0
+				{
+					b.unleak();
+					return Err(ErrorKind::ThreadCreate.into());
+				}
 			}
 
 			Ok(())
@@ -112,8 +118,7 @@ mod test {
 
 				loop {
 					let _ = lock.read(); // memory fence only
-					if *rc == 1 {
-					} else {
+					if *rc != 1 {
 						assert_eq!(*rc, 2);
 						assert_eq!(x, 2);
 						break;
