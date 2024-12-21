@@ -1,46 +1,38 @@
-use core::ops::{Drop, FnOnce};
+use core::mem::size_of;
+use core::ops::FnOnce;
 use core::ptr;
 use core::ptr::null_mut;
 use prelude::*;
-use sys::{map, thread_create, unmap};
+use std::boxed::get_slab_allocator;
+use std::slabs::Slab;
+use sys::thread_create;
 
-struct ThreadWrap {
-	wrap: *mut u64,
-}
-
-impl ThreadWrap {
-	fn get<F>(&self) -> Box<F>
-	where
-		F: FnOnce(),
-	{
-		let v: *mut F = unsafe { *self.wrap } as *mut F;
-		let metadata = unsafe { *(self.wrap.add(1) as *mut u64) };
-		unsafe { Box::from_raw(v, metadata) }
-	}
-}
-
-impl Drop for ThreadWrap {
-	fn drop(&mut self) {
-		unsafe {
-			let handle = *(self.wrap.add(2) as *mut u64);
-			unmap(handle as *mut u8, 1);
-			unmap(self.wrap as *mut u8, 1);
-		}
-	}
+struct ThreadInfo<F: FnOnce()> {
+	ptr: *mut F,
+	metadata: u64,
+	selfptr: *mut u8,
+	id: usize,
 }
 
 extern "C" fn start_thread<F>(wrap: *mut u8) -> *mut u8
 where
 	F: FnOnce(),
 {
-	let wrap = wrap as *mut u64;
-	let tw = ThreadWrap { wrap };
-	let closure_box = tw.get::<F>();
-	let closure = unsafe { closure_box.into_inner() };
-
-	unsafe {
+	let wrap = wrap as *mut ThreadInfo<F>;
+	let mut slab = unsafe {
+		let ti = ptr::read(wrap);
+		let v = ti.ptr;
+		let metadata = ti.metadata;
+		let closure_box = Box::from_raw(v, metadata);
+		let closure = closure_box.into_inner();
 		ptr::read(closure)();
-	}
+		Slab::from_raw(ti.selfptr, ti.id)
+	};
+	let sa = match get_slab_allocator(size_of::<ThreadInfo<F>>()) {
+		Some(sa) => sa,
+		None => exit!("slab allocator not found!"),
+	};
+	sa.free(&mut slab);
 
 	null_mut()
 }
@@ -49,19 +41,49 @@ pub fn spawn<F>(f: F) -> Result<(), Error>
 where
 	F: FnOnce(),
 {
-	let mut b = Box::new(f).unwrap();
-	let wrap = unsafe { map(1) } as *mut u64;
-	let handle = unsafe { map(1) };
-	unsafe {
-		let v: u64 = b.as_mut_ptr() as u64;
-		*(wrap.add(0)) = v;
-		*(wrap.add(1)) = b.metadata();
-		*(wrap.add(2)) = handle as u64;
-		b.leak();
-		thread_create(handle, start_thread::<F>, wrap as *mut u8, true);
-	}
+	match Box::new(f) {
+		Ok(mut b) => {
+			let sa = match get_slab_allocator(size_of::<ThreadInfo<F>>()) {
+				Some(sa) => sa,
+				None => return Err(ErrorKind::Alloc.into()),
+			};
 
-	Ok(())
+			let slab = match sa.alloc() {
+				Ok(slab) => slab,
+				Err(e) => return Err(e),
+			};
+			unsafe {
+				ptr::write(
+					slab.get_raw() as *mut ThreadInfo<F>,
+					ThreadInfo {
+						ptr: b.as_mut_ptr(),
+						metadata: b.metadata(),
+						selfptr: slab.get_raw(),
+						id: slab.get_id(),
+					},
+				);
+
+				b.leak();
+			}
+
+			let mut value: u128 = 0;
+			let ptr: *mut u128 = &mut value as *mut u128;
+			if unsafe { crate::sys::thread_handle_size() } > size_of::<u128>() {
+				exit!("thread handle is too big!");
+			}
+			unsafe {
+				thread_create(
+					ptr as *mut u8,
+					start_thread::<F>,
+					slab.get_raw() as *mut u8,
+					true,
+				);
+			}
+
+			Ok(())
+		}
+		Err(e) => Err(e),
+	}
 }
 
 #[cfg(test)]

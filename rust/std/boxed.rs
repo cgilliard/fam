@@ -80,7 +80,7 @@ pub unsafe fn cleanup_slab_allocators() {
 }
 
 #[allow(static_mut_refs)]
-fn get_slab_allocator(size: usize) -> Option<&'static mut SlabAllocator> {
+pub fn get_slab_allocator(size: usize) -> Option<&'static mut SlabAllocator> {
 	unsafe {
 		let mut r = SLAB_INIT.read();
 		if size <= 32 {
