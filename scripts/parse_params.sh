@@ -41,6 +41,9 @@ for var in "$@"; do
 	test)
 		test=1;
 		;;
+	clean)
+		clean=1;
+		;;
 	*)
 		echo "Unrecognized option: '$var'"
 		echo $usage;
@@ -48,7 +51,7 @@ for var in "$@"; do
 	esac
 done
 
-if [ "$test" != "1" ]  && [ "$coverage" != "1" ] && [ "$fasttest" != "1" ]; then
+if [ "$test" != "1" ]  && [ "$coverage" != "1" ] && [ "$fasttest" != "1" ] && [ "$clean" != "1" ]; then
 	all=1;
 fi
 

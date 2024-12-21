@@ -17,11 +17,39 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	for file in *.c
 	do
 		if [ "${file}" != "main.c" ]; then
-			${cc} ${ccflags} -o ../.obj/${file%.c}.o -c -Ic ${file}
+			if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+				echo "${cc} ${ccflags} -o ../.obj/${file%.c}.o -c -Ic ${file}";
+				${cc} ${ccflags} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
+			fi
 		fi
 	done
 	cd ..
+	ar rcs .obj/libtest.a .obj/*.o || exit 1;
+	rustc +nightly --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
+	./bin/test_fam ${filter} --test-threads=1 || exit 1;
 fi
 if [ "$all" = "1" ]; then
-	echo "not implemented"
+	cd c
+        for file in *.c
+        do
+		if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+			echo "${cc} ${ccflags} -o ../.obj/${file%.c}.o -c -Ic ${file}";
+			${cc} ${ccflags} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
+        	fi
+        done
+	cd ..
+	if [ "$usemrustc" = "1" ]; then
+		echo "${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust.o -C panic=abort";
+                ${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust.o -C panic=abort \
+                        || exit 1;
+        else
+		echo "rustc +nightly -C panic=abort -C opt-level=3 --emit=obj --crate-type=lib -o .obj/rust.o rust/mod.rs";
+                rustc +nightly -C panic=abort -C opt-level=3 --emit=obj --crate-type=lib -o .obj/rust.o rust/mod.rs \
+                        || exit 1;
+        fi
+	echo "${cc} ${ccflags} -o bin/fam .obj/*.o";
+        ${cc} ${ccflags} -o bin/fam .obj/*.o
+fi
+if [ "$clean" = "1" ]; then
+	rm -rf .obj/*.o libtest.a bin/*
 fi
