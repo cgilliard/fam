@@ -29,13 +29,30 @@ impl<T> Clone for Channel<T> {
 impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
 		unsafe {
-			/*
-			while (channel_pending(self.handle)) {
+			while channel_pending(self.handle) {
 				let _recv = self.recv();
 			}
-					*/
 			channel_destroy(self.handle);
 			release(self.handle);
+		}
+	}
+}
+
+impl<T> ChannelInner<T> {
+	pub fn recv(&self) -> Result<T, Error> {
+		unsafe {
+			let recv = channel_recv(self.handle) as *mut Message;
+			let payload = (*recv).payload as *mut T;
+			let mut nbox = Box::from_raw(payload);
+			nbox.leak();
+			let v = ptr::read(nbox.into_inner());
+			if !payload.is_null() {
+				release(payload as *mut u8);
+			}
+			if !recv.is_null() {
+				release(recv as *mut u8);
+			}
+			Ok(v)
 		}
 	}
 }
@@ -73,20 +90,7 @@ impl<T> Channel<T> {
 	}
 
 	pub fn recv(&self) -> Result<T, Error> {
-		unsafe {
-			let recv = channel_recv(self.inner.handle) as *mut Message;
-			let payload = (*recv).payload as *mut T;
-			let mut nbox = Box::from_raw(payload);
-			nbox.leak();
-			let v = ptr::read(nbox.into_inner());
-			if !payload.is_null() {
-				release(payload as *mut u8);
-			}
-			if !recv.is_null() {
-				release(recv as *mut u8);
-			}
-			Ok(v)
-		}
+		self.inner.recv()
 	}
 }
 
@@ -269,15 +273,8 @@ mod test {
 		let initial = unsafe { getalloccount() };
 		{
 			let channel = Channel::new().unwrap();
-			channel.send(()).unwrap();
-			let _ = channel.recv().unwrap();
-			//channel.send(()).unwrap();
-			//channel.send(()).unwrap();
-			// TODO: need to drop inner values as well (pass back to rust and drop the
-			// box)
-			// Test with:
-			// channel.send(0).unwrap();
-			// channel.send(0).unwrap();
+			channel.send(0).unwrap();
+			channel.send(0).unwrap();
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
