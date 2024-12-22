@@ -82,7 +82,11 @@ impl<T> Runtime<T> {
 		Ok(())
 	}
 
-	pub fn execute(&mut self, task: Task<T>) -> Result<Handle<u64>, Error> {
+	pub fn execute<F>(&mut self, task: F) -> Result<Handle<u64>, Error>
+	where
+		F: FnMut() -> T + Send + 'static,
+	{
+		let task = Box::new(task).unwrap();
 		let rimpl = match &self.rimpl {
 			Some(rimpl) => rimpl,
 			None => return Err(ErrorKind::NotInitialized.into()),
@@ -127,21 +131,15 @@ mod test {
 			crate::sys::sleep_millis(10);
 		}
 
-		let _ = runtime.execute(
-			Box::new(|| -> u64 {
-				//println!("exec");
-				4
-			})
-			.unwrap(),
-		);
+		let _ = runtime.execute(|| -> i32 {
+			//println!("exec");
+			4
+		});
 
-		let _ = runtime.execute(
-			Box::new(|| -> u64 {
-				//println!("next");
-				4
-			})
-			.unwrap(),
-		);
+		let _ = runtime.execute(|| -> i32 {
+			//println!("next");
+			4
+		});
 
 		unsafe {
 			crate::sys::sleep_millis(10);
