@@ -32,11 +32,14 @@ impl PartialEq for String {
 
 impl Clone for String {
 	fn clone(&self) -> Result<Self, Error> {
-		Ok(Self {
-			value: self.value.clone()?,
-			start: self.start,
-			end: self.end,
-		})
+		match self.value.clone() {
+			Ok(value) => Ok(Self {
+				value,
+				start: self.start,
+				end: self.end,
+			}),
+			Err(e) => Err(e),
+		}
 	}
 }
 

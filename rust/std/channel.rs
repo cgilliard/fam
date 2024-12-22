@@ -183,44 +183,35 @@ mod test {
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
-	fn test_channel_result() -> Result<(), Error> {
+	#[test]
+	fn test_channel_result() {
 		let initial = unsafe { getalloccount() };
 		{
-			let channel = Channel::new()?;
-			let channel_clone = channel.clone()?;
-			let channel2 = Channel::new()?;
-			let channel2_clone = channel2.clone()?;
-			let lock = lock_box!()?;
-			let lock_clone = lock.clone()?;
-			let rc = Rc::new(0)?;
-			let mut rc_clone = rc.clone()?;
+			let channel = Channel::new().unwrap();
+			let channel_clone = channel.clone().unwrap();
+			let channel2 = Channel::new().unwrap();
+			let channel2_clone = channel2.clone().unwrap();
+			let lock = lock_box!().unwrap();
+			let lock_clone = lock.clone().unwrap();
+			let rc = Rc::new(0).unwrap();
+			let mut rc_clone = rc.clone().unwrap();
 
 			spawn(move || {
-				let input = channel_clone.recv().unwrap();
-				let _ = lock_clone.write();
-				*rc_clone = input + 100;
+				{
+					let input = channel_clone.recv().unwrap();
+					let _ = lock_clone.write();
+					*rc_clone = input + 100;
+				}
 				channel2_clone.send(()).unwrap();
 			});
 
 			channel.send(301);
-			let result = channel2.recv()?;
+			let result = channel2.recv().unwrap();
 
 			assert_eq!(result, ());
 			assert_eq!(*rc, 401);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
-		Ok(())
-	}
-
-	#[test]
-	fn call_test_channel_result() {
-		match test_channel_result() {
-			Ok(_) => {}
-			Err(_) => {
-				println!("err!");
-				assert!(false);
-			}
-		}
 	}
 
 	struct DropTest {
@@ -228,11 +219,13 @@ mod test {
 	}
 
 	static mut DROPCOUNT: u32 = 0;
+	static mut DROPSUM: u32 = 0;
 
 	impl Drop for DropTest {
 		fn drop(&mut self) {
 			unsafe {
 				DROPCOUNT += 1;
+				DROPSUM += self.x;
 			}
 		}
 	}
@@ -251,9 +244,13 @@ mod test {
 			let mut rc_clone = rc.clone().unwrap();
 
 			spawn(move || {
-				let input: DropTest = channel_clone.recv().unwrap();
-				let _ = lock_clone.write();
-				*rc_clone = input.x + 100;
+				{
+					let input: DropTest = channel_clone.recv().unwrap();
+					let _ = lock_clone.write();
+					*rc_clone = input.x + 100;
+					assert_eq!(unsafe { DROPCOUNT }, 0);
+				}
+				assert_eq!(unsafe { DROPCOUNT }, 1);
 				channel2_clone.send(DropTest { x: 4 }).unwrap();
 			});
 
@@ -262,10 +259,11 @@ mod test {
 
 			assert_eq!(result.x, 4);
 			assert_eq!(*rc, 401);
-			assert!(unsafe { DROPCOUNT } < 2);
+			assert_eq!(unsafe { DROPCOUNT }, 1);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 		assert_eq!(unsafe { DROPCOUNT }, 2);
+		assert_eq!(unsafe { DROPSUM }, 305);
 	}
 
 	#[test]
