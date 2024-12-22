@@ -1,7 +1,5 @@
-use core::mem::size_of;
 use core::ops::FnOnce;
 use core::ptr;
-use core::ptr::null_mut;
 use prelude::*;
 use sys::thread_create;
 

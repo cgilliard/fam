@@ -6,13 +6,13 @@ pub struct Message {
 }
 
 extern "C" {
-	pub fn read(fd: i32, buf: *mut u8, len: usize) -> i64;
-	pub fn sleep(duration: u64) -> i32;
+	//pub fn read(fd: i32, buf: *mut u8, len: usize) -> i64;
+	//pub fn sleep(duration: u64) -> i32;
 	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
 	pub fn _exit(code: i32);
 	pub fn getpagesize() -> i32;
 	pub fn sched_yield() -> i32;
-	pub fn getmicros() -> u64;
+	//pub fn getmicros() -> u64;
 	pub fn thread_create(start_routine: extern "C" fn(*mut u8), arg: *mut u8) -> i32;
 	pub fn channel_init(channel: *const u8) -> i32;
 	pub fn channel_send(channel: *const u8, ptr: *const u8) -> i32;
@@ -24,8 +24,8 @@ extern "C" {
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
-	pub fn ctzl(v: u64) -> i32;
-	pub fn ctz(v: u32) -> i32;
+	//pub fn ctzl(v: u64) -> i32;
+	//pub fn ctz(v: u32) -> i32;
 	pub fn getalloccount() -> i64;
 	pub fn alloc(len: usize) -> *mut u8;
 	pub fn release(ptr: *mut u8);
@@ -35,7 +35,6 @@ extern "C" {
 mod test {
 	use super::*;
 	use core::mem::size_of;
-	use core::ptr::null_mut;
 
 	extern "C" fn test_thread(channel: *mut u8) {
 		unsafe {

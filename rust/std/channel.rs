@@ -8,12 +8,25 @@ use sys::{
 	Message,
 };
 
-pub struct Channel<T> {
+struct ChannelInner<T> {
 	handle: *mut u8,
 	_marker: PhantomData<T>,
 }
 
-impl<T> Drop for Channel<T> {
+pub struct Channel<T> {
+	inner: Rc<ChannelInner<T>>,
+}
+
+impl<T> Clone for Channel<T> {
+	fn clone(&self) -> Result<Self, Error> {
+		match self.inner.clone() {
+			Ok(inner) => Ok(Channel { inner }),
+			Err(e) => Err(e),
+		}
+	}
+}
+
+impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
 		unsafe {
 			channel_destroy(self.handle);
@@ -29,12 +42,15 @@ impl<T> Channel<T> {
 		}
 		unsafe {
 			let handle = alloc(channel_handle_size());
-			let ret = Channel {
+			let ret = match Rc::new(ChannelInner {
 				handle,
 				_marker: PhantomData,
+			}) {
+				Ok(inner) => Self { inner },
+				Err(e) => return Err(e),
 			};
 
-			channel_init(ret.handle);
+			channel_init(ret.inner.handle);
 
 			Ok(ret)
 		}
@@ -43,27 +59,23 @@ impl<T> Channel<T> {
 	pub fn send(&self, t: T) -> Result<(), Error> {
 		unsafe {
 			let msg = alloc(size_of::<Message>()) as *mut Message;
-			let payload = alloc(size_of::<u64>()) as *mut u64;
 			let mut b = Box::new(t).unwrap();
-			(*payload.add(0)) = b.as_mut_ptr() as u64;
+			(*msg).payload = b.as_mut_ptr() as *mut u8;
 			b.leak();
-			(*msg).payload = payload as *mut u8;
-			channel_send(self.handle, msg as *mut u8);
+			channel_send(self.inner.handle, msg as *mut u8);
 			Ok(())
 		}
 	}
 
 	pub fn recv(&self) -> Result<T, Error> {
 		unsafe {
-			let recv = channel_recv(self.handle) as *mut Message;
-			let payload = (*recv).payload as *mut u64;
-			let ptr = *payload.add(0) as *mut T;
-			let mut nbox = Box::from_raw(ptr);
+			let recv = channel_recv(self.inner.handle) as *mut Message;
+			let payload = (*recv).payload as *mut T;
+			let mut nbox = Box::from_raw(payload);
 			nbox.leak();
 			let v = ptr::read(nbox.into_inner());
 			release(payload as *mut u8);
 			release(recv as *mut u8);
-			release(ptr as *mut u8);
 			Ok(v)
 		}
 	}
@@ -86,6 +98,49 @@ mod test {
 				let v = channel.recv().unwrap();
 				assert_eq!(v, 101);
 				let _ = lock.read(); // memory fence only
+				assert_eq!(*rc_clone, 1);
+				*rc_clone += 1;
+				assert_eq!(*rc_clone, 2);
+			});
+
+			channel.send(101);
+
+			loop {
+				let _ = lock.read(); // memory fence only
+				if *rc == 1 {
+				} else {
+					assert_eq!(*rc, 2);
+					break;
+				}
+			}
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	#[test]
+	fn test_channel_clone() {
+		let initial = unsafe { getalloccount() };
+		{
+			let channel: Channel<u32> = Channel::new().unwrap();
+			let _channel2 = channel.clone().unwrap();
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	#[test]
+	fn test_channel_move_std() {
+		let initial = unsafe { getalloccount() };
+		{
+			let channel = Channel::new().unwrap();
+			let channel2 = channel.clone().unwrap();
+			let lock = lock!();
+			let lock2 = lock!();
+			let rc = Rc::new(1).unwrap();
+			let mut rc_clone = rc.clone().unwrap();
+			spawn(move || {
+				let v = channel2.recv().unwrap();
+				assert_eq!(v, 101);
+				let _ = lock2.read(); // memory fence only
 				assert_eq!(*rc_clone, 1);
 				*rc_clone += 1;
 				assert_eq!(*rc_clone, 2);
