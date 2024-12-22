@@ -1,8 +1,12 @@
 use core::marker::PhantomData;
+use core::mem::size_of;
 use core::ops::Drop;
 use core::ptr;
 use prelude::*;
-use sys::{alloc, channel_init, channel_recv, channel_send, release, Message};
+use sys::{
+	alloc, channel_destroy, channel_handle_size, channel_init, channel_recv, channel_send, release,
+	Message,
+};
 
 pub struct Channel<T> {
 	handle: *mut u8,
@@ -12,6 +16,7 @@ pub struct Channel<T> {
 impl<T> Drop for Channel<T> {
 	fn drop(&mut self) {
 		unsafe {
+			channel_destroy(self.handle);
 			release(self.handle);
 		}
 	}
@@ -19,20 +24,26 @@ impl<T> Drop for Channel<T> {
 
 impl<T> Channel<T> {
 	pub fn new() -> Result<Channel<T>, Error> {
+		if unsafe { channel_handle_size() } > 128 {
+			exit!("channel_handle_size() > 128");
+		}
 		unsafe {
-			let handle = alloc(1024);
-			channel_init(handle);
-			Ok(Channel {
+			let handle = alloc(channel_handle_size());
+			let ret = Channel {
 				handle,
 				_marker: PhantomData,
-			})
+			};
+
+			channel_init(ret.handle);
+
+			Ok(ret)
 		}
 	}
 
 	pub fn send(&self, t: T) -> Result<(), Error> {
 		unsafe {
-			let msg = alloc(1024) as *mut Message;
-			let payload = alloc(1024) as *mut u64;
+			let msg = alloc(size_of::<Message>()) as *mut Message;
+			let payload = alloc(size_of::<u64>()) as *mut u64;
 			let mut b = Box::new(t).unwrap();
 			(*payload.add(0)) = b.as_mut_ptr() as u64;
 			b.leak();
