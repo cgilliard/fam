@@ -3,7 +3,7 @@ use core::marker::{PhantomData, Send};
 use core::ops::FnMut;
 use prelude::*;
 
-type Task = Box<dyn FnMut() -> u64 + Send + 'static>;
+type Task<T> = Box<dyn FnMut() -> T + Send + 'static>;
 
 pub struct RuntimeConfig {
 	min_threads: usize,
@@ -32,20 +32,20 @@ pub struct Handle<T> {
 	_marker: PhantomData<T>,
 }
 
-struct RuntimeImpl {
-	channel: Channel<Task>,
+struct RuntimeImpl<T> {
+	channel: Channel<Task<T>>,
 }
 
-impl RuntimeImpl {
+impl<T> RuntimeImpl<T> {
 	fn new() -> Result<Self, Error> {
 		let channel = Channel::new().unwrap();
 		Ok(Self { channel })
 	}
 }
 
-pub struct Runtime {
+pub struct Runtime<T> {
 	config: RuntimeConfig,
-	rimpl: Option<RuntimeImpl>,
+	rimpl: Option<RuntimeImpl<T>>,
 }
 
 impl<T> Handle<T> {
@@ -58,7 +58,7 @@ impl<T> Handle<T> {
 	}
 }
 
-impl Runtime {
+impl<T> Runtime<T> {
 	pub fn new(config: RuntimeConfig) -> Result<Self, Error> {
 		if config.max_threads == 0 || config.min_threads > config.max_threads {
 			return Err(ErrorKind::IllegalArgument.into());
@@ -82,7 +82,7 @@ impl Runtime {
 		Ok(())
 	}
 
-	pub fn execute(&mut self, task: Task) -> Result<Handle<u64>, Error> {
+	pub fn execute(&mut self, task: Task<T>) -> Result<Handle<u64>, Error> {
 		let rimpl = match &self.rimpl {
 			Some(rimpl) => rimpl,
 			None => return Err(ErrorKind::NotInitialized.into()),
