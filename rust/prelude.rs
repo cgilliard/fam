@@ -1,4 +1,4 @@
-pub use crate::{lock, lock_box, print, print_num, println, vec};
+pub use crate::{channel, lock, lock_box, lock_pair, print, print_num, println, rc, vec};
 pub use std::boxed::Box;
 pub use std::channel::Channel;
 pub use std::clone::Clone;

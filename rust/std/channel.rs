@@ -8,6 +8,20 @@ use sys::{
 	channel_send, release, Message,
 };
 
+#[macro_export]
+macro_rules! channel {
+	() => {{
+		let channel = Channel::new();
+		match channel {
+			Ok(sender) => match sender.clone() {
+				Ok(receiver) => Ok((sender, receiver)),
+				Err(e) => Err(e),
+			},
+			Err(e) => Err(e),
+		}
+	}};
+}
+
 struct ChannelInner<T> {
 	handle: *mut u8,
 	_marker: PhantomData<T>,

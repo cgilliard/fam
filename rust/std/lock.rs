@@ -5,6 +5,19 @@ const WFLAG: u64 = 0x1u64 << 63u64;
 const WREQUEST: u64 = 0x1u64 << 62u64;
 
 #[macro_export]
+macro_rules! lock_pair {
+	() => {{
+		match lock_box!() {
+			Ok(lock1) => match lock1.clone() {
+				Ok(lock2) => Ok((lock1, lock2)),
+				Err(e) => Err(e),
+			},
+			Err(e) => Err(e),
+		}
+	}};
+}
+
+#[macro_export]
 macro_rules! lock {
 	() => {{
 		use core::cell::UnsafeCell;

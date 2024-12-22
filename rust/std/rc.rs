@@ -2,6 +2,19 @@ use core::marker::Sized;
 use core::ops::{Deref, DerefMut, Drop};
 use prelude::*;
 
+#[macro_export]
+macro_rules! rc {
+	($v:expr) => {{
+		match Rc::new($v) {
+			Ok(v) => match v.clone() {
+				Ok(v_clone) => Ok((v, v_clone)),
+				Err(e) => Err(e),
+			},
+			Err(e) => Err(e),
+		}
+	}};
+}
+
 struct RcInner<T: ?Sized> {
 	count: u64,
 	value: T,
