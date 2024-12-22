@@ -103,7 +103,7 @@ impl Lock {
 
 		loop {
 			let x = aload!(state) & !(WFLAG | WREQUEST);
-			if cas!(state, &x, WREQUEST) {
+			if cas!(state, &x, x | WREQUEST) {
 				break;
 			}
 			sched_yield!();

@@ -3,6 +3,7 @@
 void _exit(int);
 int perror(const char *msg);
 int printf(const char *fmt, ...);
+void release(void *);
 
 typedef struct Message {
 	struct Message *next;
@@ -15,6 +16,8 @@ typedef struct Channel {
 	Message *head;
 	Message *tail;
 } Channel;
+
+_Bool channel_pending(Channel *handle) { return handle->head; }
 
 int channel_init(Channel *handle) {
 	// printf("channel init %p\n", handle);

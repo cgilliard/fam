@@ -19,7 +19,9 @@ impl<T: ?Sized> Drop for Box<T> {
 			let value_ptr: *mut T = self.as_mut_ptr();
 			unsafe {
 				drop_in_place(value_ptr);
-				release(self.ptr as *mut u8);
+				if !self.ptr.is_null() {
+					release(self.ptr as *mut u8);
+				}
 			}
 		}
 	}
@@ -59,7 +61,11 @@ where
 	T: ?Sized,
 {
 	pub unsafe fn from_raw(ptr: *mut T) -> Box<T> {
-		Box { ptr, leak: false }
+		if ptr.is_null() {
+			Box { ptr, leak: true }
+		} else {
+			Box { ptr, leak: false }
+		}
 	}
 
 	pub unsafe fn unleak(&mut self) {

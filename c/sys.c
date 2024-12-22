@@ -8,13 +8,13 @@ void _exit(int);
 
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
-	//	printf("malloc %p (%lu)\n", ptr, size);
+	// printf("malloc %p (%lu)\n", ptr, size);
 	__alloc_count++;
 	return ptr;
 }
 
 void release(void *ptr) {
-	//	printf("free %p\n", ptr);
+	// printf("free %p\n", ptr);
 	__alloc_count--;
 	free(ptr);
 }
@@ -26,4 +26,13 @@ unsigned long long getmicros() {
 	       (unsigned long long)(now.tv_nsec / 1000);
 }
 
+int sleep_millis(unsigned long long millis) {
+	struct timespec ts;
+	ts.tv_sec = millis / 1000;
+	ts.tv_nsec = (millis % 1000) * 1000000;
+	int ret = nanosleep(&ts, 0);
+	return ret;
+}
+
 long long getalloccount() { return __alloc_count; }
+

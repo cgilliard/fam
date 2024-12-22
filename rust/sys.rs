@@ -19,6 +19,7 @@ extern "C" {
 	pub fn channel_recv(channel: *const u8) -> *mut u8;
 	pub fn channel_handle_size() -> usize;
 	pub fn channel_destroy(channel: *const u8) -> i32;
+	pub fn channel_pending(channel: *const u8) -> bool;
 	pub fn atomic_store_u64(ptr: *mut u64, value: u64);
 	pub fn atomic_load_u64(ptr: *const u64) -> u64;
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
@@ -29,6 +30,7 @@ extern "C" {
 	pub fn getalloccount() -> i64;
 	pub fn alloc(len: usize) -> *mut u8;
 	pub fn release(ptr: *mut u8);
+	pub fn sleep_millis(millis: u64) -> i32;
 }
 
 #[cfg(test)]
