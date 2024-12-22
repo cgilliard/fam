@@ -133,8 +133,8 @@ mod test {
 		{
 			let channel = Channel::new().unwrap();
 			let channel2 = channel.clone().unwrap();
-			let lock = lock!();
-			let lock2 = lock!();
+			let lock = lock_box!().unwrap();
+			let lock2 = lock.clone().unwrap();
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 			spawn(move || {

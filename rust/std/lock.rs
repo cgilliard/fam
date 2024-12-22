@@ -14,8 +14,23 @@ macro_rules! lock {
 	}};
 }
 
+#[macro_export]
+macro_rules! lock_box {
+	() => {{
+		LockBox::new()
+	}};
+}
+
 pub struct Lock {
-	pub(crate) state: UnsafeCell<u64>,
+	pub state: UnsafeCell<u64>,
+}
+
+struct LockBoxInner {
+	lock: Lock,
+}
+
+pub struct LockBox {
+	inner: Rc<LockBoxInner>,
 }
 
 pub struct LockReadGuard<'a> {
@@ -107,9 +122,36 @@ impl Lock {
 	}
 }
 
+impl Clone for LockBox {
+	fn clone(&self) -> Result<Self, Error> {
+		match self.inner.clone() {
+			Ok(inner) => Ok(Self { inner }),
+			Err(e) => Err(e),
+		}
+	}
+}
+
+impl LockBox {
+	pub fn new() -> Result<Self, Error> {
+		match Rc::new(LockBoxInner { lock: lock!() }) {
+			Ok(inner) => Ok(Self { inner }),
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn read<'a>(&'a self) -> LockReadGuard<'a> {
+		self.inner.lock.read()
+	}
+
+	pub fn write<'a>(&'a self) -> LockWriteGuard<'a> {
+		self.inner.lock.write()
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::WFLAG;
+	use prelude::*;
 	use std::lock::Lock;
 	#[test]
 	fn test_lock() {
@@ -139,5 +181,36 @@ mod test {
 			assert_eq!(unsafe { *x.state.get() }, 1);
 		}
 		assert_eq!(unsafe { *x.state.get() }, 0);
+	}
+
+	#[test]
+	fn test_lock_box() {
+		let x = lock_box!().unwrap();
+		let y = x.clone().unwrap();
+		assert_eq!(unsafe { *x.inner.lock.state.get() }, 0);
+		{
+			let _v = x.write();
+			assert_eq!(unsafe { *x.inner.lock.state.get() }, WFLAG);
+		}
+		assert_eq!(unsafe { *x.inner.lock.state.get() }, 0);
+		{
+			let _v = x.write();
+			assert_eq!(unsafe { *y.inner.lock.state.get() }, WFLAG);
+		}
+		{
+			let _v = x.read();
+			assert_eq!(unsafe { *x.inner.lock.state.get() }, 1);
+			{
+				let _v = x.read();
+				assert_eq!(unsafe { *x.inner.lock.state.get() }, 2);
+				{
+					let _v = y.read();
+					assert_eq!(unsafe { *x.inner.lock.state.get() }, 3);
+				}
+				assert_eq!(unsafe { *y.inner.lock.state.get() }, 2);
+			}
+			assert_eq!(unsafe { *x.inner.lock.state.get() }, 1);
+		}
+		assert_eq!(unsafe { *y.inner.lock.state.get() }, 0);
 	}
 }
