@@ -7,11 +7,6 @@ long long __alloc_count = 0;
 void _exit(int);
 
 void *alloc(unsigned long size) {
-	if (size == 0) {
-		printf("Attempt to allocate 0 bytes!\n");
-		_exit(-1);
-	}
-
 	void *ptr = malloc(size);
 	// printf("malloc %p (%lu)\n", ptr, size);
 	__alloc_count++;

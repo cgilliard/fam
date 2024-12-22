@@ -3,6 +3,7 @@ pub use std::boxed::Box;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind};
 pub use std::option::{Option, Option::None, Option::Some};
+pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
 
 // external imports (from core)

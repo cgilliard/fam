@@ -19,7 +19,9 @@ impl<T: ?Sized> Drop for Box<T> {
 			let value_ptr: *mut T = self.as_mut_ptr();
 			unsafe {
 				drop_in_place(value_ptr);
-				release(self.ptr as *mut u8);
+				if !self.ptr.is_null() {
+					release(self.ptr as *mut u8);
+				}
 			}
 		}
 	}
@@ -116,17 +118,16 @@ impl<T> Box<T> {
 
 impl Box<[u8]> {
 	pub fn new_zeroed_byte_slice(len: usize) -> Result<Box<[u8]>, Error> {
-		if len == 0 {
-			return Err(ErrorKind::IllegalArgument.into());
-		}
 		let ptr;
 		unsafe {
 			ptr = alloc(len);
-			if ptr.is_null() {
-				return Err(ErrorKind::Alloc.into());
-			}
+			ptr::write_bytes(ptr, 0, len);
+		}
+		if ptr.is_null() {
+			return Err(ErrorKind::Alloc.into());
 		}
 		let slice = unsafe { Box::from_raw(from_raw_parts_mut(ptr, len)) };
+
 		Ok(slice)
 	}
 }
@@ -287,5 +288,39 @@ mod test {
 		assert_eq!(unsafe { COUNT }, 1);
 
 		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	static mut CLONE_DROP_COUNT: i32 = 0;
+
+	#[derive(Debug, PartialEq)]
+	struct CloneBox {
+		x: u32,
+	}
+
+	impl Clone for CloneBox {
+		fn clone(&self) -> Result<Self, Error> {
+			Ok(Self { x: self.x })
+		}
+	}
+
+	impl Drop for CloneBox {
+		fn drop(&mut self) {
+			assert_eq!(self.x, 10);
+			unsafe {
+				CLONE_DROP_COUNT += 1;
+			}
+		}
+	}
+
+	#[test]
+	fn test_clone_box() {
+		{
+			let x = CloneBox { x: 10 };
+			let y = Box::new(x).unwrap();
+			let z = Box::clone(&y).unwrap();
+			assert_eq!(*z, *y);
+			assert_eq!(unsafe { CLONE_DROP_COUNT }, 0);
+		}
+		assert_eq!(unsafe { CLONE_DROP_COUNT }, 2);
 	}
 }
