@@ -10,6 +10,7 @@ pub enum ErrorKind {
 	ThreadCreate,
 	ThreadJoin,
 	ThreadDetach,
+	NotInitialized,
 	ChannelRecv,
 	Todo,
 }

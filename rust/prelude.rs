@@ -1,5 +1,6 @@
-pub use crate::{lock, lock_box, print, print_num, println};
+pub use crate::{lock, lock_box, print, print_num, println, vec};
 pub use std::boxed::Box;
+pub use std::channel::Channel;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind};
 pub use std::lock::{Lock, LockBox};
@@ -7,6 +8,7 @@ pub use std::option::{Option, Option::None, Option::Some};
 pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
 pub use std::thread::{spawn, spawnj};
+pub use std::vec::Vec;
 
 // external imports (from core)
 pub use core::convert::From;

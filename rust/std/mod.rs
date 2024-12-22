@@ -11,3 +11,4 @@ pub mod result;
 pub mod string;
 pub mod thread;
 pub mod util;
+pub mod vec;
