@@ -13,12 +13,12 @@ extern "C" {
 	pub fn getpagesize() -> i32;
 	pub fn sched_yield() -> i32;
 	pub fn getmicros() -> u64;
-	pub fn thread_create(start_routine: extern "C" fn(*mut u8) -> *mut u8, arg: *mut u8) -> i32;
+	pub fn thread_create(start_routine: extern "C" fn(*mut u8), arg: *mut u8) -> i32;
 	pub fn channel_init(channel: *const u8) -> i32;
 	pub fn channel_send(channel: *const u8, ptr: *const u8) -> i32;
 	pub fn channel_recv(channel: *const u8) -> *mut u8;
 	pub fn channel_handle_size() -> usize;
-	pub fn channel_destroy(channel: *mut u8) -> i32;
+	pub fn channel_destroy(channel: *const u8) -> i32;
 	pub fn atomic_store_u64(ptr: *mut u64, value: u64);
 	pub fn atomic_load_u64(ptr: *const u64) -> u64;
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
@@ -37,7 +37,7 @@ mod test {
 	use core::mem::size_of;
 	use core::ptr::null_mut;
 
-	extern "C" fn test_thread(channel: *mut u8) -> *mut u8 {
+	extern "C" fn test_thread(channel: *mut u8) {
 		unsafe {
 			let msg = alloc(size_of::<Message>()) as *mut Message;
 			let payload = alloc(8);
@@ -50,7 +50,6 @@ mod test {
 			(*msg).spo[2] = b'f';
 			channel_send(channel, msg as *mut u8);
 		}
-		null_mut()
 	}
 
 	#[test]

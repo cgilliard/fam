@@ -19,9 +19,7 @@ impl<T: ?Sized> Drop for Box<T> {
 			let value_ptr: *mut T = self.as_mut_ptr();
 			unsafe {
 				drop_in_place(value_ptr);
-				if !self.ptr.is_null() {
-					release(self.ptr as *mut u8);
-				}
+				release(self.ptr as *mut u8);
 			}
 		}
 	}
@@ -118,6 +116,14 @@ impl<T> Box<T> {
 
 impl Box<[u8]> {
 	pub fn new_zeroed_byte_slice(len: usize) -> Result<Box<[u8]>, Error> {
+		if len == 0 {
+			unsafe {
+				let ptr = ptr::NonNull::<u8>::dangling().as_ptr();
+				let mut ret = Box::from_raw(from_raw_parts_mut(ptr, 0));
+				ret.leak();
+				return Ok(ret);
+			}
+		}
 		let ptr;
 		unsafe {
 			ptr = alloc(len);

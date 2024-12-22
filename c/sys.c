@@ -8,13 +8,13 @@ void _exit(int);
 
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
-	// printf("malloc %p (%lu)\n", ptr, size);
+	//	printf("malloc %p (%lu)\n", ptr, size);
 	__alloc_count++;
 	return ptr;
 }
 
 void release(void *ptr) {
-	// printf("free %p\n", ptr);
+	//	printf("free %p\n", ptr);
 	__alloc_count--;
 	free(ptr);
 }

@@ -17,12 +17,14 @@ typedef struct Channel {
 } Channel;
 
 int channel_init(Channel *handle) {
+	// printf("channel init %p\n", handle);
 	if (pthread_mutex_init(&handle->lock, NULL)) return -1;
 	if (pthread_cond_init(&handle->cond, NULL)) return -1;
 	handle->head = handle->tail = NULL;
 	return 0;
 }
 int channel_send(Channel *handle, Message *msg) {
+	// printf("channel send %p\n", handle);
 	if (pthread_mutex_lock(&handle->lock)) {
 		perror("pthread_mutex_lock");
 		_exit(-1);
@@ -48,6 +50,7 @@ int channel_send(Channel *handle, Message *msg) {
 	return 0;
 }
 Message *channel_recv(Channel *handle) {
+	// printf("channel recv %p\n", handle);
 	if (pthread_mutex_lock(&handle->lock)) {
 		perror("pthread_mutex_lock");
 		_exit(1);
