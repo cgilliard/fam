@@ -64,7 +64,7 @@ mod test {
 		let mut z = X { x: 10, y: 20 };
 		assert_eq!(z.x, 10);
 		assert_eq!(z.y, 20);
-		z.clone_from(&x);
+		assert!(z.clone_from(&x).is_ok());
 		assert_eq!(z.x, 1);
 		assert_eq!(z.y, 2);
 		let a = X { x: 100, y: 20 };

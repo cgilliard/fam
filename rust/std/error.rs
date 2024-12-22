@@ -8,6 +8,8 @@ pub enum ErrorKind {
 	IllegalArgument,
 	CapacityExceeded,
 	ThreadCreate,
+	ThreadJoin,
+	ThreadDetach,
 	ChannelRecv,
 	Todo,
 }

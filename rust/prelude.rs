@@ -6,7 +6,7 @@ pub use std::lock::{Lock, LockBox};
 pub use std::option::{Option, Option::None, Option::Some};
 pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
-pub use std::thread::spawn;
+pub use std::thread::{spawn, spawnj};
 
 // external imports (from core)
 pub use core::convert::From;

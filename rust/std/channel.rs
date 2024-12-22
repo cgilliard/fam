@@ -107,16 +107,17 @@ mod test {
 			let lock = lock!();
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
-			spawn(|| {
+			let mut jh = spawnj(|| {
 				let v = channel.recv().unwrap();
 				assert_eq!(v, 101);
 				let _ = lock.write(); // memory fence only
 				assert_eq!(*rc_clone, 1);
 				*rc_clone += 1;
 				assert_eq!(*rc_clone, 2);
-			});
+			})
+			.unwrap();
 
-			channel.send(101);
+			channel.send(101).unwrap();
 
 			loop {
 				{
@@ -131,6 +132,7 @@ mod test {
 					crate::sys::sleep_millis(1);
 				}
 			}
+			assert!(jh.join().is_ok());
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
@@ -155,16 +157,17 @@ mod test {
 			let lock_clone = lock.clone().unwrap();
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
-			spawn(move || {
+			let mut jh = spawnj(move || {
 				let v = { channel_clone.recv().unwrap() };
 				assert_eq!(v, 101);
 				let _ = lock_clone.write();
 				assert_eq!(*rc_clone, 1);
 				*rc_clone += 1;
 				assert_eq!(*rc_clone, 2);
-			});
+			})
+			.unwrap();
 
-			channel.send(101);
+			channel.send(101).unwrap();
 
 			loop {
 				{
@@ -179,6 +182,7 @@ mod test {
 					crate::sys::sleep_millis(1);
 				}
 			}
+			assert!(jh.join().is_ok());
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
@@ -196,20 +200,23 @@ mod test {
 			let rc = Rc::new(0).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 
-			spawn(move || {
+			let mut jh = spawnj(move || {
 				{
 					let input = channel_clone.recv().unwrap();
 					let _ = lock_clone.write();
 					*rc_clone = input + 100;
 				}
 				channel2_clone.send(()).unwrap();
-			});
+			})
+			.unwrap();
 
-			channel.send(301);
+			channel.send(301).unwrap();
 			let result = channel2.recv().unwrap();
 
 			assert_eq!(result, ());
 			assert_eq!(*rc, 401);
+
+			assert!(jh.join().is_ok());
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
@@ -243,7 +250,7 @@ mod test {
 			let rc = Rc::new(0).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 
-			spawn(move || {
+			let mut jh = spawnj(move || {
 				{
 					let input: DropTest = channel_clone.recv().unwrap();
 					let _ = lock_clone.write();
@@ -252,13 +259,15 @@ mod test {
 				}
 				assert_eq!(unsafe { DROPCOUNT }, 1);
 				channel2_clone.send(DropTest { x: 4 }).unwrap();
-			});
+			})
+			.unwrap();
 
-			channel.send(DropTest { x: 301 });
+			channel.send(DropTest { x: 301 }).unwrap();
 			let result = channel2.recv().unwrap();
 
 			assert_eq!(result.x, 4);
 			assert_eq!(*rc, 401);
+			assert!(jh.join().is_ok());
 			assert_eq!(unsafe { DROPCOUNT }, 1);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });

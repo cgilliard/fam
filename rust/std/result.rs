@@ -1,3 +1,4 @@
+#[must_use = "This `Result` must be used, or explicitly handled with `unwrap`, `is_err`, or similar."]
 pub enum Result<T, E> {
 	Ok(T),
 	Err(E),

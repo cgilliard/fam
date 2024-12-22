@@ -1,5 +1,9 @@
 #include <pthread.h>
 
+typedef struct ThreadHandle {
+	pthread_t handle;
+} ThreadHandle;
+
 int printf(const char *, ...);
 int thread_create(void *(*start_routine)(void *), void *arg) {
 	pthread_t th;
@@ -11,3 +15,16 @@ int thread_create(void *(*start_routine)(void *), void *arg) {
 	return ret;
 }
 
+unsigned long long thread_handle_size() { return sizeof(ThreadHandle); }
+
+int thread_create_joinable(ThreadHandle *handle, void *(*start_routine)(void *),
+			   void *arg) {
+	return pthread_create(&handle->handle, NULL, start_routine, arg);
+}
+
+int thread_join(ThreadHandle *handle) {
+	return pthread_join(handle->handle, NULL);
+}
+int thread_detach(ThreadHandle *handle) {
+	return pthread_detach(handle->handle);
+}
