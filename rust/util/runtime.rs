@@ -341,13 +341,48 @@ mod test {
 		let initial = unsafe { getalloccount() };
 		{
 			{
-				let mut r = Runtime::new(RuntimeConfig {
-					min_threads: 2,
-					max_threads: 4,
-				})
-				.unwrap();
+				let mut r = Runtime::new(RuntimeConfig::default()).unwrap();
 				r.start().unwrap();
-				let _x1 = r.execute(move || -> Result<i32, Error> { Ok(0) }).unwrap();
+
+				let v = 1;
+
+				let (sender, receiver) = channel!().unwrap();
+				let (lock, lock_clone) = lock_pair!().unwrap();
+				let (sender2, receiver2) = channel!().unwrap();
+				let (mut rc, mut rc_clone) = rc!(0).unwrap();
+				let rc_confirm = rc.clone().unwrap();
+
+				let x1 = r
+					.execute(move || -> Result<i32, Error> {
+						let x = receiver.recv().unwrap();
+						assert_eq!(x, 60);
+						let _v = lock.write();
+						*rc += 1;
+						Ok(v + 40)
+					})
+					.unwrap();
+
+				let x2 = r
+					.execute(move || -> Result<i32, Error> {
+						let x = receiver2.recv().unwrap();
+						assert_eq!(x, 70);
+						let _v = lock_clone.write();
+						*rc_clone += 1;
+						Ok(v + 4)
+					})
+					.unwrap();
+
+				assert!(!x1.is_complete());
+				assert!(!x2.is_complete());
+
+				sender.send(60).unwrap();
+				sender2.send(70).unwrap();
+
+				assert_eq!(x1.block_on().unwrap().unwrap(), 41);
+				assert_eq!(x2.block_on().unwrap().unwrap(), 5);
+				assert!(x1.is_complete());
+				assert!(x2.is_complete());
+				assert_eq!(*rc_confirm, 2);
 			}
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
@@ -355,162 +390,166 @@ mod test {
 
 	#[test]
 	fn test_thread_pool_size() {
-		let mut r = Runtime::new(RuntimeConfig {
-			min_threads: 2,
-			max_threads: 4,
-		})
-		.unwrap();
-		r.start().unwrap();
-
-		while r.idle_threads() != 2 {}
-
-		let (senda1, recva1) = channel!().unwrap();
-		let (sendb1, recvb1) = channel!().unwrap();
-		let (sendc1, recvc1) = channel!().unwrap();
-
-		let x1 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva1.recv().unwrap(), 1);
-				sendb1.send(1).unwrap();
-				assert_eq!(recvc1.recv().unwrap(), 1);
-				Ok(1)
+		let initial = unsafe { getalloccount() };
+		{
+			let mut r = Runtime::new(RuntimeConfig {
+				min_threads: 2,
+				max_threads: 4,
 			})
 			.unwrap();
+			r.start().unwrap();
 
-		let (senda2, recva2) = channel!().unwrap();
-		let (sendb2, recvb2) = channel!().unwrap();
-		let (sendc2, recvc2) = channel!().unwrap();
+			while r.idle_threads() != 2 {}
 
-		let x2 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva2.recv().unwrap(), 2);
-				sendb2.send(2).unwrap();
-				assert_eq!(recvc2.recv().unwrap(), 2);
-				Ok(2)
-			})
-			.unwrap();
+			let (senda1, recva1) = channel!().unwrap();
+			let (sendb1, recvb1) = channel!().unwrap();
+			let (sendc1, recvc1) = channel!().unwrap();
 
-		senda1.send(1).unwrap();
-		senda2.send(2).unwrap();
+			let x1 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva1.recv().unwrap(), 1);
+					sendb1.send(1).unwrap();
+					assert_eq!(recvc1.recv().unwrap(), 1);
+					Ok(1)
+				})
+				.unwrap();
 
-		assert_eq!(recvb1.recv().unwrap(), 1);
-		assert_eq!(recvb2.recv().unwrap(), 2);
+			let (senda2, recva2) = channel!().unwrap();
+			let (sendb2, recvb2) = channel!().unwrap();
+			let (sendc2, recvc2) = channel!().unwrap();
 
-		// we know there should be three threads spawned at this point because at least one
-		// waiting worker is maintained.
-		assert_eq!(r.cur_threads(), 3);
+			let x2 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva2.recv().unwrap(), 2);
+					sendb2.send(2).unwrap();
+					assert_eq!(recvc2.recv().unwrap(), 2);
+					Ok(2)
+				})
+				.unwrap();
 
-		sendc1.send(1).unwrap();
-		sendc2.send(2).unwrap();
+			senda1.send(1).unwrap();
+			senda2.send(2).unwrap();
 
-		assert_eq!(x1.block_on().unwrap().unwrap(), 1);
-		assert_eq!(x2.block_on().unwrap().unwrap(), 2);
+			assert_eq!(recvb1.recv().unwrap(), 1);
+			assert_eq!(recvb2.recv().unwrap(), 2);
 
-		while r.idle_threads() != 2 {}
+			// we know there should be three threads spawned at this point because at least one
+			// waiting worker is maintained.
+			assert_eq!(r.cur_threads(), 3);
 
-		// The other two threads have exited so we should be back down to our min
-		assert_eq!(r.cur_threads(), 2);
+			sendc1.send(1).unwrap();
+			sendc2.send(2).unwrap();
 
-		// now start up 5 threads (we'll hit our limit of 4)
-		let (senda1, recva1) = channel!().unwrap();
-		let (sendb1, recvb1) = channel!().unwrap();
-		let (sendc1, recvc1) = channel!().unwrap();
+			assert_eq!(x1.block_on().unwrap().unwrap(), 1);
+			assert_eq!(x2.block_on().unwrap().unwrap(), 2);
 
-		let x1 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva1.recv().unwrap(), 1);
-				sendb1.send(1).unwrap();
-				assert_eq!(recvc1.recv().unwrap(), 1);
-				Ok(1)
-			})
-			.unwrap();
+			while r.idle_threads() != 2 {}
 
-		let (senda2, recva2) = channel!().unwrap();
-		let (sendb2, recvb2) = channel!().unwrap();
-		let (sendc2, recvc2) = channel!().unwrap();
+			// The other two threads have exited so we should be back down to our min
+			assert_eq!(r.cur_threads(), 2);
 
-		let x2 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva2.recv().unwrap(), 2);
-				sendb2.send(2).unwrap();
-				assert_eq!(recvc2.recv().unwrap(), 2);
-				Ok(2)
-			})
-			.unwrap();
+			// now start up 5 threads (we'll hit our limit of 4)
+			let (senda1, recva1) = channel!().unwrap();
+			let (sendb1, recvb1) = channel!().unwrap();
+			let (sendc1, recvc1) = channel!().unwrap();
 
-		let (senda3, recva3) = channel!().unwrap();
-		let (sendb3, recvb3) = channel!().unwrap();
-		let (sendc3, recvc3) = channel!().unwrap();
+			let x1 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva1.recv().unwrap(), 1);
+					sendb1.send(1).unwrap();
+					assert_eq!(recvc1.recv().unwrap(), 1);
+					Ok(1)
+				})
+				.unwrap();
 
-		let x3 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva3.recv().unwrap(), 3);
-				sendb3.send(3).unwrap();
-				assert_eq!(recvc3.recv().unwrap(), 3);
-				Ok(3)
-			})
-			.unwrap();
+			let (senda2, recva2) = channel!().unwrap();
+			let (sendb2, recvb2) = channel!().unwrap();
+			let (sendc2, recvc2) = channel!().unwrap();
 
-		let (senda4, recva4) = channel!().unwrap();
-		let (sendb4, recvb4) = channel!().unwrap();
-		let (sendc4, recvc4) = channel!().unwrap();
+			let x2 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva2.recv().unwrap(), 2);
+					sendb2.send(2).unwrap();
+					assert_eq!(recvc2.recv().unwrap(), 2);
+					Ok(2)
+				})
+				.unwrap();
 
-		let x4 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva4.recv().unwrap(), 4);
-				sendb4.send(4).unwrap();
-				assert_eq!(recvc4.recv().unwrap(), 4);
-				Ok(4)
-			})
-			.unwrap();
+			let (senda3, recva3) = channel!().unwrap();
+			let (sendb3, recvb3) = channel!().unwrap();
+			let (sendc3, recvc3) = channel!().unwrap();
 
-		let (senda5, recva5) = channel!().unwrap();
-		let (sendb5, recvb5) = channel!().unwrap();
-		let (sendc5, recvc5) = channel!().unwrap();
+			let x3 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva3.recv().unwrap(), 3);
+					sendb3.send(3).unwrap();
+					assert_eq!(recvc3.recv().unwrap(), 3);
+					Ok(3)
+				})
+				.unwrap();
 
-		let x5 = r
-			.execute(move || -> Result<i32, Error> {
-				assert_eq!(recva5.recv().unwrap(), 5);
-				sendb5.send(5).unwrap();
-				assert_eq!(recvc5.recv().unwrap(), 5);
-				Ok(5)
-			})
-			.unwrap();
+			let (senda4, recva4) = channel!().unwrap();
+			let (sendb4, recvb4) = channel!().unwrap();
+			let (sendc4, recvc4) = channel!().unwrap();
 
-		senda1.send(1).unwrap();
-		senda2.send(2).unwrap();
-		senda3.send(3).unwrap();
-		senda4.send(4).unwrap();
+			let x4 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva4.recv().unwrap(), 4);
+					sendb4.send(4).unwrap();
+					assert_eq!(recvc4.recv().unwrap(), 4);
+					Ok(4)
+				})
+				.unwrap();
 
-		assert_eq!(recvb1.recv().unwrap(), 1);
-		assert_eq!(recvb2.recv().unwrap(), 2);
-		assert_eq!(recvb3.recv().unwrap(), 3);
-		assert_eq!(recvb4.recv().unwrap(), 4);
+			let (senda5, recva5) = channel!().unwrap();
+			let (sendb5, recvb5) = channel!().unwrap();
+			let (sendc5, recvc5) = channel!().unwrap();
 
-		// we are now at our max threads (4) there would have been a 5th, but we hit the
-		// max.
-		assert_eq!(r.cur_threads(), 4);
+			let x5 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva5.recv().unwrap(), 5);
+					sendb5.send(5).unwrap();
+					assert_eq!(recvc5.recv().unwrap(), 5);
+					Ok(5)
+				})
+				.unwrap();
 
-		// send messages to release all threads
-		senda5.send(5).unwrap();
-		sendc1.send(1).unwrap();
-		sendc2.send(2).unwrap();
-		sendc3.send(3).unwrap();
-		sendc4.send(4).unwrap();
-		sendc5.send(5).unwrap();
+			senda1.send(1).unwrap();
+			senda2.send(2).unwrap();
+			senda3.send(3).unwrap();
+			senda4.send(4).unwrap();
 
-		// thread 5 can now complete
-		assert_eq!(recvb5.recv().unwrap(), 5);
+			assert_eq!(recvb1.recv().unwrap(), 1);
+			assert_eq!(recvb2.recv().unwrap(), 2);
+			assert_eq!(recvb3.recv().unwrap(), 3);
+			assert_eq!(recvb4.recv().unwrap(), 4);
 
-		while r.cur_threads() != 2 {}
+			// we are now at our max threads (4) there would have been a 5th, but we hit the
+			// max.
+			assert_eq!(r.cur_threads(), 4);
 
-		// After things settle down we should return to our min thread level of 2
-		assert_eq!(r.cur_threads(), 2);
+			// send messages to release all threads
+			senda5.send(5).unwrap();
+			sendc1.send(1).unwrap();
+			sendc2.send(2).unwrap();
+			sendc3.send(3).unwrap();
+			sendc4.send(4).unwrap();
+			sendc5.send(5).unwrap();
 
-		assert_eq!(x1.block_on().unwrap().unwrap(), 1);
-		assert_eq!(x2.block_on().unwrap().unwrap(), 2);
-		assert_eq!(x3.block_on().unwrap().unwrap(), 3);
-		assert_eq!(x4.block_on().unwrap().unwrap(), 4);
-		assert_eq!(x5.block_on().unwrap().unwrap(), 5);
+			// thread 5 can now complete
+			assert_eq!(recvb5.recv().unwrap(), 5);
+
+			while r.cur_threads() != 2 {}
+
+			// After things settle down we should return to our min thread level of 2
+			assert_eq!(r.cur_threads(), 2);
+
+			assert_eq!(x1.block_on().unwrap().unwrap(), 1);
+			assert_eq!(x2.block_on().unwrap().unwrap(), 2);
+			assert_eq!(x3.block_on().unwrap().unwrap(), 3);
+			assert_eq!(x4.block_on().unwrap().unwrap(), 4);
+			assert_eq!(x5.block_on().unwrap().unwrap(), 5);
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
 	}
 }
