@@ -7,6 +7,7 @@ pub use std::lock::{Lock, LockBox};
 pub use std::option::{Option, Option::None, Option::Some};
 pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
+pub use std::string::String;
 pub use std::thread::{spawn, spawnj};
 pub use std::vec::Vec;
 

@@ -7,7 +7,7 @@ use sys::f64_to_str;
 
 #[macro_export]
 macro_rules! write {
-    ($f:expr, $($t:expr),*) => {{
+    ($f:expr, $fmt:expr, $($t:expr),*) => {{
         #[allow(unused_mut)]
         {
             let mut err: Error = ErrorKind::Unknown.into();
@@ -200,7 +200,7 @@ mod test {
 	#[test]
 	fn test_fmt() {
 		let mut f = Formatter::new();
-		assert!(write!(f, 1u8, " ", -23i128, "this is a test").is_ok());
+		assert!(write!(f, "test", 1u8, " ", -23i128, "this is a test").is_ok());
 		assert_eq!(f.as_str(), "1 -23this is a test");
 	}
 }
