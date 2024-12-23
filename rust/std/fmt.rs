@@ -6,7 +6,7 @@ use std::util::u128_to_str;
 use sys::f64_to_str;
 
 #[macro_export]
-macro_rules! write {
+macro_rules! writeb {
 	($f:expr, $fmt:expr, $($t:expr),*) => {{
             let mut err = ErrorKind::Unknown.into();
             match String::new($fmt) {
@@ -52,7 +52,7 @@ macro_rules! write {
 macro_rules! format {
 	($fmt:expr, $($t:expr),*) => {{
 		let mut formatter = Formatter::new();
-		match write!(formatter, $fmt, $($t),*) {
+		match writeb!(formatter, $fmt, $($t),*) {
                     Ok(_) => String::new(formatter.as_str()),
                     Err(e) => Err(e)
                 }
@@ -70,7 +70,7 @@ macro_rules! println {
                 unsafe { crate::sys::write(2, line.to_str().as_ptr(), line.len()); }
                 unsafe { crate::sys::write(2, "\n".as_ptr(), 1); }
             },
-            Err(e) => {},
+            Err(_e) => {},
         }
     }};
 }
@@ -275,7 +275,7 @@ mod test {
 	#[test]
 	fn test_fmt() {
 		let mut f = Formatter::new();
-		assert!(write!(
+		assert!(writeb!(
 			f,
 			"test {} {} {} {} {} {} {} end",
 			1,
