@@ -1,29 +1,30 @@
 use core::intrinsics::{unchecked_div, unchecked_rem};
 use core::ptr::copy_nonoverlapping;
 
-pub fn u64_to_str(mut n: u64, buf: &mut [u8]) -> usize {
-	let mut i = buf.len() - 1;
+pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8]) -> usize {
+	let buf_len = buf.len();
+	let mut i = buf_len - 1;
 
 	while n > 0 {
 		if i == 0 {
 			break;
 		}
-		if i < buf.len() {
+		if i < buf_len {
 			buf[i] = b'0' + (n % 10) as u8;
 		}
 		n /= 10;
 		i -= 1;
 	}
-	let mut len = buf.len() - i - 1;
+	let mut len = buf_len - i - 1;
 
-	if len == 0 && buf.len() > 0 {
-		buf[0] = b'0';
+	if len == 0 && buf_len > 0 && offset < buf_len {
+		buf[offset] = b'0';
 		len = 1;
 	} else {
 		let mut k = 0;
-		for j in i + 1..buf.len() {
-			if k < buf.len() {
-				buf[k] = buf[j];
+		for j in i + 1..buf_len {
+			if k + offset < buf_len {
+				buf[k + offset] = buf[j];
 			}
 			k += 1;
 		}
@@ -31,34 +32,17 @@ pub fn u64_to_str(mut n: u64, buf: &mut [u8]) -> usize {
 	len
 }
 
-pub fn u32_to_str(num: u32) -> &'static str {
-	match num {
-		0 => "0",
-		1 => "1",
-		2 => "2",
-		3 => "3",
-		4 => "4",
-		5 => "5",
-		6 => "6",
-		7 => "7",
-		8 => "8",
-		9 => "9",
-		10 => "10",
-		11 => "11",
-		12 => "12",
-		13 => "13",
-		14 => "14",
-		15 => "15",
-		16 => "16",
-		17 => "17",
-		18 => "18",
-		19 => "19",
-		20 => "20",
-		21 => "21",
-		22 => "22",
-		23 => "23",
-		24 => "24",
-		_ => "unknown", // Handle numbers outside the range 0-9
+pub fn i128_to_str(mut n: i128, buf: &mut [u8]) -> usize {
+	if n < 0 {
+		n *= -1;
+		if buf.len() < 2 {
+			0
+		} else {
+			buf[0] = b'-';
+			u128_to_str(n as u128, 1, buf) + 1
+		}
+	} else {
+		u128_to_str(n as u128, 0, buf)
 	}
 }
 

@@ -443,7 +443,7 @@ mod test {
 			assert_eq!(x1.block_on().unwrap().unwrap(), 1);
 			assert_eq!(x2.block_on().unwrap().unwrap(), 2);
 
-			while r.idle_threads() != 2 {}
+			while r.cur_threads() != 2 {}
 
 			// The other two threads have exited so we should be back down to our min
 			assert_eq!(r.cur_threads(), 2);

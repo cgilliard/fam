@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use core::mem::{replace, size_of, zeroed};
 use core::ops::{Drop, Index, IndexMut, Range};
 use core::ptr::copy_nonoverlapping;
-use core::slice::from_raw_parts;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 
 #[derive(Debug)]
@@ -152,6 +152,22 @@ impl<T> Index<Range<usize>> for Vec<T> {
 	}
 }
 
+impl<T> IndexMut<Range<usize>> for Vec<T> {
+	fn index_mut(&mut self, range: Range<usize>) -> &mut Self::Output {
+		if range.start > range.end || range.end > self.elements {
+			panic!("Index out of bounds");
+		}
+
+		let element_size = size_of::<T>();
+		let start_offset = range.start * element_size;
+
+		unsafe {
+			let ptr = (self.value.as_ptr() as *mut T).add(start_offset) as *mut T;
+			from_raw_parts_mut(ptr, range.end - range.start)
+		}
+	}
+}
+
 impl<T> Vec<T> {
 	pub fn new() -> Self {
 		Self {
@@ -259,6 +275,10 @@ impl<T> Vec<T> {
 
 	pub fn clear(&mut self) {
 		self.elements = 0;
+	}
+
+	pub fn as_mut_ptr(&mut self) -> *mut u8 {
+		self.value.as_mut_ptr() as *mut u8
 	}
 
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {

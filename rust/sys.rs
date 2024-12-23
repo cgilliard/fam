@@ -39,6 +39,7 @@ extern "C" {
 	pub fn alloc(len: usize) -> *mut u8;
 	pub fn release(ptr: *mut u8);
 	pub fn sleep_millis(millis: u64) -> i32;
+	pub fn f64_to_str(d: f64, buf: *mut u8, capacity: u64) -> i32;
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ pub mod boxed;
 pub mod channel;
 pub mod clone;
 pub mod error;
+pub mod fmt;
 pub mod lock;
 pub mod option;
 pub mod rc;
