@@ -2,7 +2,6 @@ extern crate core;
 use core::cmp::PartialEq;
 use core::convert::From;
 use core::fmt::Debug;
-use core::fmt::Formatter;
 use core::ptr::copy_nonoverlapping;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
@@ -15,11 +14,15 @@ pub struct String {
 	start: usize,
 }
 
+impl Display for String {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+		f.write_str(self.to_str(), self.len())
+	}
+}
+
+// for compatability with test framework
 impl Debug for String {
-	fn fmt(&self, _f: &mut Formatter<'_>) -> core::result::Result<(), core::fmt::Error> {
-		// TODO: we don't write to the formatter because we don't seem to have write! in
-		// rustc or mrustc
-		// Just implementing this so assert_eq works
+	fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::result::Result<(), core::fmt::Error> {
 		core::result::Result::Ok(())
 	}
 }
@@ -94,8 +97,8 @@ impl String {
 		self.end - self.start
 	}
 
-	pub fn find(&self, s: &str) -> Option<usize> {
-		let mut x = self.to_str().as_ptr();
+	pub fn findn(&self, s: &str, offset: usize) -> Option<usize> {
+		let mut x = unsafe { self.to_str().as_ptr().add(offset) };
 		let mut len = self.len() as usize;
 		let s_len = s.len();
 
@@ -114,6 +117,10 @@ impl String {
 			}
 		}
 		None
+	}
+
+	pub fn find(&self, s: &str) -> Option<usize> {
+		self.findn(s, 0)
 	}
 
 	pub fn rfind(&self, s: &str) -> Option<usize> {

@@ -10,7 +10,6 @@ pub mod option;
 pub mod rc;
 pub mod result;
 pub mod string;
-pub mod string_builder;
 pub mod thread;
 pub mod util;
 pub mod vec;

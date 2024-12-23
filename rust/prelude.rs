@@ -3,6 +3,7 @@ pub use std::boxed::Box;
 pub use std::channel::Channel;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind};
+pub use std::fmt::{Display, Formatter};
 pub use std::lock::{Lock, LockBox};
 pub use std::option::{Option, Option::None, Option::Some};
 pub use std::rc::Rc;

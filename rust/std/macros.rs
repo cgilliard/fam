@@ -131,10 +131,10 @@ macro_rules! println {
 macro_rules! print_num {
 	($n:expr) => {{
 		use core::str::from_utf8_unchecked;
-		use std::util::u64_to_str;
+		use std::util::i128_to_str;
 		use sys::write;
 		let mut buf = [0u8; 32];
-		let len = u64_to_str($n as u64, &mut buf);
+		let len = i128_to_str($n as i128, &mut buf);
 		unsafe {
 			write(2, from_utf8_unchecked(&buf).as_ptr(), len);
 		}

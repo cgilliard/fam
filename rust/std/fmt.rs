@@ -7,26 +7,45 @@ use sys::f64_to_str;
 
 #[macro_export]
 macro_rules! write {
-    ($f:expr, $fmt:expr, $($t:expr),*) => {{
-        #[allow(unused_mut)]
-        {
-            let mut err: Error = ErrorKind::Unknown.into();
-            $(
-                if err.kind == ErrorKind::Unknown {
-                    match $t.fmt(&mut $f) {
-                        Ok(_) => {},
+	($f:expr, $fmt:expr, $($t:expr),*) => {{
+            let mut err = ErrorKind::Unknown.into();
+            match String::new($fmt) {
+                Ok(fmt) => {
+                    let mut cur = 0;
+                    $(
+                        match fmt.findn("{}", cur) {
+                            Some(index) => {
+                                    let s = fmt.substring( cur, cur + index).unwrap();
+                                    let s = s.to_str();
+                                    match $f.write_str(s, s.len()) {
+                                        Ok(_) => {},
+                                        Err(e) => err = e,
+                                    }
+                                    cur += index + 2;
+                            },
+                            None => {},
+                        }
+                        match $t.fmt(&mut $f) {
+                            Ok(_) => {},
+                            Err(e) => err = e,
+                        }
+                    )*
+                    let s = fmt.substring( cur, fmt.len()).unwrap();
+                    let s = s.to_str();
+                    match $f.write_str(s, s.len()) {
+                        Ok(_) =>{},
                         Err(e) => err = e,
                     }
                 }
-            )*
-
-            if err.kind != ErrorKind::Unknown {
-                Err(err)
-            } else {
-                Ok(())
+                Err(e) => err = e,
             }
-        }
-    }};
+
+            if err.kind == ErrorKind::Unknown {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }};
 }
 
 pub struct Formatter {
@@ -61,7 +80,11 @@ impl Formatter {
 		Ok(())
 	}
 	pub fn as_str(&self) -> &str {
-		unsafe { from_utf8_unchecked(&self.buffer[0..self.pos]) }
+		if self.pos == 0 {
+			""
+		} else {
+			unsafe { from_utf8_unchecked(&self.buffer[0..self.pos]) }
+		}
 	}
 }
 
@@ -105,6 +128,16 @@ impl Display for f64 {
 			unsafe { f.write_str(from_utf8_unchecked(&buf), len as usize) }
 		} else {
 			Err(ErrorKind::IO.into())
+		}
+	}
+}
+
+impl Display for bool {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+		if *self {
+			f.write_str("true", 4)
+		} else {
+			f.write_str("false", 5)
 		}
 	}
 }
@@ -200,7 +233,18 @@ mod test {
 	#[test]
 	fn test_fmt() {
 		let mut f = Formatter::new();
-		assert!(write!(f, "test", 1u8, " ", -23i128, "this is a test").is_ok());
-		assert_eq!(f.as_str(), "1 -23this is a test");
+		assert!(write!(
+			f,
+			"test {} {} {} {} {} {} {} end",
+			1,
+			-2,
+			3,
+			4.5,
+			true,
+			"ok",
+			String::new("xyz").unwrap()
+		)
+		.is_ok());
+		assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
 	}
 }
