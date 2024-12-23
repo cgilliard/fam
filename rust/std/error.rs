@@ -1,6 +1,6 @@
 use prelude::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum ErrorKind {
 	Unknown,
 	Alloc,
@@ -15,6 +15,7 @@ pub enum ErrorKind {
 	Todo,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct Error {
 	pub kind: ErrorKind,
 }

@@ -118,7 +118,7 @@ mod test {
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 			let mut jh = spawnj(|| {
-				let _ = lock.read(); // memory fence only
+				let _v = lock.read(); // memory fence only
 				x += 1;
 				assert_eq!(x, 2);
 				assert_eq!(*rc_clone, 1);
@@ -128,7 +128,7 @@ mod test {
 			.unwrap();
 
 			loop {
-				let _ = lock.read(); // memory fence only
+				let _v = lock.read(); // memory fence only
 				if *rc != 1 {
 					assert_eq!(*rc, 2);
 					assert_eq!(x, 2);
@@ -150,7 +150,7 @@ mod test {
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 			let mut jh = spawnj(|| {
-				let _ = lock.read(); // memory fence only
+				let _v = lock.read(); // memory fence only
 				x += 1;
 				assert_eq!(x, 2);
 				assert_eq!(*rc_clone, 1);

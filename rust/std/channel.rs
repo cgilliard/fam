@@ -124,7 +124,7 @@ mod test {
 			let mut jh = spawnj(|| {
 				let v = channel.recv().unwrap();
 				assert_eq!(v, 101);
-				let _ = lock.write(); // memory fence only
+				let _v = lock.write(); // memory fence only
 				assert_eq!(*rc_clone, 1);
 				*rc_clone += 1;
 				assert_eq!(*rc_clone, 2);
@@ -135,7 +135,7 @@ mod test {
 
 			loop {
 				{
-					let _ = lock.read(); // memory fence only
+					let _v = lock.read(); // memory fence only
 					if *rc == 1 {
 					} else {
 						assert_eq!(*rc, 2);
@@ -174,7 +174,7 @@ mod test {
 			let mut jh = spawnj(move || {
 				let v = { channel_clone.recv().unwrap() };
 				assert_eq!(v, 101);
-				let _ = lock_clone.write();
+				let _v = lock_clone.write();
 				assert_eq!(*rc_clone, 1);
 				*rc_clone += 1;
 				assert_eq!(*rc_clone, 2);
@@ -185,7 +185,7 @@ mod test {
 
 			loop {
 				{
-					let _ = lock.read();
+					let _v = lock.read();
 					if *rc == 1 {
 					} else {
 						assert_eq!(*rc, 2);
@@ -217,7 +217,7 @@ mod test {
 			let mut jh = spawnj(move || {
 				{
 					let input = channel_clone.recv().unwrap();
-					let _ = lock_clone.write();
+					let _v = lock_clone.write();
 					*rc_clone = input + 100;
 				}
 				channel2_clone.send(()).unwrap();
@@ -267,7 +267,7 @@ mod test {
 			let mut jh = spawnj(move || {
 				{
 					let input: DropTest = channel_clone.recv().unwrap();
-					let _ = lock_clone.write();
+					let _v = lock_clone.write();
 					*rc_clone = input.x + 100;
 					assert_eq!(unsafe { DROPCOUNT }, 0);
 				}
