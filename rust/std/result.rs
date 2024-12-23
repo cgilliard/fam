@@ -42,7 +42,6 @@ mod test {
 		match test_result() {
 			Ok(_) => {}
 			Err(_e) => {
-				println!("Error!");
 				assert!(false);
 			}
 		}

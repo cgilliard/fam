@@ -7,7 +7,6 @@ use core::ptr::copy_nonoverlapping;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 
-#[derive(Debug)]
 pub struct Vec<T> {
 	value: Box<[u8]>,
 	capacity: usize,
@@ -345,6 +344,17 @@ mod test {
 			assert_eq!(count, 3);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	use core::fmt::Debug;
+	use core::fmt::Error as CoreError;
+	use core::fmt::Formatter;
+	use core::result::Result as CoreResult;
+
+	impl<T> Debug for Vec<T> {
+		fn fmt(&self, _: &mut Formatter<'_>) -> CoreResult<(), CoreError> {
+			todo!()
+		}
 	}
 
 	#[test]

@@ -3,8 +3,8 @@
 export LLVM_PROFILE_FILE="/tmp/file.profraw"
 
 cc=clang
-output=../mrustc/output
-mrustc=mrustc
+output=../famc/output
+mrustc=../famc/bin/mrustc
 ccflags=
 updatedocs=
 rustflags=
