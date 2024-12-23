@@ -37,16 +37,19 @@ pub struct Handle<T> {
 struct State {
 	waiting_workers: u64,
 	total_workers: u64,
+	halt: bool,
 }
 
 enum Message<T> {
 	Task((Task<T>, Channel<T>, Rc<bool>)),
+	Halt(()),
 }
 
 struct RuntimeImpl<T> {
 	channel: Channel<Message<T>>,
 	state: Rc<State>,
 	lock: LockBox,
+	stop_channel: Channel<()>,
 }
 
 impl<T> RuntimeImpl<T> {
@@ -58,12 +61,18 @@ impl<T> RuntimeImpl<T> {
 		let state = match Rc::new(State {
 			waiting_workers: 0,
 			total_workers,
+			halt: false,
 		}) {
 			Ok(state) => state,
 			Err(e) => return Err(e),
 		};
+		let stop_channel = match Channel::new() {
+			Ok(stop_channel) => stop_channel,
+			Err(e) => return Err(e),
+		};
 		match Channel::new() {
 			Ok(channel) => Ok(Self {
+				stop_channel,
 				channel,
 				state,
 				lock,
@@ -78,12 +87,18 @@ pub struct Runtime<T> {
 	rimpl: Option<RuntimeImpl<T>>,
 }
 
+impl<T> Drop for Runtime<T> {
+	fn drop(&mut self) {
+		let _ = self.stop();
+	}
+}
+
 impl<T> Handle<T> {
-	fn block_on(&self) -> Result<T, Error> {
+	pub fn block_on(&self) -> Result<T, Error> {
 		self.channel.recv()
 	}
 
-	fn is_complete(&self) -> bool {
+	pub fn is_complete(&self) -> bool {
 		*self.is_complete
 	}
 }
@@ -110,6 +125,29 @@ impl<T> Runtime<T> {
 			let _ = self.thread();
 		}
 		Ok(())
+	}
+
+	pub fn stop(&mut self) -> Result<(), Error> {
+		match &mut self.rimpl {
+			Some(rimpl) => {
+				{
+					let _v = rimpl.lock.write();
+					rimpl.state.halt = true;
+				}
+
+				loop {
+					let _v = rimpl.lock.read();
+					if rimpl.state.total_workers > 0 {
+						let _ = rimpl.channel.send(Message::Halt(()));
+					} else {
+						break;
+					}
+				}
+				let _ = rimpl.stop_channel.recv();
+				Ok(())
+			}
+			None => Err(ErrorKind::NotInitialized.into()),
+		}
 	}
 
 	pub fn execute<F>(&mut self, task: F) -> Result<Handle<T>, Error>
@@ -195,9 +233,13 @@ impl<T> Runtime<T> {
 			{
 				let _l = lock.write();
 				state.waiting_workers += 1;
-				if state.waiting_workers > self.config.min_threads {
+				if state.waiting_workers > self.config.min_threads || state.halt {
 					state.total_workers -= 1;
 					state.waiting_workers -= 1;
+					if state.halt && state.total_workers == 0 {
+						let rimpl = self.rimpl.as_mut().unwrap();
+						let _ = rimpl.stop_channel.send(());
+					}
 					return;
 				}
 			}
@@ -236,6 +278,7 @@ impl<T> Runtime<T> {
 						}
 					}
 				}
+				Message::Halt(_) => {}
 			}
 		});
 		Ok(())
@@ -245,6 +288,7 @@ impl<T> Runtime<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use sys::getalloccount;
 
 	#[test]
 	fn test_runtime() {
@@ -285,11 +329,28 @@ mod test {
 		sender.send(60).unwrap();
 		sender2.send(70).unwrap();
 
-		assert_eq!(x1.block_on().unwrap(), Ok(41));
-		assert_eq!(x2.block_on().unwrap(), Ok(5));
+		assert_eq!(x1.block_on().unwrap().unwrap(), 41);
+		assert_eq!(x2.block_on().unwrap().unwrap(), 5);
 		assert!(x1.is_complete());
 		assert!(x2.is_complete());
 		assert_eq!(*rc_confirm, 2);
+	}
+
+	#[test]
+	fn test_runtime_memory() {
+		let initial = unsafe { getalloccount() };
+		{
+			{
+				let mut r = Runtime::new(RuntimeConfig {
+					min_threads: 2,
+					max_threads: 4,
+				})
+				.unwrap();
+				r.start().unwrap();
+				let _x1 = r.execute(move || -> Result<i32, Error> { Ok(0) }).unwrap();
+			}
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	#[test]
@@ -342,8 +403,8 @@ mod test {
 		sendc1.send(1).unwrap();
 		sendc2.send(2).unwrap();
 
-		assert_eq!(x1.block_on().unwrap(), Ok(1));
-		assert_eq!(x2.block_on().unwrap(), Ok(2));
+		assert_eq!(x1.block_on().unwrap().unwrap(), 1);
+		assert_eq!(x2.block_on().unwrap().unwrap(), 2);
 
 		while r.idle_threads() != 2 {}
 
@@ -446,10 +507,10 @@ mod test {
 		// After things settle down we should return to our min thread level of 2
 		assert_eq!(r.cur_threads(), 2);
 
-		assert_eq!(x1.block_on().unwrap(), Ok(1));
-		assert_eq!(x2.block_on().unwrap(), Ok(2));
-		assert_eq!(x3.block_on().unwrap(), Ok(3));
-		assert_eq!(x4.block_on().unwrap(), Ok(4));
-		assert_eq!(x5.block_on().unwrap(), Ok(5));
+		assert_eq!(x1.block_on().unwrap().unwrap(), 1);
+		assert_eq!(x2.block_on().unwrap().unwrap(), 2);
+		assert_eq!(x3.block_on().unwrap().unwrap(), 3);
+		assert_eq!(x4.block_on().unwrap().unwrap(), 4);
+		assert_eq!(x5.block_on().unwrap().unwrap(), 5);
 	}
 }
