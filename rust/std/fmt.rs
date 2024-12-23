@@ -48,6 +48,48 @@ macro_rules! write {
         }};
 }
 
+#[macro_export]
+macro_rules! format {
+	($fmt:expr, $($t:expr),*) => {{
+		let mut formatter = Formatter::new();
+		match write!(formatter, $fmt, $($t),*) {
+                    Ok(_) => String::new(formatter.as_str()),
+                    Err(e) => Err(e)
+                }
+	}};
+}
+
+#[macro_export]
+macro_rules! println {
+    ($fmt:expr) => {{
+        unsafe { crate::sys::write(2, $fmt.as_ptr(), $fmt.len()); }
+    }};
+    ($fmt:expr, $($t:expr),*) => {{
+        match format!($fmt, $($t),*) {
+            Ok(line) => {
+                unsafe { crate::sys::write(2, line.to_str().as_ptr(), line.len()); }
+                unsafe { crate::sys::write(2, "\n".as_ptr(), 1); }
+            },
+            Err(e) => {},
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! print {
+    ($fmt:expr) => {{
+        unsafe { crate::sys::write(2, $fmt.as_ptr(), $fmt.len()); }
+    }};
+    ($fmt:expr, $($t:expr),*) => {{
+        match format!($fmt, $($t),*) {
+            Ok(line) => {
+                unsafe { crate::sys::write(2, line.to_str().as_ptr(), line.len()); }
+            },
+            Err(e) => {},
+        }
+    }};
+}
+
 pub struct Formatter {
 	buffer: Vec<u8>,
 	pos: usize,
@@ -246,5 +288,8 @@ mod test {
 		)
 		.is_ok());
 		assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
+
+		let x = format!("this is a test {} {}", 7, 8).unwrap();
+		assert_eq!(x.to_str(), "this is a test 7 8");
 	}
 }
