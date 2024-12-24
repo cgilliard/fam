@@ -2,7 +2,6 @@ use core::mem::size_of;
 use core::ptr::null_mut;
 use core::slice::from_raw_parts;
 use prelude::*;
-use util::murmur::murmur3_32_of_slice;
 
 pub trait Hash {
 	fn hash(&self) -> u32;
@@ -20,6 +19,12 @@ struct Node<K, V> {
 
 pub struct Hashtable<K: Equal + Hash, V: Clone> {
 	arr: Vec<*mut Node<K, V>>,
+}
+
+impl<K: Equal + Hash, V: Clone> Drop for Hashtable<K, V> {
+	fn drop(&mut self) {
+		self.clear();
+	}
 }
 
 impl<K: Equal + Hash, V: Clone> Hashtable<K, V> {
@@ -139,12 +144,25 @@ impl<K: Equal + Hash, V: Clone> Hashtable<K, V> {
 		}
 		None
 	}
+
+	pub fn clear(&mut self) {
+		for i in 0..self.arr.len() {
+			let mut ptr = self.arr[i];
+			unsafe {
+				while !ptr.is_null() {
+					let prev = ptr;
+					ptr = (*ptr).next;
+					let _b = Box::from_raw(prev);
+				}
+			}
+		}
+	}
 }
 
 impl Hash for i32 {
 	fn hash(&self) -> u32 {
 		let slice = unsafe { from_raw_parts(&*self as *const i32 as *const u8, size_of::<i32>()) };
-		murmur3_32_of_slice(slice, 1)
+		murmur3_32_of_slice(slice, MURMUR_SEED)
 	}
 }
 impl Equal for i32 {
@@ -156,17 +174,33 @@ impl Equal for i32 {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use sys::getalloccount;
 
 	#[test]
-	fn test_hashtable() {
-		let mut hash = Hashtable::new(1024).unwrap();
-		assert!(hash.insert(1i32, 2i32).is_ok());
-		assert_eq!(hash.get(1i32).unwrap().unwrap(), &2i32);
-		assert!(hash.get(2i32).unwrap().is_none());
+	fn test_hashtable1() {
+		let initial = unsafe { getalloccount() };
+		{
+			let mut hash = Hashtable::new(1024).unwrap();
+			assert!(hash.insert(1i32, 2i32).is_ok());
+			assert_eq!(hash.get(1i32).unwrap().unwrap(), &2i32);
+			assert!(hash.get(2i32).unwrap().is_none());
 
-		*hash.get_mut(1i32).unwrap().unwrap() = 3i32;
-		assert_eq!(hash.get(1i32).unwrap().unwrap(), &3i32);
-		assert_eq!(hash.remove(1i32).unwrap().unwrap(), 3i32);
-		assert!(hash.remove_no_clone(1i32).is_none());
+			*hash.get_mut(1i32).unwrap().unwrap() = 3i32;
+			assert_eq!(hash.get(1i32).unwrap().unwrap(), &3i32);
+			assert_eq!(hash.remove(1i32).unwrap().unwrap(), 3i32);
+			assert!(hash.remove_no_clone(1i32).is_none());
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
+	}
+
+	#[test]
+	fn test_hashtable_drop() {
+		let initial = unsafe { getalloccount() };
+		{
+			let mut hash = Hashtable::new(1024).unwrap();
+			assert!(hash.insert(1i32, 2i32).is_ok());
+			assert!(hash.insert(2i32, 3i32).is_ok());
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 }
