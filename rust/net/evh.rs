@@ -1,11 +1,19 @@
 use core::ops::FnMut;
 use prelude::*;
 
+struct WriteHandleInner {
+	wbuf: Vec<u8>,
+}
+
+pub struct WriteHandle {
+	inner: Rc<WriteHandleInner>,
+}
+
 pub struct Connection {
 	id: u64,
 	handle: [u8; 4],
+	inner: WriteHandle,
 	rbuf: Vec<u8>,
-	wbuf: Vec<u8>,
 }
 
 pub trait EventHandler {
