@@ -143,6 +143,41 @@ mod test {
 	}
 
 	#[test]
+	fn test_sock_stack_sys() {
+		unsafe {
+			let addr: [u8; 4] = [127, 0, 0, 1];
+
+			// Create raw pointers for the sockets
+			let mut server_i32 = [0u8; 4];
+			let mut client_i32 = [0u8; 4];
+			let mut accepted_i32 = [0u8; 4];
+
+			let server: *mut u8 = &mut server_i32 as *mut u8;
+			let client: *mut u8 = &mut client_i32 as *mut u8;
+			let accepted: *mut u8 = &mut accepted_i32 as *mut u8;
+
+			// Initialize the server, client, and accepted socket handles
+			assert_eq!(socket_listen(server, addr.as_ptr(), 9090, 10), 0);
+			assert_eq!(socket_connect(client, addr.as_ptr(), 9090), 0);
+			assert_eq!(socket_accept(server, accepted), 0);
+
+			let buf: [u8; 1] = [b'h'];
+			let mut recv_buf = [0u8; 1];
+
+			// Send and receive data
+			assert_eq!(socket_send(client, buf.as_ptr(), 1), 1);
+			assert_eq!(recv_buf, [0u8; 1]);
+			assert_eq!(socket_recv(accepted, recv_buf.as_mut_ptr(), 1), 1);
+			assert_eq!(recv_buf, buf);
+
+			// Close the sockets
+			assert_eq!(socket_close(server), 0);
+			assert_eq!(socket_close(client), 0);
+			assert_eq!(socket_close(accepted), 0);
+		}
+	}
+
+	#[test]
 	fn test_multiplex() {
 		unsafe {
 			// init addr to localhost
