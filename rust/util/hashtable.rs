@@ -17,17 +17,17 @@ struct Node<K, V> {
 	value: V,
 }
 
-pub struct Hashtable<K: Equal + Hash, V: Clone> {
+pub struct Hashtable<K: Equal + Hash, V> {
 	arr: Vec<*mut Node<K, V>>,
 }
 
-impl<K: Equal + Hash, V: Clone> Drop for Hashtable<K, V> {
+impl<K: Equal + Hash, V> Drop for Hashtable<K, V> {
 	fn drop(&mut self) {
 		self.clear();
 	}
 }
 
-impl<K: Equal + Hash, V: Clone> Hashtable<K, V> {
+impl<K: Equal + Hash, V> Hashtable<K, V> {
 	pub fn new(size: usize) -> Result<Self, Error> {
 		let mut arr = Vec::new();
 		match arr.resize(size) {
@@ -91,37 +91,7 @@ impl<K: Equal + Hash, V: Clone> Hashtable<K, V> {
 		Ok(None)
 	}
 
-	pub fn remove(&mut self, key: K) -> Result<Option<V>, Error> {
-		let index = key.hash() as usize % self.arr.len();
-		let mut ptr = self.arr[index];
-		let mut prev = self.arr[index];
-		let mut is_first = true;
-		unsafe {
-			while !ptr.is_null() {
-				if (*ptr).key.equal(&key) {
-					match (*ptr).value.clone() {
-						Ok(ret) => {
-							if is_first {
-								self.arr[index] = (*ptr).next;
-							} else {
-								(*prev).next = (*ptr).next;
-							}
-							// free boxed resource
-							let _b = Box::from_raw(ptr);
-							return Ok(Some(ret));
-						}
-						Err(e) => return Err(e),
-					}
-				}
-				is_first = false;
-				prev = ptr;
-				ptr = (*ptr).next;
-			}
-		}
-		Ok(None)
-	}
-
-	pub fn remove_no_clone(&mut self, key: K) -> Option<()> {
+	pub fn remove(&mut self, key: K) -> bool {
 		let index = key.hash() as usize % self.arr.len();
 		let mut ptr = self.arr[index];
 		let mut prev = self.arr[index];
@@ -135,14 +105,14 @@ impl<K: Equal + Hash, V: Clone> Hashtable<K, V> {
 						(*prev).next = (*ptr).next;
 					}
 					let _b = Box::from_raw(ptr);
-					return Some(());
+					return true;
 				}
 				is_first = false;
 				prev = ptr;
 				ptr = (*ptr).next;
 			}
 		}
-		None
+		false
 	}
 
 	pub fn clear(&mut self) {
@@ -187,8 +157,8 @@ mod test {
 
 			*hash.get_mut(1i32).unwrap().unwrap() = 3i32;
 			assert_eq!(hash.get(1i32).unwrap().unwrap(), &3i32);
-			assert_eq!(hash.remove(1i32).unwrap().unwrap(), 3i32);
-			assert!(hash.remove_no_clone(1i32).is_none());
+			assert!(hash.remove(1i32));
+			assert!(!hash.remove(1i32));
 		}
 		assert_eq!(unsafe { getalloccount() }, initial);
 	}
