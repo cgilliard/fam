@@ -1,9 +1,10 @@
 use core::clone::Clone as CoreClone;
-use core::marker::{Copy, PhantomData, Sized};
+use core::marker::{Copy, Sized};
+use prelude::*;
+use sys::ptr_add;
 
 pub struct Pointer<T: ?Sized> {
-	ptr: *mut u8,
-	_marker: PhantomData<T>,
+	ptr: *mut T,
 }
 
 impl<T: ?Sized> CoreClone for Pointer<T> {
@@ -16,29 +17,61 @@ impl<T: ?Sized> Copy for Pointer<T> {}
 
 impl<T: ?Sized> Pointer<T> {
 	pub fn new(ptr: *mut T) -> Self {
-		Self {
-			ptr: ptr as *mut u8,
-			_marker: PhantomData,
+		if ptr as *mut u8 as usize % 2 != 0 {
+			panic!("Pointer address must be divisible by 2 and non-null");
+		}
+		Self { ptr }
+	}
+
+	pub fn set_bit(&mut self, v: bool) {
+		let ptr = (&mut self.ptr) as *mut _ as *mut *mut u8;
+		unsafe {
+			if v && (self.ptr as *mut u8 as usize) % 2 == 0 {
+				ptr_add(ptr as *mut _, 1); // Add 1 to set the bit
+			} else if !v && (self.ptr as *mut u8 as usize) % 2 != 0 {
+				ptr_add(ptr as *mut _, -1); // Subtract 1 to clear the bit
+			}
 		}
 	}
-}
 
-impl<T: ?Sized> Pointer<T> {
-	pub fn byte_add(&self, n: usize) -> Pointer<T> {
-		Pointer {
-			ptr: unsafe { self.ptr.add(n) },
-			_marker: PhantomData,
+	pub fn get_bit(&self) -> bool {
+		self.ptr as *mut u8 as usize % 2 != 0
+	}
+
+	/*
+	pub fn raw(&mut self) -> *mut u8 {
+		if self.get_bit() {
+			let mut ret = self.ptr;
+			unsafe {
+				ptr_add(&mut ret as *mut _ as *mut u8, -1);
+			}
+			ret as *mut u8
+		} else {
+			self.ptr as *mut u8
+		}
+	}
+		*/
+
+	pub fn raw(&mut self) -> *mut T {
+		if self.get_bit() {
+			let mut ret = self.ptr;
+			unsafe {
+				ptr_add(&mut ret as *mut _ as *mut u8, -1);
+			}
+			ret
+		} else {
+			self.ptr
 		}
 	}
 }
 
 impl<T> Pointer<T> {
 	pub fn offt(&mut self, n: usize) -> *mut T {
-		unsafe { self.ptr.add(n) as *mut T }
+		unsafe { (self.raw() as *mut u8).add(n) as *mut T }
 	}
 
 	pub fn add(&mut self, n: usize) -> *mut T {
-		unsafe { (self.ptr as *mut T).add(n) }
+		unsafe { (self.raw() as *mut T).add(n) }
 	}
 }
 
@@ -49,29 +82,51 @@ mod test {
 	use core::ptr::write;
 	use sys::{alloc, release};
 
-	#[derive(Copy, Clone)]
+	#[derive(Clone)]
 	struct MyBox<T: ?Sized> {
 		ptr: Pointer<T>,
+	}
+
+	impl<T: ?Sized> Drop for MyBox<T> {
+		fn drop(&mut self) {
+			unsafe {
+				release(self.ptr.raw() as *mut u8);
+			}
+		}
 	}
 
 	impl<T> MyBox<T> {
 		fn new(t: T) -> Self {
 			unsafe {
-				let ptr = alloc(8 + size_of::<T>());
-				write(ptr.add(8) as *mut T, t);
-				let ptr = Pointer::new(ptr as *mut T);
+				let ptr = alloc(size_of::<T>());
+				write(ptr as *mut T, t);
+				let mut ptr = Pointer::new(ptr as *mut T);
 				Self { ptr }
 			}
 		}
 
-		fn as_ref(&self) -> &T {
-			unsafe { &*self.ptr.byte_add(8).add(0) }
+		fn as_ref(&mut self) -> &T {
+			unsafe { &*(self.ptr.raw() as *mut T) }
+		}
+
+		fn get_bit(&self) -> bool {
+			self.ptr.get_bit()
+		}
+		fn set_bit(&mut self, v: bool) {
+			self.ptr.set_bit(v);
 		}
 	}
 
 	#[test]
 	fn test_pointer() {
-		let b = MyBox::new(123);
+		let mut b = MyBox::new(123);
+		b.set_bit(false);
+		assert!(!b.get_bit());
 		assert_eq!(b.as_ref(), &123);
+
+		let mut b2 = MyBox::new(456);
+		b2.set_bit(true);
+		assert!(b2.get_bit());
+		assert_eq!(b2.as_ref(), &456);
 	}
 }

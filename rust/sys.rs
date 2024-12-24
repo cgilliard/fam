@@ -40,6 +40,7 @@ extern "C" {
 	pub fn release(ptr: *mut u8);
 	pub fn sleep_millis(millis: u64) -> i32;
 	pub fn f64_to_str(d: f64, buf: *mut u8, capacity: u64) -> i32;
+	pub fn ptr_add(p: *mut u8, v: i64);
 
 	pub fn socket_handle_size() -> usize;
 	pub fn socket_event_size() -> usize;
@@ -77,6 +78,25 @@ mod test {
 			(*msg).spo[1] = b'e';
 			(*msg).spo[2] = b'f';
 			channel_send(channel, msg as *mut u8);
+		}
+	}
+
+	#[test]
+	fn test_ptr_add() {
+		unsafe {
+			let mut v = alloc(128);
+			*v = 50;
+			assert_eq!(*v, 50);
+			v = v.add(1);
+			*v = 51;
+			assert_eq!(*v, 51);
+			v = v.sub(1);
+			assert_eq!(*v, 50);
+			ptr_add(v, 1);
+			assert_eq!(*v, 51);
+			ptr_add(v, -1);
+			assert_eq!(*v, 50);
+			release(v);
 		}
 	}
 

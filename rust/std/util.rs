@@ -84,14 +84,14 @@ pub fn copy_slice(src: &[u8], dest: &mut [u8], len: usize) {
 
 pub fn divide_usize(n: usize, d: usize) -> usize {
 	if d == 0 {
-		panic!("divide by 0");
+		exit!("divide by 0");
 	}
 	unsafe { unchecked_div(n, d) }
 }
 
 pub fn rem_usize(n: usize, d: usize) -> usize {
 	if d == 0 {
-		panic!("rem by 0");
+		exit!("rem by 0");
 	}
 	unsafe { unchecked_rem(n, d) }
 }
