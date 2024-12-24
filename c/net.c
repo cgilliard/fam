@@ -2,8 +2,13 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/event.h>
 #include <sys/socket.h>
+#ifdef __APPLE__
+#include <sys/event.h>
+#endif	// __APPLE__
+#ifdef __linux__
+#include <sys/epoll.h>
+#endif	// __linux__
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -30,7 +35,14 @@ typedef struct MultiplexHandle {
 } MultiplexHandle;
 
 unsigned long long int socket_handle_size() { return sizeof(SocketHandle); }
-unsigned long long socket_event_size() { return sizeof(struct kevent); }
+unsigned long long socket_event_size() {
+#ifdef __APPLE__
+	return sizeof(struct kevent);
+#endif	// __APPLE__
+#ifdef __linux__
+	return sizeof(struct epoll_event);
+#endif	// __linux__
+}
 unsigned long long socket_multiplex_handle_size() {
 	return sizeof(MultiplexHandle);
 }
@@ -119,10 +131,16 @@ long long socket_recv(SocketHandle *s, char *buf, unsigned long long capacity) {
 	return read(s->fd, buf, capacity);
 }
 int socket_multiplex_init(MultiplexHandle *multiplex) {
+#ifdef __APPLE__
 	multiplex->fd = kqueue();
+#endif	// __APPLE__
+#ifdef __linux__
+	multiplex->fd = epoll_create1(0);
+#endif	// __linux__
 	if (multiplex->fd < 0) return ERROR_MULTIPLEX_INIT;
 	return 0;
 }
+#ifdef __APPLE__
 int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 			      int flags) {
 	struct kevent change_event[2];
@@ -147,23 +165,73 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 	}
 	return 0;
 }
+#endif	// __APPLE__
+#ifdef __linux__
+int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
+			      int flags) {
+	struct epoll_event ev;
+	int event_flags = 0;
+
+	if (flags & MULTIPLEX_REGISTER_TYPE_FLAG_READ) {
+		event_flags |= EPOLLIN;
+	}
+
+	if (flags & MULTIPLEX_REGISTER_TYPE_FLAG_WRITE) {
+		event_flags |= EPOLLOUT;
+	}
+
+	ev.events = event_flags;
+	ev.data.fd = s->fd;
+
+	if (epoll_ctl(multiplex->fd, EPOLL_CTL_ADD, s->fd, &ev) < 0) {
+		return ERROR_REGISTER;
+	}
+
+	return 0;
+}
+#endif	// __linux__
+
 int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
 			  int max_events) {
+#ifdef __APPLE__
 	return kevent(multiplex->fd, NULL, 0, (struct kevent *)events,
 		      max_events, NULL);
+#endif	// __APPLE__
+#ifdef __linux__
+	return epoll_wait(multiplex->fd, (struct epoll_event *)events,
+			  max_events, -1);
+#endif	// __linux__
 }
 
 void socket_event_handle(SocketHandle *s, void *event) {
+#ifdef __APPLE__
 	struct kevent *kv = event;
 	s->fd = kv->ident;
+#endif	// __APPLE__
+#ifdef __linux__
+	struct epoll_event *epoll_ev = event;
+	s->fd = epoll_ev->data.fd;
+#endif	// __linux__
 }
 
 _Bool socket_event_is_read(void *event) {
+#ifdef __APPLE__
 	struct kevent *kv = event;
 	return kv->filter == EVFILT_READ;
+#endif	// __APPLE__
+#ifdef __linux__
+	struct epoll_event *epoll_ev = event;
+	return epoll_ev->events & EPOLLIN;
+#endif	// __linux__
 }
 
 _Bool socket_event_is_write(void *event) {
+#ifdef __APPLE__
 	struct kevent *kv = event;
 	return kv->filter == EVFILT_WRITE;
+#endif	// __APPLE__
+#ifdef __linux__
+	struct epoll_event *epoll_ev = event;
+	return epoll_ev->events & EPOLLOUT;
+#endif	// __linux__
 }
