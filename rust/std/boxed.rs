@@ -1,7 +1,8 @@
 use core::marker::{Sized, Unsize};
 use core::mem::size_of;
 use core::ops::{CoerceUnsized, Deref, DerefMut};
-use core::ptr::{drop_in_place, from_raw_parts_mut, null_mut, write, write_bytes, NonNull};
+use core::ptr::{drop_in_place, null_mut, write, write_bytes, NonNull};
+use core::slice::from_raw_parts_mut;
 use prelude::*;
 use sys::{alloc, release};
 
@@ -80,7 +81,8 @@ impl Box<[u8]> {
 		if len == 0 {
 			unsafe {
 				let ptr = NonNull::<u8>::dangling().as_ptr();
-				let mut ret: Box<[u8]> = Box::from_raw(from_raw_parts_mut(ptr, 0));
+				let ptr = from_raw_parts_mut(ptr, 0);
+				let mut ret: Box<[u8]> = Box::from_raw(Pointer::new(ptr));
 				ret.leak();
 				return Ok(ret);
 			}
@@ -93,7 +95,7 @@ impl Box<[u8]> {
 		if ptr.is_null() {
 			return Err(ErrorKind::Alloc.into());
 		}
-		let slice = unsafe { Box::from_raw(from_raw_parts_mut(ptr, len)) };
+		let slice = unsafe { Box::from_raw(Pointer::new(from_raw_parts_mut(ptr, len))) };
 
 		Ok(slice)
 	}
@@ -108,16 +110,8 @@ impl<T: ?Sized> Box<T> {
 		self.ptr.set_bit(false);
 	}
 
-	pub fn from_raw(ptr: *mut T) -> Box<T> {
-		if ptr.is_null() {
-			let mut ptr = Pointer::new(ptr);
-			ptr.set_bit(true);
-			Box { ptr }
-		} else {
-			Box {
-				ptr: Pointer::new(ptr),
-			}
-		}
+	pub fn from_raw(ptr: Pointer<T>) -> Box<T> {
+		Box { ptr }
 	}
 
 	pub fn as_ref(&self) -> &T {
@@ -128,12 +122,8 @@ impl<T: ?Sized> Box<T> {
 		unsafe { &mut *self.ptr.raw() }
 	}
 
-	pub fn as_ptr(&self) -> *const T {
-		self.ptr.raw()
-	}
-
-	pub fn as_mut_ptr(&mut self) -> *mut T {
-		self.ptr.raw()
+	pub fn as_ptr(&self) -> Pointer<T> {
+		self.ptr
 	}
 }
 
@@ -190,7 +180,7 @@ mod test {
 			unsafe {
 				b1.leak();
 			}
-			let b2: Box<dyn GetData> = unsafe { Box::from_raw(b1.as_mut_ptr()) };
+			let b2: Box<dyn GetData> = unsafe { Box::from_raw(Pointer::new(b1.as_ptr().raw())) };
 			assert_eq!(b2.get_data(), 1);
 
 			let b3: Box<dyn GetData> = Box::new(TestSample { data: 2 }).unwrap();

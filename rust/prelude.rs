@@ -4,7 +4,7 @@ pub use crate::{
 };
 */
 pub use crate::exit;
-//pub use std::boxed::Box;
+pub use std::boxed::Box;
 //pub use std::channel::Channel;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind};
@@ -12,7 +12,7 @@ pub use std::pointer::Pointer;
 //pub use std::fmt::{Display, Formatter};
 //pub use std::lock::{Lock, LockBox};
 pub use std::option::{Option, Option::None, Option::Some};
-//pub use std::rc::Rc;
+pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
 //pub use std::string::String;
 //pub use std::thread::{spawn, spawnj};
