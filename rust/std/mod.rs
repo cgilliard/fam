@@ -7,6 +7,7 @@ pub mod error;
 pub mod fmt;
 pub mod lock;
 pub mod option;
+pub mod pointer;
 pub mod rc;
 pub mod result;
 pub mod string;
