@@ -7,21 +7,6 @@ use core::slice::from_raw_parts_mut;
 use prelude::*;
 use sys::{alloc, release};
 
-macro_rules! impl_clone_for_box {
-        ($($t:ty),*) => {
-                $(
-                        impl Clone for Box<$t> {
-                                fn clone(&self) -> Result<Self, Error> {
-                                        Box::new(*self.as_ref())
-                                }
-                        }
-                )*
-        };
-}
-
-// Use the macro to generate the `Clone` impl for each primitive type
-impl_clone_for_box!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, f32, f64, bool);
-
 pub struct Box<T: ?Sized> {
 	ptr: *mut T,
 	leak: bool,

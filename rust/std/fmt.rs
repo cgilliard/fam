@@ -62,7 +62,8 @@ macro_rules! format {
 #[macro_export]
 macro_rules! println {
     ($fmt:expr) => {{
-        unsafe { crate::sys::write(2, $fmt.as_ptr(), $fmt.len()); }
+            unsafe { crate::sys::write(2, $fmt.as_ptr(), $fmt.len()); }
+            unsafe { crate::sys::write(2, "\n".as_ptr(), 1); }
     }};
     ($fmt:expr, $($t:expr),*) => {{
         match format!($fmt, $($t),*) {
@@ -145,6 +146,14 @@ macro_rules! impl_display_unsigned {
 }
 
 impl_display_unsigned!(u8, u16, u32, u64, u128);
+
+impl Display for usize {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+		let mut buf = [0u8; 64];
+		let len = u128_to_str(*self as u128, 0, &mut buf);
+		unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
+	}
+}
 
 macro_rules! impl_display_signed {
     ($($t:ty),*) => {

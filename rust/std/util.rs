@@ -1,5 +1,15 @@
 use core::intrinsics::{unchecked_div, unchecked_rem};
 use core::ptr::copy_nonoverlapping;
+use core::slice::from_raw_parts;
+use prelude::*;
+
+pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
+	if len + off > n.len() {
+		Err(ErrorKind::OutOfBounds.into())
+	} else {
+		Ok(unsafe { from_raw_parts(n.as_ptr().add(off), len) })
+	}
+}
 
 pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8]) -> usize {
 	let buf_len = buf.len();

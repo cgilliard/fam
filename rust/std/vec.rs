@@ -213,9 +213,12 @@ impl<T> Vec<T> {
 	}
 
 	fn resize_impl(&mut self, needed: usize) -> bool {
-		// these were based on slab sizes, but probably a decent
-		// approach
-		if needed > 4064 {
+		if needed == 0 {
+			// unwrap ok because zero sized box no alloc
+			self.value = Box::new([]).unwrap();
+			self.capacity = 0;
+			self.elements = 0;
+		} else if needed > 4064 {
 			let npages = 1 + pages!(needed);
 			match Box::new_zeroed_byte_slice(npages * page_size!()) {
 				Ok(newbox) => self.copy_box(needed, newbox),

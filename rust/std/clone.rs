@@ -15,6 +15,21 @@ pub trait Clone: Sized {
 	}
 }
 
+macro_rules! impl_clone_for_prim{
+        ($($t:ty),*) => {
+                $(
+                        impl Clone for $t {
+                                fn clone(&self) -> Result<Self, Error> {
+                                        Ok(*self)
+                                }
+                        }
+                )*
+        };
+}
+
+// Use the macro to generate the `Clone` impl for each primitive type
+impl_clone_for_prim!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, f32, f64, bool);
+
 #[cfg(test)]
 mod test {
 	use prelude::*;
