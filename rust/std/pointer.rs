@@ -1,5 +1,6 @@
 use core::clone::Clone as CoreClone;
-use core::marker::{Copy, Sized};
+use core::marker::{Copy, Sized, Unsize};
+use core::ops::CoerceUnsized;
 use prelude::*;
 use sys::ptr_add;
 
@@ -14,6 +15,13 @@ impl<T: ?Sized> CoreClone for Pointer<T> {
 }
 
 impl<T: ?Sized> Copy for Pointer<T> {}
+
+impl<T, U> CoerceUnsized<Pointer<U>> for Pointer<T>
+where
+	T: Unsize<U> + ?Sized,
+	U: ?Sized,
+{
+}
 
 impl<T: ?Sized> Pointer<T> {
 	pub fn new(ptr: *mut T) -> Self {
@@ -38,21 +46,7 @@ impl<T: ?Sized> Pointer<T> {
 		self.ptr as *mut u8 as usize % 2 != 0
 	}
 
-	/*
-	pub fn raw(&mut self) -> *mut u8 {
-		if self.get_bit() {
-			let mut ret = self.ptr;
-			unsafe {
-				ptr_add(&mut ret as *mut _ as *mut u8, -1);
-			}
-			ret as *mut u8
-		} else {
-			self.ptr as *mut u8
-		}
-	}
-		*/
-
-	pub fn raw(&mut self) -> *mut T {
+	pub fn raw(&self) -> *mut T {
 		if self.get_bit() {
 			let mut ret = self.ptr;
 			unsafe {
