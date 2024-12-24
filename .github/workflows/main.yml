@@ -33,9 +33,11 @@ jobs:
         run: |
           wget https://github.com/cgilliard/famc/releases/download/0.1.0/linux_output.tar.gz
           gzip -dc linux_output.tar.gz | tar xvf -
+          ./fam clean
           ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
       - name: linux tests
         run: |
+          ./fam clean
           ./fam fasttest
       - name: linux code coverage dependencies
         run: |
@@ -48,6 +50,7 @@ jobs:
           git config user.name "Coverage-Bot"
           git config user.email "noreply@pipeline.com"
           git checkout main
+          fam clean
           ./fam coverage --update-docs
           git commit -am "Coverage-Bot: Updated repo (via main.yml script) Source Version is $GITHUB_SHA";
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -60,6 +63,7 @@ jobs:
             cd famc
             ./build.sh
             cd ..
+            ./fam clean
             ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
           fi
 
@@ -84,9 +88,11 @@ jobs:
         run: |
           wget https://github.com/cgilliard/famc/releases/download/0.1.0/macos_output.tar.gz
           gzip -dc macos_output.tar.gz | tar xvf -
+          ./fam clean
           ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
       - name: macos tests
         run: |
+          ./fam clean
           ./fam fasttest
       - name: macos bootstrap (mrustc)
         run: |
@@ -97,5 +103,6 @@ jobs:
             export CC=/opt/homebrew/bin/gcc-13
             ./build.sh
             cd ..
+            ./fam clean
             ./fam --mrustc --with-mrustc=./famc/bin/mrustc --output=./famc/output
           fi
