@@ -95,11 +95,15 @@ impl<T> Channel<T> {
 	pub fn send(&self, t: T) -> Result<(), Error> {
 		unsafe {
 			let msg = alloc(size_of::<Message>()) as *mut Message;
-			let mut b = Box::new(t).unwrap();
-			(*msg).payload = b.as_mut_ptr() as *mut u8;
-			b.leak();
-			channel_send(self.inner.handle, msg as *mut u8);
-			Ok(())
+			match Box::new(t) {
+				Ok(mut b) => {
+					(*msg).payload = b.as_mut_ptr() as *mut u8;
+					b.leak();
+					channel_send(self.inner.handle, msg as *mut u8);
+					Ok(())
+				}
+				Err(e) => Err(e),
+			}
 		}
 	}
 

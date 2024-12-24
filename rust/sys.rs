@@ -40,6 +40,24 @@ extern "C" {
 	pub fn release(ptr: *mut u8);
 	pub fn sleep_millis(millis: u64) -> i32;
 	pub fn f64_to_str(d: f64, buf: *mut u8, capacity: u64) -> i32;
+
+	pub fn socket_handle_size() -> usize;
+	pub fn socket_event_size() -> usize;
+	pub fn socket_multiplex_handle_size() -> usize;
+	pub fn socket_connect(handle: *mut u8, addr: *const u8, port: i32) -> i32;
+	pub fn socket_shutdown(handle: *mut u8) -> i32;
+	pub fn socket_close(handle: *mut u8) -> i32;
+	pub fn socket_listen(handle: *mut u8, addr: *const u8, port: i32, backlog: i32) -> i32;
+	pub fn socket_accept(handle: *mut u8, nhandle: *mut u8) -> i32;
+	pub fn socket_send(handle: *mut u8, buf: *const u8, len: usize) -> i64;
+	pub fn socket_recv(handle: *mut u8, buf: *const u8, capacity: usize) -> i64;
+
+	pub fn socket_multiplex_init(handle: *mut u8) -> i32;
+	pub fn socket_multiplex_register(handle: *mut u8, socket: *mut u8, flags: i32) -> i32;
+	pub fn socket_multiplex_wait(handle: *mut u8, events: *mut u8, max_events: i32) -> i32;
+	pub fn socket_event_handle(handle: *mut u8, event: *mut u8);
+	pub fn socket_event_is_read(event: *mut u8) -> bool;
+	pub fn socket_event_is_write(event: *mut u8) -> bool;
 }
 
 #[cfg(test)]
@@ -94,6 +112,88 @@ mod test {
 			release((*recv).payload);
 			release(recv as *mut u8);
 			release(channel);
+		}
+	}
+
+	#[test]
+	fn test_sock_sys() {
+		unsafe {
+			let addr: [u8; 4] = [127, 0, 0, 1];
+			let server = alloc(socket_handle_size());
+			let client = alloc(socket_handle_size());
+			let accepted = alloc(socket_handle_size());
+			assert_eq!(socket_listen(server, addr.as_ptr(), 9090, 10), 0);
+			assert_eq!(socket_connect(client, addr.as_ptr(), 9090), 0);
+			assert_eq!(socket_accept(server, accepted), 0);
+			let buf: [u8; 1] = [b'h'];
+			let mut recv_buf = [0u8; 1];
+			assert_eq!(socket_send(client, buf.as_ptr(), 1), 1);
+			assert_eq!(recv_buf, [0u8; 1]);
+			assert_eq!(socket_recv(accepted, recv_buf.as_mut_ptr(), 1), 1);
+			assert_eq!(recv_buf, buf);
+
+			assert_eq!(socket_close(server), 0);
+			assert_eq!(socket_close(client), 0);
+			assert_eq!(socket_close(accepted), 0);
+
+			release(server);
+			release(client);
+			release(accepted);
+		}
+	}
+
+	#[test]
+	fn test_multiplex() {
+		unsafe {
+			// init addr to localhost
+			let addr: [u8; 4] = [127, 0, 0, 1];
+			let events = alloc(socket_event_size() * 10);
+			let server = alloc(socket_handle_size());
+			let client = alloc(socket_handle_size());
+			let accepted = alloc(socket_handle_size());
+			let multiplex = alloc(socket_multiplex_handle_size());
+			// open sockets an accept the inbound socket
+			assert_eq!(socket_listen(server, addr.as_ptr(), 9091, 10), 0);
+			assert_eq!(socket_connect(client, addr.as_ptr(), 9091), 0);
+			assert_eq!(socket_accept(server, accepted), 0);
+
+			assert_eq!(socket_multiplex_init(multiplex), 0);
+			// register read
+			assert_eq!(socket_multiplex_register(multiplex, accepted, 1), 0);
+			let buf: [u8; 1] = [b'h'];
+			let mut recv_buf = [0u8; 1];
+			assert_eq!(socket_send(client, buf.as_ptr(), 1), 1);
+			assert_eq!(socket_multiplex_wait(multiplex, events, 10), 1);
+			// it's the first event so no offset
+			assert!(socket_event_is_read(events));
+			assert!(!socket_event_is_write(events));
+
+			// get the readable handle
+			let readablehandle = alloc(socket_handle_size());
+			socket_event_handle(readablehandle, events);
+			assert_eq!(recv_buf, [0u8; 1]);
+			assert_eq!(socket_recv(readablehandle, recv_buf.as_mut_ptr(), 1), 1);
+			assert_eq!(recv_buf, buf);
+
+			// shutdown the socket
+			socket_shutdown(accepted);
+			assert_eq!(socket_multiplex_wait(multiplex, events, 10), 1);
+			socket_event_handle(readablehandle, events);
+			// this is a close so 0 bytes available
+			assert_eq!(socket_recv(readablehandle, recv_buf.as_mut_ptr(), 1), 0);
+
+			// close all three sockets
+			assert_eq!(socket_close(server), 0);
+			assert_eq!(socket_close(client), 0);
+			assert_eq!(socket_close(accepted), 0);
+
+			// release memory
+			release(server);
+			release(client);
+			release(accepted);
+			release(readablehandle);
+			release(events);
+			release(multiplex);
 		}
 	}
 }
