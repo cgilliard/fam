@@ -259,7 +259,7 @@ impl<T> Vec<T> {
 	}
 
 	pub fn as_mut_ptr(&mut self) -> *mut u8 {
-		null_mut()
+		self.value.raw()
 	}
 
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {

@@ -4,19 +4,20 @@ pub use crate::{
 };
 */
 pub use crate::exit;
+pub use crate::{format, println, rc, vec, writeb};
 pub use std::boxed::Box;
 //pub use std::channel::Channel;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind};
+pub use std::fmt::{Display, Formatter};
 pub use std::pointer::Pointer;
-//pub use std::fmt::{Display, Formatter};
 //pub use std::lock::{Lock, LockBox};
 pub use std::option::{Option, Option::None, Option::Some};
 pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
-//pub use std::string::String;
+pub use std::string::String;
 //pub use std::thread::{spawn, spawnj};
-//pub use std::vec::Vec;
+pub use std::vec::Vec;
 //pub use util::murmur::{murmur3_32_of_slice, MURMUR_SEED};
 
 // external imports (from core)

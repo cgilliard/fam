@@ -25,9 +25,6 @@ where
 
 impl<T: ?Sized> Pointer<T> {
 	pub fn new(ptr: *mut T) -> Self {
-		if ptr as *mut u8 as usize % 2 != 0 {
-			panic!("Pointer address must be divisible by 2 and non-null");
-		}
 		Self { ptr }
 	}
 

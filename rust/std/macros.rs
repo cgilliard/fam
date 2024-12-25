@@ -106,19 +106,6 @@ macro_rules! sched_yield {
 	}};
 }
 
-/*
-#[macro_export]
-macro_rules! println {
-	($s:expr) => {{
-		use sys::write;
-		unsafe {
-			write(2, $s.as_ptr(), $s.len());
-			write(2, "\n".as_ptr(), 1);
-		}
-	}};
-}
-*/
-
 #[macro_export]
 macro_rules! print_num {
 	($n:expr) => {{
