@@ -3,37 +3,37 @@ use core::marker::{Copy, Sized, Unsize};
 use core::mem::size_of;
 use core::ops::CoerceUnsized;
 use core::ops::{Deref, DerefMut};
-use core::ptr::write;
+use core::ptr::{null_mut, write};
 use prelude::*;
 use sys::{ptr_add, resize};
 
-pub struct Pointer<T: ?Sized> {
+pub struct Ptr<T: ?Sized> {
 	ptr: *mut T,
 }
 
-impl<T: ?Sized> CoreClone for Pointer<T> {
+impl<T: ?Sized> CoreClone for Ptr<T> {
 	fn clone(&self) -> Self {
 		*self
 	}
 }
 
-impl<T: ?Sized> Copy for Pointer<T> {}
+impl<T: ?Sized> Copy for Ptr<T> {}
 
-impl<T, U> CoerceUnsized<Pointer<U>> for Pointer<T>
+impl<T, U> CoerceUnsized<Ptr<U>> for Ptr<T>
 where
 	T: Unsize<U> + ?Sized,
 	U: ?Sized,
 {
 }
 
-impl<T: ?Sized> Deref for Pointer<T> {
+impl<T: ?Sized> Deref for Ptr<T> {
 	type Target = T;
 	fn deref(&self) -> &Self::Target {
 		unsafe { &*self.raw() }
 	}
 }
 
-impl<T> DerefMut for Pointer<T>
+impl<T> DerefMut for Ptr<T>
 where
 	T: ?Sized,
 {
@@ -42,7 +42,7 @@ where
 	}
 }
 
-impl<T> Pointer<T> {
+impl<T> Ptr<T> {
 	pub fn alloc(t: T) -> Result<Self, Error> {
 		let ptr = unsafe { crate::sys::alloc(size_of::<T>()) } as *mut T;
 
@@ -55,11 +55,20 @@ impl<T> Pointer<T> {
 			Ok(Self { ptr })
 		}
 	}
+
+	pub fn null() -> Self {
+		let ptr = null_mut();
+		Self { ptr }
+	}
 }
 
-impl<T: ?Sized> Pointer<T> {
+impl<T: ?Sized> Ptr<T> {
 	pub fn new(ptr: *mut T) -> Self {
 		Self { ptr }
+	}
+
+	pub fn is_null(&self) -> bool {
+		self.ptr.is_null()
 	}
 
 	pub fn set_bit(&mut self, v: bool) {
@@ -95,12 +104,12 @@ impl<T: ?Sized> Pointer<T> {
 		}
 	}
 
-	pub fn resize<R>(&mut self, n: usize) -> Result<Pointer<R>, Error> {
+	pub fn resize<R>(&mut self, n: usize) -> Result<Ptr<R>, Error> {
 		let ptr = unsafe { resize(self.ptr as *mut u8, n) };
 		if ptr.is_null() {
 			Err(ErrorKind::Alloc.into())
 		} else {
-			Ok(Pointer { ptr: ptr as *mut R })
+			Ok(Ptr { ptr: ptr as *mut R })
 		}
 	}
 
@@ -121,7 +130,7 @@ impl<T: ?Sized> Pointer<T> {
 	}
 }
 
-impl<T> Pointer<T> {
+impl<T> Ptr<T> {
 	pub fn offt(&mut self, n: usize) -> *mut T {
 		unsafe { (self.raw() as *mut u8).add(n) as *mut T }
 	}
@@ -140,7 +149,7 @@ mod test {
 
 	#[derive(Clone)]
 	struct MyBox<T: ?Sized> {
-		ptr: Pointer<T>,
+		ptr: Ptr<T>,
 	}
 
 	impl<T: ?Sized> Drop for MyBox<T> {
@@ -156,7 +165,7 @@ mod test {
 			unsafe {
 				let ptr = alloc(size_of::<T>());
 				write(ptr as *mut T, t);
-				let ptr = Pointer::new(ptr as *mut T);
+				let ptr = Ptr::new(ptr as *mut T);
 				Self { ptr }
 			}
 		}

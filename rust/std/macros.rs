@@ -123,7 +123,7 @@ macro_rules! print_num {
 #[macro_export]
 macro_rules! ptr {
 	($v:expr) => {{
-		Pointer::new($v as *mut u8)
+		Ptr::new($v as *mut u8)
 	}};
 }
 

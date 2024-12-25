@@ -9,7 +9,7 @@ pub use std::error::{Error, ErrorKind};
 pub use std::fmt::{Display, Formatter};
 pub use std::lock::{Lock, LockBox};
 pub use std::option::{Option, Option::None, Option::Some};
-pub use std::pointer::Pointer;
+pub use std::pointer::Ptr;
 pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
 pub use std::string::String;

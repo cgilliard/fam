@@ -57,7 +57,7 @@ impl<T> ChannelInner<T> {
 		unsafe {
 			let recv = channel_recv(self.handle) as *mut Message;
 			let payload = (*recv).payload as *mut T;
-			let mut nbox = Box::from_raw(Pointer::new(payload));
+			let mut nbox = Box::from_raw(Ptr::new(payload));
 			nbox.leak();
 			let v = ptr::read(nbox.as_ptr().raw());
 			if !payload.is_null() {

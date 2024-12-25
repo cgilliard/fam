@@ -50,7 +50,7 @@ where
 {
 	let mut closure_box: Box<F>;
 	let closure = unsafe {
-		closure_box = Box::from_raw(Pointer::new(ptr as *mut F));
+		closure_box = Box::from_raw(Ptr::new(ptr as *mut F));
 		closure_box.leak();
 		let closure = closure_box.as_ptr().raw() as *mut F;
 		let ret = ptr::read(closure);

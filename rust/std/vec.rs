@@ -9,7 +9,7 @@ use prelude::*;
 use sys::{alloc, release, resize};
 
 pub struct Vec<T> {
-	value: Pointer<u8>,
+	value: Ptr<u8>,
 	capacity: usize,
 	elements: usize,
 	_marker: PhantomData<T>,
@@ -177,7 +177,7 @@ impl<T> IndexMut<Range<usize>> for Vec<T> {
 impl<T> Vec<T> {
 	pub fn new() -> Self {
 		Self {
-			value: Pointer::new(null_mut()),
+			value: Ptr::new(null_mut()),
 			capacity: 0,
 			elements: 0,
 			_marker: PhantomData,
@@ -224,7 +224,7 @@ impl<T> Vec<T> {
 					release(self.value.raw());
 				}
 			}
-			self.value = Pointer::new(null_mut());
+			self.value = Ptr::new(null_mut());
 		}
 		let ncapacity = Self::next_power_of_two(needed);
 
@@ -244,7 +244,7 @@ impl<T> Vec<T> {
 				}
 			}
 			self.capacity = ncapacity;
-			let nptr = Pointer::new(nptr as *mut u8);
+			let nptr = Ptr::new(nptr as *mut u8);
 			if self.value.raw().is_null() {
 				self.value = nptr;
 			} else {

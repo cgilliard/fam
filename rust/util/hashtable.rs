@@ -13,7 +13,7 @@ pub trait Equal {
 }
 
 pub struct Node<V> {
-	next: Pointer<Node<V>>,
+	next: Ptr<Node<V>>,
 	value: V,
 }
 
@@ -34,14 +34,14 @@ impl<T> DerefMut for Node<T> {
 impl<V> Node<V> {
 	pub fn new(value: V) -> Self {
 		Self {
-			next: Pointer::new(null_mut()),
+			next: Ptr::new(null_mut()),
 			value,
 		}
 	}
 }
 
 pub struct Hashtable<V: Equal + Hash> {
-	arr: Vec<Pointer<Node<V>>>,
+	arr: Vec<Ptr<Node<V>>>,
 }
 
 impl<V: Equal + Hash> Hashtable<V> {
@@ -53,58 +53,56 @@ impl<V: Equal + Hash> Hashtable<V> {
 		}
 	}
 
-	pub fn insert(&mut self, mut node: Pointer<Node<V>>) -> bool {
-		node.as_mut().next = Pointer::new(null_mut());
-		let value = &node.as_ref().value;
+	pub fn insert(&mut self, mut node: Ptr<Node<V>>) -> bool {
+		(*node).next = Ptr::null();
+		let value = &*node;
 		let index = value.hash() % self.arr.len();
 		let mut ptr = self.arr[index];
-		let mut prev = Pointer::new(null_mut());
-
-		while !ptr.raw().is_null() {
-			if ptr.as_ref().value.equal(&value) {
-				return false;
-			}
-			prev = ptr;
-			ptr = ptr.as_ref().next;
-		}
-
-		if prev.raw().is_null() {
+		if ptr.is_null() {
 			self.arr[index] = node;
 		} else {
-			prev.as_mut().next = node;
+			let mut prev = Ptr::new(null_mut());
+			while !ptr.is_null() {
+				if (*ptr).equal(&value) {
+					return false;
+				}
+				prev = ptr;
+				ptr = (*ptr).next;
+			}
+
+			(*prev).next = node;
 		}
 		true
 	}
 
-	pub fn find(&self, value: V) -> Option<Pointer<Node<V>>> {
-		let index = value.hash() % self.arr.len();
-		let mut ptr = self.arr[index];
-		while !ptr.raw().is_null() {
-			if (*(ptr.as_ref())).value.equal(&value) {
-				return Some(Pointer::new(ptr.raw()));
+	pub fn find(&self, value: V) -> Option<Ptr<Node<V>>> {
+		let mut ptr = self.arr[value.hash() % self.arr.len()];
+		while !ptr.is_null() {
+			if (**ptr).equal(&value) {
+				return Some(Ptr::new(ptr.raw()));
 			}
 			ptr = (ptr.as_ref()).next;
 		}
 		None
 	}
 
-	pub fn remove(&mut self, value: V) -> Option<Pointer<Node<V>>> {
+	pub fn remove(&mut self, value: V) -> Option<Ptr<Node<V>>> {
 		let index = value.hash() % self.arr.len();
 		let mut ptr = self.arr[index];
 		let mut prev = self.arr[index];
 		let mut is_first = true;
-		while !ptr.raw().is_null() {
+		while !ptr.is_null() {
 			if (ptr.as_ref()).value.equal(&value) {
 				if is_first {
 					self.arr[index] = (*ptr.as_ref()).next;
 				} else {
-					(prev.as_mut()).next = (ptr.as_ref()).next;
+					(*prev).next = (*ptr).next;
 				}
-				return Some(Pointer::new(ptr.raw()));
+				return Some(Ptr::new(ptr.raw()));
 			}
 			is_first = false;
 			prev = ptr;
-			ptr = (ptr.as_ref()).next;
+			ptr = (*ptr).next;
 		}
 		None
 	}
@@ -151,7 +149,7 @@ mod test {
 		}
 		{
 			let mut hash = Hashtable::new(1024).unwrap();
-			let node = Pointer::new(v);
+			let node = Ptr::new(v);
 			hash.insert(node);
 
 			let mut n = hash.find(1i32.into()).unwrap();
@@ -172,13 +170,13 @@ mod test {
 	fn test_hashtable_collisions() {
 		let initial = unsafe { getalloccount() };
 
-		let v1 = Pointer::alloc(Node::new(TestValue { k: 1, v: 2 })).unwrap();
-		let v2 = Pointer::alloc(Node::new(TestValue { k: 2, v: 3 })).unwrap();
-		let v3 = Pointer::alloc(Node::new(TestValue { k: 3, v: 4 })).unwrap();
+		let v1 = Ptr::alloc(Node::new(TestValue { k: 1, v: 2 })).unwrap();
+		let v2 = Ptr::alloc(Node::new(TestValue { k: 2, v: 3 })).unwrap();
+		let v3 = Ptr::alloc(Node::new(TestValue { k: 3, v: 4 })).unwrap();
 
-		let v4 = Pointer::alloc(Node::new(TestValue { k: 1, v: 2 })).unwrap();
-		let v5 = Pointer::alloc(Node::new(TestValue { k: 2, v: 3 })).unwrap();
-		let v6 = Pointer::alloc(Node::new(TestValue { k: 3, v: 4 })).unwrap();
+		let v4 = Ptr::alloc(Node::new(TestValue { k: 1, v: 2 })).unwrap();
+		let v5 = Ptr::alloc(Node::new(TestValue { k: 2, v: 3 })).unwrap();
+		let v6 = Ptr::alloc(Node::new(TestValue { k: 3, v: 4 })).unwrap();
 
 		{
 			let mut hash = Hashtable::new(1).unwrap();

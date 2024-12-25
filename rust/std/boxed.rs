@@ -7,7 +7,7 @@ use prelude::*;
 use sys::{alloc, release};
 
 pub struct Box<T: ?Sized> {
-	ptr: Pointer<T>,
+	ptr: Ptr<T>,
 }
 
 impl<T: ?Sized> Drop for Box<T> {
@@ -57,7 +57,7 @@ impl<T> Box<T> {
 	pub fn new(t: T) -> Result<Self, Error> {
 		let size = size_of::<T>();
 		let ptr = if size == 0 {
-			let mut ptr: Pointer<T> = Pointer::new(null_mut());
+			let mut ptr: Ptr<T> = Ptr::new(null_mut());
 			ptr.set_bit(true);
 			ptr
 		} else {
@@ -67,7 +67,7 @@ impl<T> Box<T> {
 					return Err(ErrorKind::Alloc.into());
 				}
 				write(rptr, t);
-				Pointer::new(rptr)
+				Ptr::new(rptr)
 			};
 			ptr.set_bit(false);
 			ptr
@@ -82,7 +82,7 @@ impl Box<[u8]> {
 			unsafe {
 				let ptr = NonNull::<u8>::dangling().as_ptr();
 				let ptr = from_raw_parts_mut(ptr, 0);
-				let mut ret: Box<[u8]> = Box::from_raw(Pointer::new(ptr));
+				let mut ret: Box<[u8]> = Box::from_raw(Ptr::new(ptr));
 				ret.leak();
 				return Ok(ret);
 			}
@@ -95,7 +95,7 @@ impl Box<[u8]> {
 		if ptr.is_null() {
 			return Err(ErrorKind::Alloc.into());
 		}
-		let slice = unsafe { Box::from_raw(Pointer::new(from_raw_parts_mut(ptr, len))) };
+		let slice = unsafe { Box::from_raw(Ptr::new(from_raw_parts_mut(ptr, len))) };
 
 		Ok(slice)
 	}
@@ -110,7 +110,7 @@ impl<T: ?Sized> Box<T> {
 		self.ptr.set_bit(false);
 	}
 
-	pub fn from_raw(ptr: Pointer<T>) -> Box<T> {
+	pub fn from_raw(ptr: Ptr<T>) -> Box<T> {
 		Box { ptr }
 	}
 
@@ -122,7 +122,7 @@ impl<T: ?Sized> Box<T> {
 		unsafe { &mut *self.ptr.raw() }
 	}
 
-	pub fn as_ptr(&self) -> Pointer<T> {
+	pub fn as_ptr(&self) -> Ptr<T> {
 		self.ptr
 	}
 }
@@ -178,7 +178,7 @@ mod test {
 		{
 			let mut b1: Box<TestSample> = Box::new(TestSample { data: 1 }).unwrap();
 			b1.leak();
-			let b2: Box<dyn GetData> = Box::from_raw(Pointer::new(b1.as_ptr().raw()));
+			let b2: Box<dyn GetData> = Box::from_raw(Ptr::new(b1.as_ptr().raw()));
 			assert_eq!(b2.get_data(), 1);
 
 			let b3: Box<dyn GetData> = Box::new(TestSample { data: 2 }).unwrap();
