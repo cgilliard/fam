@@ -71,6 +71,14 @@ impl<T: ?Sized> Pointer<T> {
 		}
 		ret
 	}
+
+	pub fn as_ref(&self) -> &T {
+		unsafe { &(*self.raw()) }
+	}
+
+	pub fn as_mut(&mut self) -> &mut T {
+		unsafe { &mut (*self.raw()) }
+	}
 }
 
 impl<T> Pointer<T> {

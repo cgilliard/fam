@@ -3,7 +3,7 @@ use core::iter::{IntoIterator, Iterator};
 use core::marker::PhantomData;
 use core::mem::{replace, size_of, zeroed};
 use core::ops::{Drop, Index, IndexMut, Range};
-use core::ptr::{copy_nonoverlapping, null_mut};
+use core::ptr::{copy_nonoverlapping, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use sys::{alloc, release, resize};
@@ -236,6 +236,13 @@ impl<T> Vec<T> {
 			unsafe { resize(rptr as *mut u8, ncapacity * size_of::<T>()) }
 		};
 		if !nptr.is_null() {
+			if ncapacity > self.capacity {
+				let old_size = self.capacity * size_of::<T>();
+				let new_size = ncapacity * size_of::<T>();
+				unsafe {
+					write_bytes((nptr as *mut u8).add(old_size), 0, new_size - old_size);
+				}
+			}
 			self.capacity = ncapacity;
 			let nptr = Pointer::new(nptr as *mut u8);
 			if self.value.raw().is_null() {

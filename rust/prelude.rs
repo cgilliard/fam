@@ -15,7 +15,7 @@ pub use std::result::{Result, Result::Err, Result::Ok};
 pub use std::string::String;
 pub use std::thread::{spawn, spawnj};
 pub use std::vec::Vec;
-//pub use util::murmur::{murmur3_32_of_slice, MURMUR_SEED};
+pub use util::murmur::{murmur3_32_of_slice, MURMUR_SEED};
 
 // external imports (from core)
 pub use core::convert::From;
