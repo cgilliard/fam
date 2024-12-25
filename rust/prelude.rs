@@ -1,6 +1,6 @@
 pub use crate::exit;
 pub use crate::{
-	channel, format, lock, lock_box, lock_pair, print, print_num, println, rc, vec, writeb,
+	channel, format, lock, lock_box, lock_pair, print, print_num, println, ptr, rc, vec, writeb,
 };
 pub use std::boxed::Box;
 pub use std::channel::Channel;

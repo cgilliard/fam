@@ -121,6 +121,13 @@ macro_rules! print_num {
 }
 
 #[macro_export]
+macro_rules! ptr {
+	($v:expr) => {{
+		Pointer::new($v as *mut u8)
+	}};
+}
+
+#[macro_export]
 macro_rules! getmicros {
 	() => {{
 		use sys::getmicros;
