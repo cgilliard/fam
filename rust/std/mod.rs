@@ -8,3 +8,4 @@ pub mod pointer;
 pub mod rc;
 pub mod result;
 pub mod util;
+pub mod vec;

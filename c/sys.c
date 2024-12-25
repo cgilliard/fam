@@ -2,6 +2,7 @@
 
 int printf(const char *, ...);
 void *malloc(unsigned long);
+void *realloc(void *ptr, unsigned long);
 void free(void *);
 long long __alloc_count = 0;
 void _exit(int);
@@ -22,6 +23,8 @@ void release(void *ptr) {
 #endif	// TEST
 	free(ptr);
 }
+
+void *resize(void *ptr, unsigned long long len) { return realloc(ptr, len); }
 
 unsigned long long getmicros() {
 	struct timespec now;

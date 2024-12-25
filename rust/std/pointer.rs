@@ -2,7 +2,7 @@ use core::clone::Clone as CoreClone;
 use core::marker::{Copy, Sized, Unsize};
 use core::ops::CoerceUnsized;
 use prelude::*;
-use sys::ptr_add;
+use sys::{ptr_add, resize};
 
 pub struct Pointer<T: ?Sized> {
 	ptr: *mut T,
@@ -56,6 +56,23 @@ impl<T: ?Sized> Pointer<T> {
 		} else {
 			self.ptr
 		}
+	}
+
+	pub fn resize<R>(&mut self, n: usize) -> Result<Pointer<R>, Error> {
+		let ptr = unsafe { resize(self.ptr as *mut u8, n) };
+		if ptr.is_null() {
+			Err(ErrorKind::Alloc.into())
+		} else {
+			Ok(Pointer { ptr: ptr as *mut R })
+		}
+	}
+
+	pub fn byte_add(&self, n: i64) -> *mut u8 {
+		let mut ret = self.raw() as *mut u8;
+		unsafe {
+			ptr_add(&mut ret as *mut _ as *mut u8, n);
+		}
+		ret
 	}
 }
 
