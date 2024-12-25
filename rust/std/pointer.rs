@@ -1,6 +1,9 @@
 use core::clone::Clone as CoreClone;
 use core::marker::{Copy, Sized, Unsize};
+use core::mem::size_of;
 use core::ops::CoerceUnsized;
+use core::ops::{Deref, DerefMut};
+use core::ptr::write;
 use prelude::*;
 use sys::{ptr_add, resize};
 
@@ -21,6 +24,37 @@ where
 	T: Unsize<U> + ?Sized,
 	U: ?Sized,
 {
+}
+
+impl<T: ?Sized> Deref for Pointer<T> {
+	type Target = T;
+	fn deref(&self) -> &Self::Target {
+		unsafe { &*self.raw() }
+	}
+}
+
+impl<T> DerefMut for Pointer<T>
+where
+	T: ?Sized,
+{
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		unsafe { &mut *self.raw() }
+	}
+}
+
+impl<T> Pointer<T> {
+	pub fn alloc(t: T) -> Result<Self, Error> {
+		let ptr = unsafe { crate::sys::alloc(size_of::<T>()) } as *mut T;
+
+		if ptr.is_null() {
+			Err(ErrorKind::Alloc.into())
+		} else {
+			unsafe {
+				write(ptr, t);
+			}
+			Ok(Self { ptr })
+		}
+	}
 }
 
 impl<T: ?Sized> Pointer<T> {
@@ -52,6 +86,12 @@ impl<T: ?Sized> Pointer<T> {
 			ret
 		} else {
 			self.ptr
+		}
+	}
+
+	pub fn release(&self) {
+		unsafe {
+			crate::sys::release(self.raw() as *mut u8);
 		}
 	}
 

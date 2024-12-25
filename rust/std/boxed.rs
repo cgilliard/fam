@@ -57,7 +57,7 @@ impl<T> Box<T> {
 	pub fn new(t: T) -> Result<Self, Error> {
 		let size = size_of::<T>();
 		let ptr = if size == 0 {
-			let mut ptr = Pointer::new(null_mut());
+			let mut ptr: Pointer<T> = Pointer::new(null_mut());
 			ptr.set_bit(true);
 			ptr
 		} else {
