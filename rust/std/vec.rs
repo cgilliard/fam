@@ -6,7 +6,7 @@ use core::ops::{Drop, Index, IndexMut, Range};
 use core::ptr::{copy_nonoverlapping, null_mut};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
-use sys::{alloc, release, resize, write};
+use sys::{alloc, release, resize};
 
 pub struct Vec<T> {
 	value: Pointer<u8>,
@@ -233,7 +233,7 @@ impl<T> Vec<T> {
 		let nptr = if self.capacity == 0 {
 			unsafe { alloc(ncapacity * size_of::<T>()) }
 		} else {
-			unsafe { crate::sys::resize(rptr as *mut u8, ncapacity * size_of::<T>()) }
+			unsafe { resize(rptr as *mut u8, ncapacity * size_of::<T>()) }
 		};
 		if !nptr.is_null() {
 			self.capacity = ncapacity;
@@ -272,6 +272,22 @@ impl<T> Vec<T> {
 	}
 
 	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
+		let size = size_of::<T>();
+		let len = v.len();
+		let needed = size * (self.elements + len);
+		if needed > self.capacity {
+			if !self.resize_impl(needed) {
+				return Err(ErrorKind::Alloc.into());
+			}
+		}
+
+		let dest_ptr = self.value.raw() as *mut u8;
+		unsafe {
+			let dest_ptr = dest_ptr.add(size * len) as *mut u8;
+			copy_nonoverlapping(v.value.raw() as *mut u8, dest_ptr, size * len);
+		}
+
+		self.elements += len;
 		Ok(())
 	}
 }
@@ -335,7 +351,6 @@ mod test {
 		}
 	}
 
-	/*
 	#[test]
 	fn test_vec_append() {
 		let initial = unsafe { getalloccount() };
@@ -350,7 +365,6 @@ mod test {
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
-		*/
 
 	struct DropTest {
 		x: u32,

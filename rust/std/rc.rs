@@ -27,10 +27,8 @@ pub struct Rc<T: ?Sized> {
 impl<T: ?Sized> Clone for Rc<T> {
 	fn clone(&self) -> Result<Self, Error> {
 		let ptr = self.inner.as_ptr();
-		let mut inner: Box<RcInner<T>> = unsafe { Box::from_raw(ptr) };
-		unsafe {
-			inner.leak();
-		}
+		let mut inner: Box<RcInner<T>> = Box::from_raw(ptr);
+		inner.leak();
 		aadd!(&mut inner.count, 1);
 		Ok(Rc { inner })
 	}
@@ -40,9 +38,7 @@ impl<T: ?Sized> Drop for Rc<T> {
 	fn drop(&mut self) {
 		let rci = self.inner.as_mut();
 		if asub!(&mut rci.count, 1) == 1 {
-			unsafe {
-				self.inner.unleak();
-			}
+			self.inner.unleak();
 		}
 	}
 }
@@ -82,9 +78,7 @@ impl<T> Rc<T> {
 	pub fn new(value: T) -> Result<Self, Error> {
 		match Box::new(RcInner { value, count: 1 }) {
 			Ok(mut inner) => {
-				unsafe {
-					inner.leak();
-				}
+				inner.leak();
 				Ok(Self { inner })
 			}
 			Err(e) => Err(e),

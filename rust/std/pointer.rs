@@ -111,7 +111,7 @@ mod test {
 			unsafe {
 				let ptr = alloc(size_of::<T>());
 				write(ptr as *mut T, t);
-				let mut ptr = Pointer::new(ptr as *mut T);
+				let ptr = Pointer::new(ptr as *mut T);
 				Self { ptr }
 			}
 		}

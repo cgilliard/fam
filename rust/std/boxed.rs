@@ -177,10 +177,8 @@ mod test {
 		let initial = unsafe { getalloccount() };
 		{
 			let mut b1: Box<TestSample> = Box::new(TestSample { data: 1 }).unwrap();
-			unsafe {
-				b1.leak();
-			}
-			let b2: Box<dyn GetData> = unsafe { Box::from_raw(Pointer::new(b1.as_ptr().raw())) };
+			b1.leak();
+			let b2: Box<dyn GetData> = Box::from_raw(Pointer::new(b1.as_ptr().raw()));
 			assert_eq!(b2.get_data(), 1);
 
 			let b3: Box<dyn GetData> = Box::new(TestSample { data: 2 }).unwrap();
