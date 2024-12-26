@@ -42,22 +42,25 @@ impl<V: Ord> Display for RbTreeNode<V> {
 
 impl<V: Ord> RbTreeNode<V> {
 	pub fn new(value: V) -> Self {
-		let ret = Self {
+		let mut ret = Self {
 			parent: Ptr::null(),
 			right: Ptr::null(),
 			left: Ptr::null(),
 			is_red: true,
 			value,
 		};
+		ret.set_color(Color::Red);
 		ret
 	}
 
 	fn set_color(&mut self, color: Color) {
 		match color {
 			Color::Black => {
+				self.parent.set_bit(false);
 				self.is_red = false;
 			}
 			Color::Red => {
+				self.parent.set_bit(true);
 				self.is_red = true;
 			}
 		}
@@ -68,11 +71,25 @@ impl<V: Ord> RbTreeNode<V> {
 	}
 
 	fn is_red(&self) -> bool {
-		self.is_red
+		//self.is_red
+		self.parent.get_bit()
 	}
 
 	fn is_black(&self) -> bool {
 		!self.is_red()
+	}
+
+	fn set_parent(&mut self, parent: Ptr<Self>) {
+		match self.is_black() {
+			true => {
+				self.parent = parent;
+				self.set_color(Color::Black);
+			}
+			false => {
+				self.parent = parent;
+				self.set_color(Color::Red);
+			}
+		}
 	}
 }
 
@@ -113,7 +130,7 @@ impl<V: Ord> RbTree<V> {
 	) -> Option<Ptr<RbTreeNode<V>>> {
 		let ret = None;
 		if pair.cur.is_null() {
-			n.parent = pair.parent;
+			n.set_parent(pair.parent);
 			if pair.parent.is_null() {
 				self.root = n;
 			} else {
@@ -132,9 +149,9 @@ impl<V: Ord> RbTree<V> {
 		let mut y = x.right;
 		x.right = y.left;
 		if !y.left.is_null() {
-			y.left.parent = x;
+			y.left.set_parent(x);
 		}
-		y.parent = x.parent;
+		y.set_parent(x.parent);
 		if x.parent.is_null() {
 			self.root = y;
 		} else if x == x.parent.left {
@@ -143,16 +160,16 @@ impl<V: Ord> RbTree<V> {
 			x.parent.right = y;
 		}
 		y.left = x;
-		x.parent = y;
+		x.set_parent(y);
 	}
 
 	fn rotate_right(&mut self, mut x: Ptr<RbTreeNode<V>>) {
 		let mut y = x.left;
 		x.left = y.right;
 		if !y.right.is_null() {
-			y.right.parent = x;
+			y.right.set_parent(x);
 		}
-		y.parent = x.parent;
+		y.set_parent(x.parent);
 		if x.parent.is_null() {
 			self.root = y;
 		} else if x == x.parent.right {
@@ -161,7 +178,7 @@ impl<V: Ord> RbTree<V> {
 			x.parent.left = y;
 		}
 		y.right = x;
-		x.parent = y;
+		x.set_parent(y);
 	}
 
 	fn insert_fixup(&mut self, mut k: Ptr<RbTreeNode<V>>) {
