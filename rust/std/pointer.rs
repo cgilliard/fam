@@ -61,28 +61,16 @@ where
 	}
 }
 
-impl<T> Ptr<T> {
-	pub fn alloc(t: T) -> Result<Self, Error> {
-		let ptr = unsafe { crate::sys::alloc(size_of::<T>()) } as *mut T;
-
-		if ptr.is_null() {
-			Err(ErrorKind::Alloc.into())
-		} else {
-			unsafe {
-				write(ptr, t);
-			}
-			Ok(Self { ptr })
-		}
-	}
-
-	pub fn null() -> Self {
-		let ptr = null_mut();
-		Self { ptr }
-	}
-}
-
 impl<T: ?Sized> Ptr<T> {
 	pub fn new(ptr: *mut T) -> Self {
+		Self { ptr }
+	}
+
+	pub fn new_bit_set(mut ptr: *mut T) -> Self {
+		unsafe {
+			let tmp = (&mut ptr) as *mut _ as *mut *mut u8;
+			ptr_add(tmp as *mut _, 1);
+		}
 		Self { ptr }
 	}
 
@@ -150,6 +138,24 @@ impl<T: ?Sized> Ptr<T> {
 }
 
 impl<T> Ptr<T> {
+	pub fn alloc(t: T) -> Result<Self, Error> {
+		let ptr = unsafe { crate::sys::alloc(size_of::<T>()) } as *mut T;
+
+		if ptr.is_null() {
+			Err(ErrorKind::Alloc.into())
+		} else {
+			unsafe {
+				write(ptr, t);
+			}
+			Ok(Self { ptr })
+		}
+	}
+
+	pub fn null() -> Self {
+		let ptr = null_mut();
+		Self { ptr }
+	}
+
 	pub fn offt(&mut self, n: usize) -> *mut T {
 		unsafe { (self.raw() as *mut u8).add(n) as *mut T }
 	}

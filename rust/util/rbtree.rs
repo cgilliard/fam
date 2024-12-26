@@ -39,16 +39,16 @@ impl<V: Ord> Display for RbTreeNode<V> {
 	}
 }
 
+use core::ptr::null_mut;
+
 impl<V: Ord> RbTreeNode<V> {
 	pub fn new(value: V) -> Self {
-		let mut ret = Self {
-			parent: Ptr::null(),
+		Self {
+			parent: Ptr::new_bit_set(null_mut()),
 			right: Ptr::null(),
 			left: Ptr::null(),
 			value,
-		};
-		ret.set_color(Color::Red);
-		ret
+		}
 	}
 
 	fn set_color(&mut self, color: Color) {
@@ -78,11 +78,11 @@ impl<V: Ord> RbTreeNode<V> {
 		match self.is_black() {
 			true => {
 				self.parent = parent;
-				self.set_color(Color::Black);
+				self.parent.set_bit(false);
 			}
 			false => {
 				self.parent = parent;
-				self.set_color(Color::Red);
+				self.parent.set_bit(true);
 			}
 		}
 	}
@@ -130,8 +130,8 @@ impl<V: Ord> RbTree<V> {
 				self.root = n;
 			} else {
 				match pair.is_right {
-					true => (*pair.parent).right = n,
-					false => (*pair.parent).left = n,
+					true => pair.parent.right = n,
+					false => pair.parent.left = n,
 				}
 			}
 		} else {
