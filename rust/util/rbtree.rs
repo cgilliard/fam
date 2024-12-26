@@ -13,7 +13,6 @@ pub struct RbTreeNode<V: Ord> {
 	pub parent: Ptr<RbTreeNode<V>>,
 	pub right: Ptr<RbTreeNode<V>>,
 	pub left: Ptr<RbTreeNode<V>>,
-	is_red: bool,
 	pub value: V,
 }
 
@@ -30,7 +29,7 @@ impl<V: Ord> Display for RbTreeNode<V> {
 			self.parent,
 			self.left,
 			self.right,
-			if self.is_red { "red" } else { "black" },
+			if self.is_red() { "red" } else { "black" },
 			if self.parent.get_bit() {
 				"red"
 			} else {
@@ -46,7 +45,6 @@ impl<V: Ord> RbTreeNode<V> {
 			parent: Ptr::null(),
 			right: Ptr::null(),
 			left: Ptr::null(),
-			is_red: true,
 			value,
 		};
 		ret.set_color(Color::Red);
@@ -57,11 +55,9 @@ impl<V: Ord> RbTreeNode<V> {
 		match color {
 			Color::Black => {
 				self.parent.set_bit(false);
-				self.is_red = false;
 			}
 			Color::Red => {
 				self.parent.set_bit(true);
-				self.is_red = true;
 			}
 		}
 	}
@@ -71,7 +67,6 @@ impl<V: Ord> RbTreeNode<V> {
 	}
 
 	fn is_red(&self) -> bool {
-		//self.is_red
 		self.parent.get_bit()
 	}
 
