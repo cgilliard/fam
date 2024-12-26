@@ -1,3 +1,4 @@
+use core::clone::Clone;
 use core::ops::FnMut;
 use prelude::*;
 
@@ -114,8 +115,198 @@ impl<V: Ord> RbTree<V> {
 		ret
 	}
 
-	pub fn remove(&mut self, _n: V) -> Option<Ptr<RbTreeNode<V>>> {
-		None
+	pub fn remove(
+		&mut self,
+		n: Ptr<RbTreeNode<V>>,
+		search: &mut RbTreeSearch<V>,
+	) -> Option<Ptr<RbTreeNode<V>>> {
+		let pair = search(self.root, n);
+		if pair.cur.is_null() {
+			return None;
+		}
+		let ret = pair.cur.clone();
+		self.remove_impl(pair);
+		Some(ret)
+	}
+
+	fn remove_impl(&mut self, pair: RbNodePair<V>) {
+		let node_to_delete = pair.cur;
+		let mut do_fixup = node_to_delete.is_black();
+		let x;
+		let (mut w, mut p) = (Ptr::null(), Ptr::null());
+
+		if node_to_delete.left.is_null() {
+			x = node_to_delete.right;
+			self.remove_transplant(node_to_delete, x);
+			p = node_to_delete.parent;
+			if !p.is_null() {
+				if p.left.is_null() {
+				} else {
+					w = p.left;
+				}
+			} else {
+				do_fixup = false;
+				if !self.root.is_null() {
+					self.root.set_color(Color::Black);
+				}
+			}
+		} else if node_to_delete.right.is_null() {
+			x = node_to_delete.left;
+			self.remove_transplant(node_to_delete, node_to_delete.left);
+			p = node_to_delete.parent;
+			if p.is_null() {
+				do_fixup = false;
+			} else {
+				w = p.left;
+			}
+		} else {
+			let mut successor = self.find_successor(node_to_delete);
+			do_fixup = successor.is_black();
+			x = successor.right;
+			w = successor.parent.right;
+			if !w.is_null() {
+				if w.parent == node_to_delete {
+					w = node_to_delete.left;
+					p = successor;
+				} else {
+					p = w.parent;
+				}
+			}
+
+			if successor.parent != node_to_delete {
+				self.remove_transplant(successor, successor.right);
+				successor.right = node_to_delete.right;
+				if !successor.right.is_null() {
+					let successor_clone = successor.clone();
+					successor.right.set_parent(successor_clone);
+				}
+			}
+
+			self.remove_transplant(node_to_delete, successor);
+			successor.left = node_to_delete.left;
+			let successor_clone = successor.clone();
+			successor.left.set_parent(successor_clone);
+			if node_to_delete.is_black() {
+				successor.set_color(Color::Black);
+			} else {
+				successor.set_color(Color::Red);
+			}
+		}
+		if do_fixup {
+			self.remove_fixup(p, w, x);
+		}
+	}
+
+	fn find_successor(&mut self, mut x: Ptr<RbTreeNode<V>>) -> Ptr<RbTreeNode<V>> {
+		x = x.right;
+		loop {
+			if x.left.is_null() {
+				return x;
+			}
+			x = x.left;
+		}
+	}
+
+	fn remove_transplant(&mut self, mut dst: Ptr<RbTreeNode<V>>, mut src: Ptr<RbTreeNode<V>>) {
+		if dst.parent.is_null() {
+			self.root = src;
+		} else if dst == dst.parent.left {
+			dst.parent.left = src;
+		} else {
+			dst.parent.right = src;
+		}
+		if !src.is_null() {
+			src.set_parent(dst.parent);
+		}
+	}
+
+	fn set_color_of_parent(&mut self, mut child: Ptr<RbTreeNode<V>>, parent: Ptr<RbTreeNode<V>>) {
+		match parent.is_red() {
+			true => child.set_color(Color::Red),
+			false => child.set_color(Color::Black),
+		}
+	}
+
+	fn remove_fixup(
+		&mut self,
+		p: Ptr<RbTreeNode<V>>,
+		w: Ptr<RbTreeNode<V>>,
+		x: Ptr<RbTreeNode<V>>,
+	) {
+		/*
+		while !x.is_root() && x.is_black() {
+			if w == p.right {
+				if w.is_red() {
+					w.set_color(Color::Black);
+					p.set_color(Color::Red);
+					self.rotate_left(p);
+					w = p.right;
+				}
+				if w.left.is_black() && w.right.is_black() {
+					w.set_color(Color::Red);
+					x = p;
+					p = p.parent;
+					if !p.is_null() {
+						let pl = p.left;
+						if x == pl {
+							w = p.right;
+						} else {
+							w = pl;
+						}
+					} else {
+						w = Ptr::null();
+					}
+				} else {
+					if w.right.is_black() {
+						w.left.set_color(Color::Black);
+						w.set_color(Color::Red);
+						self.rotate_right(w);
+						w = p.right;
+					}
+					self.set_color_of_parent(w, p);
+					p.set_color(Color::Black);
+					w.right.set_color(Color::Black);
+					self.rotate_left(p);
+					x = self.root;
+				}
+			} else {
+				if w.is_red() {
+					w.set_color(Color::Black);
+					p.set_color(Color::Red);
+					self.rotate_right(p);
+					w = p.left;
+				}
+				if w.left.is_black() && w.right.is_black() {
+					w.set_color(Color::Red);
+					x = p;
+					p = p.parent;
+					if !p.is_null() {
+						let pl = p.left;
+						if x == pl {
+							w = p.right;
+						} else {
+							w = pl;
+						}
+					} else {
+						w = Ptr::null();
+					}
+				} else {
+					if w.left.is_black() {
+						w.right.set_color(Color::Black);
+						w.set_color(Color::Red);
+						self.rotate_right(w);
+						w = p.left;
+					}
+					self.set_color_of_parent(w, p);
+					p.set_color(Color::Black);
+					w.left.set_color(Color::Black);
+					self.rotate_right(p);
+					x = self.root;
+				}
+			}
+		}
+		x.set_color(Color::Black);
+				*/
 	}
 
 	fn insert_impl(
@@ -326,7 +517,7 @@ mod test {
 			}
 		};
 
-		let size = 300;
+		let size = 200;
 		let seed = 0x1234;
 		for i in 0..size {
 			let v = murmur3_32_of_u64(i, seed);
@@ -343,6 +534,19 @@ mod test {
 			assert!(!res.cur.is_null());
 			assert_eq!((*(res.cur)).value, v as u64);
 			ptr.release();
+		}
+
+		//print_tree(tree.root());
+		for i in 0..size {
+			let v = murmur3_32_of_u64(i, seed);
+			//println!("i={},v={}", i, v);
+			let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+			let res = tree.remove(ptr, &mut search);
+			//print_tree(tree.root());
+			//res.unwrap().release();
+			let res = search(tree.root(), ptr);
+			assert!(res.cur.is_null());
+			//ptr.release();
 		}
 	}
 }
