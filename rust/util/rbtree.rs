@@ -141,6 +141,7 @@ impl<V: Ord> RbTree<V> {
 			p = node_to_delete.parent;
 			if !p.is_null() {
 				if p.left.is_null() {
+					w = p.right;
 				} else {
 					w = p.left;
 				}
@@ -154,9 +155,7 @@ impl<V: Ord> RbTree<V> {
 			x = node_to_delete.left;
 			self.remove_transplant(node_to_delete, node_to_delete.left);
 			p = node_to_delete.parent;
-			if p.is_null() {
-				do_fixup = false;
-			} else {
+			if !p.is_null() {
 				w = p.left;
 			}
 		} else {
@@ -227,22 +226,41 @@ impl<V: Ord> RbTree<V> {
 		}
 	}
 
+	fn is_root(&self, x: Ptr<RbTreeNode<V>>) -> bool {
+		match x.is_null() {
+			true => false,
+			false => x.is_root(),
+		}
+	}
+
+	fn is_black(&self, x: Ptr<RbTreeNode<V>>) -> bool {
+		match x.is_null() {
+			true => true,
+			false => x.is_black(),
+		}
+	}
+
+	fn is_red(&self, x: Ptr<RbTreeNode<V>>) -> bool {
+		!self.is_black(x)
+	}
+
 	fn remove_fixup(
 		&mut self,
-		p: Ptr<RbTreeNode<V>>,
-		w: Ptr<RbTreeNode<V>>,
-		x: Ptr<RbTreeNode<V>>,
+		mut p: Ptr<RbTreeNode<V>>,
+		mut w: Ptr<RbTreeNode<V>>,
+		mut x: Ptr<RbTreeNode<V>>,
 	) {
-		/*
-		while !x.is_root() && x.is_black() {
+		while !self.is_root(x) && self.is_black(x) {
 			if w == p.right {
-				if w.is_red() {
+				if self.is_red(w) {
 					w.set_color(Color::Black);
 					p.set_color(Color::Red);
 					self.rotate_left(p);
 					w = p.right;
 				}
-				if w.left.is_black() && w.right.is_black() {
+				if (w.left.is_null() || w.left.is_black())
+					&& (w.right.is_null() || w.right.is_black())
+				{
 					w.set_color(Color::Red);
 					x = p;
 					p = p.parent;
@@ -257,7 +275,7 @@ impl<V: Ord> RbTree<V> {
 						w = Ptr::null();
 					}
 				} else {
-					if w.right.is_black() {
+					if w.right.is_null() || w.right.is_black() {
 						w.left.set_color(Color::Black);
 						w.set_color(Color::Red);
 						self.rotate_right(w);
@@ -270,13 +288,15 @@ impl<V: Ord> RbTree<V> {
 					x = self.root;
 				}
 			} else {
-				if w.is_red() {
+				if !w.is_null() && w.is_red() {
 					w.set_color(Color::Black);
 					p.set_color(Color::Red);
 					self.rotate_right(p);
 					w = p.left;
 				}
-				if w.left.is_black() && w.right.is_black() {
+				if (w.left.is_null() || w.left.is_black())
+					&& (w.right.is_null() || w.right.is_black())
+				{
 					w.set_color(Color::Red);
 					x = p;
 					p = p.parent;
@@ -291,10 +311,10 @@ impl<V: Ord> RbTree<V> {
 						w = Ptr::null();
 					}
 				} else {
-					if w.left.is_black() {
+					if w.left.is_null() || w.left.is_black() {
 						w.right.set_color(Color::Black);
 						w.set_color(Color::Red);
-						self.rotate_right(w);
+						self.rotate_left(w);
 						w = p.left;
 					}
 					self.set_color_of_parent(w, p);
@@ -305,8 +325,9 @@ impl<V: Ord> RbTree<V> {
 				}
 			}
 		}
-		x.set_color(Color::Black);
-				*/
+		if !x.is_null() {
+			x.set_color(Color::Black);
+		}
 	}
 
 	fn insert_impl(
@@ -447,8 +468,11 @@ mod test {
 
 	fn validate_tree(root: Ptr<RbTreeNode<u64>>) {
 		let black_count = Ptr::alloc(0).unwrap();
-		assert!(root.is_black());
-		validate_node(root, black_count, 0);
+		if !root.is_null() {
+			assert!(root.is_black());
+			validate_node(root, black_count, 0);
+		}
+		black_count.release();
 	}
 
 	#[allow(dead_code)]
@@ -517,36 +541,123 @@ mod test {
 			}
 		};
 
-		let size = 200;
-		let seed = 0x1234;
-		for i in 0..size {
-			let v = murmur3_32_of_u64(i, seed);
-			let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-			tree.insert(next, &mut search);
-			//print_tree(tree.root());
-			validate_tree(tree.root());
-		}
+		let size = 100;
+		let initial = unsafe { crate::sys::getalloccount() };
+		for x in 0..5 {
+			let seed = 0x1234 + x;
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				tree.insert(next, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+			}
 
-		for i in 0..size {
-			let v = murmur3_32_of_u64(i, seed);
-			let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-			let res = search(tree.root(), ptr);
-			assert!(!res.cur.is_null());
-			assert_eq!((*(res.cur)).value, v as u64);
-			ptr.release();
-		}
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
 
-		//print_tree(tree.root());
-		for i in 0..size {
-			let v = murmur3_32_of_u64(i, seed);
-			//println!("i={},v={}", i, v);
-			let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-			let res = tree.remove(ptr, &mut search);
-			//print_tree(tree.root());
-			//res.unwrap().release();
-			let res = search(tree.root(), ptr);
-			assert!(res.cur.is_null());
-			//ptr.release();
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+
+			let seed = seed + 1;
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				tree.insert(next, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				//println!("i={},v={}", i, v);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = search(tree.root(), ptr);
+				//print_tree(tree.root());
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
+
+			let mut c = 0;
+
+			for i in 0..size / 2 {
+				c += 1;
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+
+			let seed = seed + 1;
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				tree.insert(next, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				//println!("i={},v={}", i, v);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = search(tree.root(), ptr);
+				//print_tree(tree.root());
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+
+			let seed = seed - 1;
+			for i in (size / 2)..size {
+				c += 1;
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				//print_tree(tree.root());
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+			assert_eq!(c, size);
 		}
+		assert_eq!(initial, unsafe { crate::sys::getalloccount() });
 	}
 }
