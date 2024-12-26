@@ -1,7 +1,5 @@
-use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
 use core::ptr::null_mut;
-use core::slice::from_raw_parts;
 use prelude::*;
 
 pub struct Node<V> {
@@ -104,6 +102,8 @@ impl<V: Equal + Hash> Hashtable<V> {
 mod test {
 	use super::*;
 	use crate::sys::alloc;
+	use core::mem::size_of;
+	use core::slice::from_raw_parts;
 	use sys::getalloccount;
 
 	struct TestValue {

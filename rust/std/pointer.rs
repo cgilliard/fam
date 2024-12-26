@@ -124,7 +124,7 @@ impl<T: ?Sized> Ptr<T> {
 	}
 
 	pub fn resize<R>(&mut self, n: usize) -> Result<Ptr<R>, Error> {
-		let ptr = unsafe { resize(self.ptr as *mut u8, n) };
+		let ptr = unsafe { resize(self.raw() as *mut u8, n) };
 		if ptr.is_null() {
 			Err(ErrorKind::Alloc.into())
 		} else {

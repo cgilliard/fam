@@ -7,6 +7,9 @@ use sys::f64_to_str;
 
 #[macro_export]
 macro_rules! writeb {
+        ($f:expr, $fmt:expr) => {{
+            writeb!($f, "{}", $fmt)
+        }};
 	($f:expr, $fmt:expr, $($t:expr),*) => {{
             let mut err = ErrorKind::Unknown.into();
             match String::new($fmt) {

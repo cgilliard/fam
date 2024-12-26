@@ -22,35 +22,45 @@ enum Color {
 	Red,
 }
 
+impl<V: Ord> Display for RbTreeNode<V> {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+		writeb!(
+			*f,
+			"Node: parent={},left={},right={},color={},bitcolor={}",
+			self.parent,
+			self.left,
+			self.right,
+			if self.is_red { "red" } else { "black" },
+			if self.parent.get_bit() {
+				"red"
+			} else {
+				"black"
+			}
+		)
+	}
+}
+
 impl<V: Ord> RbTreeNode<V> {
 	pub fn new(value: V) -> Self {
-		Self {
+		let ret = Self {
 			parent: Ptr::null(),
 			right: Ptr::null(),
 			left: Ptr::null(),
 			is_red: true,
 			value,
-		}
+		};
+		ret
 	}
 
 	fn set_color(&mut self, color: Color) {
 		match color {
-			Color::Black => self.is_red = false,
-			Color::Red => self.is_red = true,
+			Color::Black => {
+				self.is_red = false;
+			}
+			Color::Red => {
+				self.is_red = true;
+			}
 		}
-	}
-
-	fn set_node(
-		&mut self,
-		color: Color,
-		parent: Ptr<RbTreeNode<V>>,
-		right: Ptr<RbTreeNode<V>>,
-		left: Ptr<RbTreeNode<V>>,
-	) {
-		self.parent = parent;
-		self.set_color(color);
-		self.right = right;
-		self.left = left;
 	}
 
 	fn is_root(&self) -> bool {
@@ -103,7 +113,7 @@ impl<V: Ord> RbTree<V> {
 	) -> Option<Ptr<RbTreeNode<V>>> {
 		let ret = None;
 		if pair.cur.is_null() {
-			(*n).set_node(Color::Red, pair.parent, Ptr::null(), Ptr::null());
+			n.parent = pair.parent;
 			if pair.parent.is_null() {
 				self.root = n;
 			} else {
@@ -304,12 +314,13 @@ mod test {
 			}
 		};
 
-		let size = 100;
+		let size = 300;
 		let seed = 0x1234;
 		for i in 0..size {
 			let v = murmur3_32_of_u64(i, seed);
 			let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 			tree.insert(next, &mut search);
+			//print_tree(tree.root());
 			validate_tree(tree.root());
 		}
 
