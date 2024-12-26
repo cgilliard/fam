@@ -335,7 +335,7 @@ impl<V: Ord> RbTree<V> {
 		mut n: Ptr<RbTreeNode<V>>,
 		mut pair: RbNodePair<V>,
 	) -> Option<Ptr<RbTreeNode<V>>> {
-		let ret = None;
+		let mut ret = None;
 		if pair.cur.is_null() {
 			n.set_parent(pair.parent);
 			if pair.parent.is_null() {
@@ -347,9 +347,38 @@ impl<V: Ord> RbTree<V> {
 				}
 			}
 		} else {
-			// TODO: transplant
+			self.insert_transplant(pair.cur, n);
+			if self.is_root(pair.cur) {
+				self.root = n;
+			}
+			ret = Some(pair.cur);
 		}
 		ret
+	}
+
+	fn insert_transplant(&mut self, mut prev: Ptr<RbTreeNode<V>>, mut next: Ptr<RbTreeNode<V>>) {
+		next.set_parent(prev.parent);
+		next.right = prev.right;
+		next.left = prev.left;
+		if prev.is_red() {
+			next.set_color(Color::Red);
+		} else {
+			next.set_color(Color::Black);
+		}
+		if !prev.parent.is_null() {
+			if prev.parent.right == prev {
+				prev.parent.right = next;
+			} else {
+				prev.parent.left = next;
+			}
+		}
+		if !prev.right.is_null() {
+			prev.right.parent = next;
+		}
+
+		if !prev.left.is_null() {
+			prev.left.parent = next;
+		}
 	}
 
 	fn rotate_left(&mut self, mut x: Ptr<RbTreeNode<V>>) {
@@ -652,11 +681,130 @@ mod test {
 				//print_tree(tree.root());
 				validate_tree(tree.root());
 				res.unwrap().release();
+				let res = tree.remove(ptr, &mut search);
+				assert!(res.is_none());
+				ptr.release();
+			}
+			assert_eq!(c, size);
+		}
+		assert_eq!(initial, unsafe { crate::sys::getalloccount() });
+	}
+
+	#[derive(Debug, PartialEq, Clone)]
+	struct TestTransplant {
+		x: u64,
+		y: u64,
+	}
+
+	impl Ord for TestTransplant {
+		fn compare(&self, other: &Self) -> i8 {
+			self.x.compare(&other.x)
+		}
+	}
+
+	#[test]
+	fn test_transplant() {
+		let mut tree = RbTree::new();
+
+		let mut search = move |base: Ptr<RbTreeNode<TestTransplant>>,
+		                       value: Ptr<RbTreeNode<TestTransplant>>| {
+			let mut is_right = false;
+			let mut cur = base;
+			let mut parent = Ptr::null();
+
+			while !cur.is_null() {
+				let cmp = (*value).value.compare(&(*cur).value);
+				if cmp == 0 {
+					break;
+				} else if cmp == -1 {
+					parent = cur;
+					is_right = false;
+					cur = cur.left;
+				} else {
+					parent = cur;
+					is_right = true;
+					cur = cur.right;
+				}
+			}
+
+			RbNodePair {
+				cur,
+				parent,
+				is_right,
+			}
+		};
+
+		let initial = unsafe { crate::sys::getalloccount() };
+		{
+			let size = 3;
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i };
+				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+				let res = tree.insert(next, &mut search);
+				assert!(res.is_none());
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i };
+				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
+				let res = search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v);
+				ptr.release();
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 1 };
+				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+				let res = tree.insert(next, &mut search);
+				assert!(res.is_some());
+				res.unwrap().release();
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 1 };
+				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
+				let res = search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v);
+				ptr.release();
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 91 };
+				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				res.unwrap().release();
 				let res = search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
-			assert_eq!(c, size);
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 10 };
+				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+				let res = tree.insert(next, &mut search);
+				assert!(res.is_none());
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 10 };
+				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
+				let res = search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v);
+				ptr.release();
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 91 };
+				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				res.unwrap().release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
 		}
 		assert_eq!(initial, unsafe { crate::sys::getalloccount() });
 	}
