@@ -132,9 +132,7 @@ impl<V: Ord> RbTree<V> {
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
 		let node_to_delete = pair.cur;
 		let mut do_fixup = node_to_delete.is_black();
-		let x;
-		let (mut w, mut p) = (Ptr::null(), Ptr::null());
-
+		let (x, p, w);
 		if node_to_delete.left.is_null() {
 			x = node_to_delete.right;
 			self.remove_transplant(node_to_delete, x);
@@ -146,6 +144,7 @@ impl<V: Ord> RbTree<V> {
 					w = p.left;
 				}
 			} else {
+				w = Ptr::null();
 				do_fixup = false;
 				if !self.root.is_null() {
 					self.root.set_color(Color::Black);
@@ -157,19 +156,24 @@ impl<V: Ord> RbTree<V> {
 			p = node_to_delete.parent;
 			if !p.is_null() {
 				w = p.left;
+			} else {
+				w = Ptr::null();
 			}
 		} else {
 			let mut successor = self.find_successor(node_to_delete);
 			do_fixup = successor.is_black();
 			x = successor.right;
-			w = successor.parent.right;
-			if !w.is_null() {
-				if w.parent == node_to_delete {
+			if !successor.parent.right.is_null() {
+				if successor.parent.right.parent == node_to_delete {
 					w = node_to_delete.left;
 					p = successor;
 				} else {
+					w = successor.parent.right;
 					p = w.parent;
 				}
+			} else {
+				w = Ptr::null();
+				p = Ptr::null();
 			}
 
 			if successor.parent != node_to_delete {
