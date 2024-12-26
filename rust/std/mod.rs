@@ -13,5 +13,6 @@ pub mod rc;
 pub mod result;
 pub mod string;
 pub mod thread;
+pub mod traits;
 pub mod util;
 pub mod vec;

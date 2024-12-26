@@ -60,6 +60,7 @@ extern "C" {
 	pub fn socket_event_handle(handle: *mut u8, event: *mut u8);
 	pub fn socket_event_is_read(event: *mut u8) -> bool;
 	pub fn socket_event_is_write(event: *mut u8) -> bool;
+	pub fn rand_bytes(buf: *mut u8, len: u64) -> i32;
 }
 
 #[cfg(test)]

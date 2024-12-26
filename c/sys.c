@@ -4,6 +4,7 @@ int printf(const char *, ...);
 void *malloc(unsigned long);
 void *realloc(void *ptr, unsigned long);
 void free(void *);
+int getentropy(void *buf, unsigned long long length);
 long long __alloc_count = 0;
 void _exit(int);
 
@@ -41,5 +42,8 @@ int sleep_millis(unsigned long long millis) {
 	return ret;
 }
 
-long long getalloccount() { return __alloc_count; }
+int rand_bytes(unsigned char *buf, unsigned long long length) {
+	return getentropy(buf, length);
+}
 
+long long getalloccount() { return __alloc_count; }

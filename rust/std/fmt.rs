@@ -23,7 +23,8 @@ macro_rules! writeb {
                                     }
                                     cur += index + 2;
                             },
-                            None => {},
+                            None => {
+                            },
                         }
                         match $t.fmt(&mut $f) {
                             Ok(_) => {},
@@ -137,7 +138,7 @@ macro_rules! impl_display_unsigned {
             impl Display for $t {
                 fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
                     let mut buf = [0u8; 64];
-                    let len = u128_to_str((*self).into(), 0, &mut buf);
+                    let len = u128_to_str((*self).into(), 0, &mut buf, 10);
                     unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
                 }
             }
@@ -150,7 +151,7 @@ impl_display_unsigned!(u8, u16, u32, u64, u128);
 impl Display for usize {
 	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
 		let mut buf = [0u8; 64];
-		let len = u128_to_str(*self as u128, 0, &mut buf);
+		let len = u128_to_str(*self as u128, 0, &mut buf, 10);
 		unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
 	}
 }
@@ -161,7 +162,7 @@ macro_rules! impl_display_signed {
             impl Display for $t {
                 fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
                     let mut buf = [0u8; 64];
-                    let len = i128_to_str((*self).into(), &mut buf);
+                    let len = i128_to_str((*self).into(), &mut buf, 10);
                     unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
                 }
             }

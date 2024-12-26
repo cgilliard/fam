@@ -12,7 +12,7 @@ macro_rules! exit {
 				let location = Location::caller();
 				let file = location.file();
 				let mut buf = [0u8; 32];
-				let len = u128_to_str(location.line() as u128, 0, &mut buf);
+				let len = u128_to_str(location.line() as u128, 0, &mut buf, 10);
 				write(2, file.as_ptr(), file.len());
 				write(2, ":".as_ptr(), 1);
 				write(2, buf.as_ptr(), len);

@@ -4,14 +4,6 @@ use core::ptr::null_mut;
 use core::slice::from_raw_parts;
 use prelude::*;
 
-pub trait Hash {
-	fn hash(&self) -> usize;
-}
-
-pub trait Equal {
-	fn equal(&self, other: &Self) -> bool;
-}
-
 pub struct Node<V> {
 	next: Ptr<Node<V>>,
 	value: V,
@@ -89,18 +81,18 @@ impl<V: Equal + Hash> Hashtable<V> {
 	pub fn remove(&mut self, value: V) -> Option<Ptr<Node<V>>> {
 		let index = value.hash() % self.arr.len();
 		let mut ptr = self.arr[index];
+
+		if !ptr.is_null() && (*ptr).equal(&value) {
+			self.arr[index] = (*ptr).next;
+			return Some(Ptr::new(ptr.raw()));
+		}
 		let mut prev = self.arr[index];
-		let mut is_first = true;
+
 		while !ptr.is_null() {
-			if (ptr.as_ref()).value.equal(&value) {
-				if is_first {
-					self.arr[index] = (*ptr.as_ref()).next;
-				} else {
-					(*prev).next = (*ptr).next;
-				}
+			if (*ptr).equal(&value) {
+				(*prev).next = (*ptr).next;
 				return Some(Ptr::new(ptr.raw()));
 			}
-			is_first = false;
 			prev = ptr;
 			ptr = (*ptr).next;
 		}

@@ -7,6 +7,8 @@
 // modified, or distributed except according to those terms.
 
 use core::cmp::min;
+use core::mem::size_of;
+use core::slice::from_raw_parts;
 use std::util::subslice;
 
 pub const MURMUR_SEED: u32 = 0x31337;
@@ -17,6 +19,11 @@ const R1: u32 = 16;
 const R2: u32 = 13;
 const M: u32 = 5;
 const N: u32 = 0xe654_6b64;
+
+pub fn murmur3_32_of_u64(source: u64, seed: u32) -> u32 {
+	let slice = unsafe { from_raw_parts(&source as *const u64 as *const u8, size_of::<u64>()) };
+	murmur3_32_of_slice(slice, seed)
+}
 
 pub fn murmur3_32_of_slice(source: &[u8], seed: u32) -> u32 {
 	let mut buffer = source;

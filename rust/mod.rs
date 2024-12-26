@@ -1,6 +1,7 @@
 #![allow(internal_features)]
 #![feature(ptr_metadata)]
 #![feature(stmt_expr_attributes)]
+#![feature(lang_items)]
 #![feature(try_trait_v2)]
 #![feature(new_range_api)]
 #![feature(unsize)]

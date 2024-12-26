@@ -11,7 +11,7 @@ pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	}
 }
 
-pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8]) -> usize {
+pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usize {
 	let buf_len = buf.len();
 	let mut i = buf_len - 1;
 
@@ -19,12 +19,20 @@ pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8]) -> usize {
 		if i == 0 {
 			break;
 		}
-		if i < buf_len {
-			buf[i] = b'0' + (n % 10) as u8;
+		if i < buf_len && base != 0 {
+			let digit = (n % base as u128) as u8;
+			buf[i] = if digit < 10 {
+				b'0' + digit
+			} else {
+				b'a' + (digit - 10)
+			};
 		}
-		n /= 10;
+		if base != 0 {
+			n /= base as u128;
+		}
 		i -= 1;
 	}
+
 	let mut len = buf_len - i - 1;
 
 	if len == 0 && buf_len > 0 && offset < buf_len {
@@ -39,20 +47,21 @@ pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8]) -> usize {
 			k += 1;
 		}
 	}
+
 	len
 }
 
-pub fn i128_to_str(mut n: i128, buf: &mut [u8]) -> usize {
+pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 	if n < 0 {
 		n *= -1;
 		if buf.len() < 2 {
 			0
 		} else {
 			buf[0] = b'-';
-			u128_to_str(n as u128, 1, buf) + 1
+			u128_to_str(n as u128, 1, buf, base) + 1
 		}
 	} else {
-		u128_to_str(n as u128, 0, buf)
+		u128_to_str(n as u128, 0, buf, base)
 	}
 }
 

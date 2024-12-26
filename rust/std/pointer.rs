@@ -1,14 +1,33 @@
 use core::clone::Clone as CoreClone;
+use core::cmp::PartialEq;
 use core::marker::{Copy, Sized, Unsize};
 use core::mem::size_of;
-use core::ops::CoerceUnsized;
-use core::ops::{Deref, DerefMut};
+use core::ops::{CoerceUnsized, Deref, DerefMut};
 use core::ptr::{null_mut, write};
+use core::str::from_utf8_unchecked;
 use prelude::*;
+use std::util::u128_to_str;
 use sys::{ptr_add, resize};
 
 pub struct Ptr<T: ?Sized> {
 	ptr: *mut T,
+}
+
+impl<T: ?Sized> PartialEq for Ptr<T> {
+	fn eq(&self, other: &Self) -> bool {
+		self.raw() as *mut u8 as usize == other.raw() as *mut u8 as usize
+	}
+}
+
+impl<T: ?Sized> Display for Ptr<T> {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+		let v = self.raw() as *mut u8 as u128;
+		let mut buf = [0u8; 64];
+		buf[0] = b'0';
+		buf[1] = b'x';
+		let len = u128_to_str(v, 2, &mut buf, 16);
+		unsafe { f.write_str(from_utf8_unchecked(&buf), len + 2) }
+	}
 }
 
 impl<T: ?Sized> CoreClone for Ptr<T> {
@@ -68,7 +87,7 @@ impl<T: ?Sized> Ptr<T> {
 	}
 
 	pub fn is_null(&self) -> bool {
-		self.ptr.is_null()
+		self.raw().is_null()
 	}
 
 	pub fn set_bit(&mut self, v: bool) {
@@ -193,5 +212,18 @@ mod test {
 		b2.set_bit(true);
 		assert!(b2.get_bit());
 		assert_eq!(b2.as_ref(), &456);
+
+		let ptr = Ptr::alloc(1usize).unwrap();
+		let ptr2 = Ptr::new(ptr.raw());
+		let ptr3 = Ptr::alloc(2usize).unwrap();
+		let ptr4 = Ptr::alloc(2usize).unwrap();
+
+		assert!(ptr == ptr2);
+		assert!(ptr != ptr3);
+		assert!(ptr != ptr4);
+		assert!(ptr3 != ptr4);
+		ptr.release();
+		ptr3.release();
+		ptr4.release();
 	}
 }
