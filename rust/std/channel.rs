@@ -1,12 +1,11 @@
 use core::marker::PhantomData;
-use core::mem::size_of;
 use core::ops::Drop;
 use core::ptr;
 use core::ptr::null_mut;
 use prelude::*;
 use sys::{
 	alloc, channel_destroy, channel_handle_size, channel_pending, channel_recv, channel_send,
-	channel_unbounded_init, release, Message,
+	channel_unbounded_init, release, MessageHeader,
 };
 
 #[macro_export]
@@ -23,8 +22,13 @@ macro_rules! channel {
 	}};
 }
 
+struct Message<T> {
+	_header: MessageHeader,
+	value: T,
+}
+
 struct ChannelInner<T> {
-	handle: *mut u8,
+	handle: Ptr<u8>,
 	_marker: PhantomData<T>,
 }
 
@@ -44,11 +48,11 @@ impl<T> Clone for Channel<T> {
 impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
 		unsafe {
-			while channel_pending(self.handle) {
+			while channel_pending(self.handle.raw()) {
 				let _recv = self.recv();
 			}
-			channel_destroy(self.handle);
-			release(self.handle);
+			channel_destroy(self.handle.raw());
+			release(self.handle.raw());
 		}
 	}
 }
@@ -56,57 +60,64 @@ impl<T> Drop for ChannelInner<T> {
 impl<T> ChannelInner<T> {
 	pub fn recv(&self) -> Result<T, Error> {
 		unsafe {
-			let mut msg: Message = Message {
-				_next: null_mut(),
-				payload: null_mut(),
-			};
-			let recv = channel_recv(self.handle, &mut msg) as *mut Message;
-			let payload = (*recv).payload as *mut T;
-			let mut nbox = Box::from_raw(Ptr::new(payload));
-			nbox.leak();
-			let v = ptr::read(nbox.as_ptr().raw());
-			if !payload.is_null() {
-				release(payload as *mut u8);
-			}
-			if !recv.is_null() {
-				release(recv as *mut u8);
-			}
-			Ok(v)
-		}
-	}
-}
-
-impl<T> Channel<T> {
-	pub fn new() -> Result<Channel<T>, Error> {
-		unsafe {
-			let handle = alloc(channel_handle_size());
-			let ret = match Rc::new(ChannelInner {
-				handle,
-				_marker: PhantomData,
-			}) {
-				Ok(inner) => Self { inner },
-				Err(e) => return Err(e),
-			};
-
-			channel_unbounded_init(ret.inner.handle);
-
-			Ok(ret)
+			// recv the Box<Message<T>> and cast to Message<T>.
+			// since Box uses the same memory layout as stack, we can do
+			// this cast and just release the memory after reading the
+			// value back onto the stack
+			let recv = channel_recv(self.handle.raw(), null_mut()) as *mut Message<T>;
+			let msg = ptr::read(recv);
+			release(recv as *mut u8);
+			Ok(msg.value)
 		}
 	}
 
 	pub fn send(&self, t: T) -> Result<(), Error> {
 		unsafe {
-			let msg = alloc(size_of::<Message>()) as *mut Message;
-			match Box::new(t) {
-				Ok(mut b) => {
-					(*msg).payload = b.as_ptr().raw() as *mut u8;
-					b.leak();
-					channel_send(self.inner.handle, msg as *mut u8);
-					Ok(())
-				}
-				Err(e) => Err(e),
-			}
+			let mut msg = match Box::new(Message {
+				_header: MessageHeader { _next: null_mut() },
+				value: t,
+			}) {
+				Ok(msg) => msg,
+				Err(e) => return Err(e),
+			};
+
+			// Leak the box so that the other thread can get it and
+			// accept ownership. This also prevents the drop handlers
+			// from being called.
+			msg.leak();
+			channel_send(self.handle.raw(), msg.as_ptr().raw() as *mut u8);
 		}
+		Ok(())
+	}
+}
+
+impl<T> Channel<T> {
+	pub fn new() -> Result<Channel<T>, Error> {
+		let handle = unsafe { alloc(channel_handle_size()) };
+		let handle = if handle.is_null() {
+			return Err(ErrorKind::Alloc.into());
+		} else {
+			Ptr::new(handle)
+		};
+
+		let ret = match Rc::new(ChannelInner {
+			handle,
+			_marker: PhantomData,
+		}) {
+			Ok(inner) => Self { inner },
+			Err(e) => return Err(e),
+		};
+
+		let res = unsafe { channel_unbounded_init(ret.inner.handle.raw()) };
+		if res != 0 {
+			return Err(ErrorKind::ChannelInit.into());
+		}
+
+		Ok(ret)
+	}
+
+	pub fn send(&self, t: T) -> Result<(), Error> {
+		self.inner.send(t)
 	}
 
 	pub fn recv(&self) -> Result<T, Error> {
@@ -258,6 +269,26 @@ mod test {
 	}
 
 	#[test]
+	fn test_send_zero_sized() {
+		let channel1a = Channel::new().unwrap();
+		let channel1b = channel1a.clone().unwrap();
+		let channel2a = Channel::new().unwrap();
+		let channel2b = channel2a.clone().unwrap();
+
+		let mut jh = spawnj(move || {
+			assert_eq!(channel1b.recv().unwrap(), ());
+			channel2b.send(()).unwrap();
+		})
+		.unwrap();
+
+		channel1a.send(()).unwrap();
+
+		assert_eq!(channel2a.recv().unwrap(), ());
+
+		assert!(jh.join().is_ok());
+	}
+
+	#[test]
 	fn test_channel_drop() {
 		let initial = unsafe { getalloccount() };
 		{
@@ -277,12 +308,14 @@ mod test {
 					*rc_clone = input.x + 100;
 					assert_eq!(unsafe { DROPCOUNT }, 0);
 				}
+
 				assert_eq!(unsafe { DROPCOUNT }, 1);
 				channel2_clone.send(DropTest { x: 4 }).unwrap();
 			})
 			.unwrap();
 
 			channel.send(DropTest { x: 301 }).unwrap();
+
 			let result = channel2.recv().unwrap();
 
 			assert_eq!(result.x, 4);

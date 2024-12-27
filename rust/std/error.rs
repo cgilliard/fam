@@ -12,6 +12,7 @@ pub enum ErrorKind {
 	ThreadDetach,
 	NotInitialized,
 	ChannelRecv,
+	ChannelInit,
 	IO,
 	Todo,
 }

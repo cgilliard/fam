@@ -11,12 +11,12 @@ void *memcpy(void *, const void *, unsigned long);
 typedef struct Message {
 	union data {
 		struct {
-			unsigned long long len;
+			unsigned long long reserved;
 			unsigned char buffer[];
 		} bounded;
 		struct {
 			struct Message *next;
-			void *payload;
+			unsigned char buffer[];
 		} unbounded;
 	} data;
 } Message;
@@ -84,7 +84,8 @@ int channel_send(Channel *handle, Message *msg) {
 		    (handle->state.bounded.tail + 1) %
 		    handle->state.bounded.capacity;
 		if (next_tail != handle->state.bounded.head) {
-			unsigned long long msg_size = msg->data.bounded.len;
+			unsigned long long msg_size =
+			    handle->state.bounded.msg_size;
 			memcpy(handle->buffer +
 				   handle->state.bounded.tail * msg_size,
 			       msg->data.bounded.buffer, msg_size);

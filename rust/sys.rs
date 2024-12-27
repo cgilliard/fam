@@ -18,6 +18,11 @@ impl Message {
 }
 
 #[repr(C)]
+pub struct MessageHeader {
+	pub(crate) _next: *mut MessageHeader,
+}
+
+#[repr(C)]
 #[allow(dead_code)]
 pub struct BoundedMessage {
 	pub(crate) len: u64,
@@ -43,7 +48,7 @@ extern "C" {
 	pub fn channel_unbounded_init(channel: *const u8) -> i32;
 	pub fn channel_bounded_init(channel: *const u8, capacity: usize, msg_size: usize) -> i32;
 	pub fn channel_send(channel: *const u8, ptr: *const u8) -> i32;
-	pub fn channel_recv(channel: *const u8, msg: *mut Message) -> *mut u8;
+	pub fn channel_recv(channel: *const u8, msg: *mut u8) -> *mut u8;
 	pub fn channel_handle_size() -> usize;
 	pub fn channel_destroy(channel: *const u8) -> i32;
 	pub fn channel_pending(channel: *const u8) -> bool;
@@ -87,12 +92,10 @@ mod test {
 
 	extern "C" fn test_thread(channel: *mut u8) {
 		unsafe {
-			let msg = alloc(size_of::<Message>()) as *mut Message;
-			let payload = alloc(8);
-			*(payload.add(0)) = b'a';
-			*(payload.add(1)) = b'b';
-			*(payload.add(2)) = b'c';
-			(*msg).payload = payload;
+			let msg = alloc(size_of::<MessageHeader>() + 8);
+			*(msg.add(size_of::<MessageHeader>())) = b'a';
+			*(msg.add(size_of::<MessageHeader>() + 1)) = b'b';
+			*(msg.add(size_of::<MessageHeader>() + 2)) = b'c';
 			channel_send(channel, msg as *mut u8);
 		}
 	}
@@ -118,32 +121,22 @@ mod test {
 
 	#[test]
 	fn test_channel_sys() {
+		let initial = unsafe { getalloccount() };
 		unsafe {
 			let channel = alloc(channel_handle_size());
 			channel_unbounded_init(channel);
 			thread_create(test_thread, channel);
 			let mut msg: Message = Message::empty();
-			let recv = channel_recv(channel, &mut msg) as *mut Message;
-			assert_eq!(*(*recv).payload.add(0), b'a');
-			assert_eq!(*(*recv).payload.add(1), b'b');
-			assert_eq!(*(*recv).payload.add(2), b'c');
+			let recv = channel_recv(channel, &mut msg as *mut Message as *mut u8) as *mut u8;
+			assert_eq!(*recv.add(size_of::<MessageHeader>()), b'a');
+			assert_eq!(*recv.add(size_of::<MessageHeader>() + 1), b'b');
+			assert_eq!(*recv.add(size_of::<MessageHeader>() + 2), b'c');
 			channel_destroy(channel);
-			release(recv as *mut u8);
-			release(channel);
-
-			let channel = alloc(channel_handle_size());
-			channel_unbounded_init(channel);
-			thread_create(test_thread, channel);
-			let mut msg: Message = Message::empty();
-			let recv = channel_recv(channel, &mut msg) as *mut Message;
-			assert_eq!(*(*recv).payload.add(0), b'a');
-			assert_eq!(*(*recv).payload.add(1), b'b');
-			assert_eq!(*(*recv).payload.add(2), b'c');
-			channel_destroy(channel);
-			release((*recv).payload);
 			release(recv as *mut u8);
 			release(channel);
 		}
+
+		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	#[repr(C)]
@@ -182,8 +175,7 @@ mod test {
 			assert!(channel_send(channel, msg_ptr as *mut u8) == 0);
 
 			let mut msg: BoundedMessageU64 = BoundedMessageU64::empty();
-			let recv_msg =
-				channel_recv(channel, &mut msg as *mut BoundedMessageU64 as *mut Message);
+			let recv_msg = channel_recv(channel, &mut msg as *mut BoundedMessageU64 as *mut u8);
 			assert!(!recv_msg.is_null());
 
 			let recv_payload = recv_msg as *const BoundedMessageU64;
@@ -197,8 +189,7 @@ mod test {
 			assert!(channel_send(channel, msg_ptr as *mut u8) != 0);
 
 			for _i in 0..99 {
-				let recv_msg =
-					channel_recv(channel, &mut msg as *mut BoundedMessageU64 as *mut Message);
+				let recv_msg = channel_recv(channel, &mut msg as *mut BoundedMessageU64 as *mut u8);
 				assert!(!recv_msg.is_null());
 				let recv_payload = recv_msg as *const BoundedMessageU64;
 				assert_eq!((*recv_payload).value, 1234);
