@@ -2,10 +2,11 @@ use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::Drop;
 use core::ptr;
+use core::ptr::null_mut;
 use prelude::*;
 use sys::{
-	alloc, channel_destroy, channel_handle_size, channel_init, channel_pending, channel_recv,
-	channel_send, release, Message,
+	alloc, channel_destroy, channel_handle_size, channel_pending, channel_recv, channel_send,
+	channel_unbounded_init, release, Message,
 };
 
 #[macro_export]
@@ -55,7 +56,11 @@ impl<T> Drop for ChannelInner<T> {
 impl<T> ChannelInner<T> {
 	pub fn recv(&self) -> Result<T, Error> {
 		unsafe {
-			let recv = channel_recv(self.handle) as *mut Message;
+			let mut msg: Message = Message {
+				_next: null_mut(),
+				payload: null_mut(),
+			};
+			let recv = channel_recv(self.handle, &mut msg) as *mut Message;
 			let payload = (*recv).payload as *mut T;
 			let mut nbox = Box::from_raw(Ptr::new(payload));
 			nbox.leak();
@@ -73,9 +78,6 @@ impl<T> ChannelInner<T> {
 
 impl<T> Channel<T> {
 	pub fn new() -> Result<Channel<T>, Error> {
-		if unsafe { channel_handle_size() } > 128 {
-			exit!("channel_handle_size() > 128");
-		}
 		unsafe {
 			let handle = alloc(channel_handle_size());
 			let ret = match Rc::new(ChannelInner {
@@ -86,7 +88,7 @@ impl<T> Channel<T> {
 				Err(e) => return Err(e),
 			};
 
-			channel_init(ret.inner.handle);
+			channel_unbounded_init(ret.inner.handle);
 
 			Ok(ret)
 		}

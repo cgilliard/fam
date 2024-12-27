@@ -105,6 +105,14 @@ pub fn rem_usize(n: usize, d: usize) -> usize {
 	unsafe { unchecked_rem(n, d) }
 }
 
+pub fn park() {
+	loop {
+		unsafe {
+			crate::sys::sleep_millis(1000 * 60);
+		}
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::strcmp;

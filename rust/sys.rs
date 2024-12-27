@@ -1,9 +1,26 @@
+use core::ptr::null_mut;
+
 #[repr(C)]
 #[allow(dead_code)]
 pub struct Message {
 	pub(crate) _next: *mut Message,
 	pub payload: *mut u8,
-	pub spo: [u8; 48],
+}
+
+impl Message {
+	#[allow(dead_code)]
+	pub fn empty() -> Self {
+		Self {
+			_next: null_mut(),
+			payload: null_mut(),
+		}
+	}
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+pub struct BoundedMessage {
+	pub(crate) len: u64,
 }
 
 #[allow(dead_code)]
@@ -23,9 +40,10 @@ extern "C" {
 	pub fn thread_join(handle: *const u8) -> i32;
 	pub fn thread_detach(handle: *const u8) -> i32;
 	pub fn thread_handle_size() -> usize;
-	pub fn channel_init(channel: *const u8) -> i32;
+	pub fn channel_unbounded_init(channel: *const u8) -> i32;
+	pub fn channel_bounded_init(channel: *const u8, capacity: usize, msg_size: usize) -> i32;
 	pub fn channel_send(channel: *const u8, ptr: *const u8) -> i32;
-	pub fn channel_recv(channel: *const u8) -> *mut u8;
+	pub fn channel_recv(channel: *const u8, msg: *mut Message) -> *mut u8;
 	pub fn channel_handle_size() -> usize;
 	pub fn channel_destroy(channel: *const u8) -> i32;
 	pub fn channel_pending(channel: *const u8) -> bool;
@@ -48,7 +66,7 @@ extern "C" {
 	pub fn socket_connect(handle: *mut u8, addr: *const u8, port: i32) -> i32;
 	pub fn socket_shutdown(handle: *mut u8) -> i32;
 	pub fn socket_close(handle: *mut u8) -> i32;
-	pub fn socket_listen(handle: *mut u8, addr: *const u8, port: i32, backlog: i32) -> i32;
+	pub fn socket_listen(handle: *mut u8, addr: *const u8, port: u16, backlog: i32) -> i32;
 	pub fn socket_accept(handle: *mut u8, nhandle: *mut u8) -> i32;
 	pub fn socket_send(handle: *mut u8, buf: *const u8, len: usize) -> i64;
 	pub fn socket_recv(handle: *mut u8, buf: *const u8, capacity: usize) -> i64;
@@ -75,9 +93,6 @@ mod test {
 			*(payload.add(1)) = b'b';
 			*(payload.add(2)) = b'c';
 			(*msg).payload = payload;
-			(*msg).spo[0] = b'd';
-			(*msg).spo[1] = b'e';
-			(*msg).spo[2] = b'f';
 			channel_send(channel, msg as *mut u8);
 		}
 	}
@@ -104,35 +119,95 @@ mod test {
 	#[test]
 	fn test_channel_sys() {
 		unsafe {
-			assert!(channel_handle_size() < getpagesize() as usize);
 			let channel = alloc(channel_handle_size());
-			channel_init(channel);
+			channel_unbounded_init(channel);
 			thread_create(test_thread, channel);
-			let recv = channel_recv(channel) as *mut Message;
+			let mut msg: Message = Message::empty();
+			let recv = channel_recv(channel, &mut msg) as *mut Message;
 			assert_eq!(*(*recv).payload.add(0), b'a');
 			assert_eq!(*(*recv).payload.add(1), b'b');
 			assert_eq!(*(*recv).payload.add(2), b'c');
-			assert_eq!((*recv).spo[0], b'd');
-			assert_eq!((*recv).spo[1], b'e');
-			assert_eq!((*recv).spo[2], b'f');
 			channel_destroy(channel);
 			release(recv as *mut u8);
 			release(channel);
 
 			let channel = alloc(channel_handle_size());
-			channel_init(channel);
+			channel_unbounded_init(channel);
 			thread_create(test_thread, channel);
-			let recv = channel_recv(channel) as *mut Message;
+			let mut msg: Message = Message::empty();
+			let recv = channel_recv(channel, &mut msg) as *mut Message;
 			assert_eq!(*(*recv).payload.add(0), b'a');
 			assert_eq!(*(*recv).payload.add(1), b'b');
 			assert_eq!(*(*recv).payload.add(2), b'c');
-			assert_eq!((*recv).spo[0], b'd');
-			assert_eq!((*recv).spo[1], b'e');
-			assert_eq!((*recv).spo[2], b'f');
 			channel_destroy(channel);
 			release((*recv).payload);
 			release(recv as *mut u8);
 			release(channel);
+		}
+	}
+
+	#[repr(C)]
+	struct BoundedMessageU64 {
+		header: BoundedMessage,
+		value: u64,
+	}
+
+	impl BoundedMessageU64 {
+		fn empty() -> Self {
+			Self {
+				header: BoundedMessage {
+					len: size_of::<u64>() as u64,
+				},
+				value: 0,
+			}
+		}
+	}
+
+	#[test]
+	fn test_bounded_channels_sys_stack() {
+		let initial = unsafe { getalloccount() };
+		unsafe {
+			let channel = alloc(channel_handle_size() + size_of::<u64>() * 100);
+			assert!(!channel.is_null());
+			assert!(channel_bounded_init(channel, 100, size_of::<u64>()) == 0);
+
+			let msg = BoundedMessageU64 {
+				header: BoundedMessage {
+					len: size_of::<u64>() as u64,
+				},
+				value: 1234,
+			};
+
+			let msg_ptr = &msg as *const BoundedMessageU64 as *const u8;
+			assert!(channel_send(channel, msg_ptr as *mut u8) == 0);
+
+			let mut msg: BoundedMessageU64 = BoundedMessageU64::empty();
+			let recv_msg =
+				channel_recv(channel, &mut msg as *mut BoundedMessageU64 as *mut Message);
+			assert!(!recv_msg.is_null());
+
+			let recv_payload = recv_msg as *const BoundedMessageU64;
+			assert_eq!((*recv_payload).value, 1234);
+
+			for _i in 0..99 {
+				let msg_ptr = &msg as *const BoundedMessageU64 as *const u8;
+				assert!(channel_send(channel, msg_ptr as *mut u8) == 0);
+			}
+			let msg_ptr = &msg as *const BoundedMessageU64 as *const u8;
+			assert!(channel_send(channel, msg_ptr as *mut u8) != 0);
+
+			for _i in 0..99 {
+				let recv_msg =
+					channel_recv(channel, &mut msg as *mut BoundedMessageU64 as *mut Message);
+				assert!(!recv_msg.is_null());
+				let recv_payload = recv_msg as *const BoundedMessageU64;
+				assert_eq!((*recv_payload).value, 1234);
+			}
+
+			release(channel); // Clean up the channel
+		}
+		unsafe {
+			assert_eq!(initial, getalloccount());
 		}
 	}
 
@@ -143,8 +218,8 @@ mod test {
 			let server = alloc(socket_handle_size());
 			let client = alloc(socket_handle_size());
 			let accepted = alloc(socket_handle_size());
-			assert_eq!(socket_listen(server, addr.as_ptr(), 9090, 10), 0);
-			assert_eq!(socket_connect(client, addr.as_ptr(), 9090), 0);
+			let port = socket_listen(server, addr.as_ptr(), 0, 10);
+			assert_eq!(socket_connect(client, addr.as_ptr(), port), 0);
 			assert_eq!(socket_accept(server, accepted), 0);
 			let buf: [u8; 1] = [b'h'];
 			let mut recv_buf = [0u8; 1];
@@ -178,8 +253,8 @@ mod test {
 			let accepted: *mut u8 = &mut accepted_i32 as *mut u8;
 
 			// Initialize the server, client, and accepted socket handles
-			assert_eq!(socket_listen(server, addr.as_ptr(), 9090, 10), 0);
-			assert_eq!(socket_connect(client, addr.as_ptr(), 9090), 0);
+			let port = socket_listen(server, addr.as_ptr(), 0, 10);
+			assert_eq!(socket_connect(client, addr.as_ptr(), port), 0);
 			assert_eq!(socket_accept(server, accepted), 0);
 
 			let buf: [u8; 1] = [b'h'];
@@ -209,8 +284,8 @@ mod test {
 			let accepted = alloc(socket_handle_size());
 			let multiplex = alloc(socket_multiplex_handle_size());
 			// open sockets an accept the inbound socket
-			assert_eq!(socket_listen(server, addr.as_ptr(), 9091, 10), 0);
-			assert_eq!(socket_connect(client, addr.as_ptr(), 9091), 0);
+			let port = socket_listen(server, addr.as_ptr(), 0, 10);
+			assert_eq!(socket_connect(client, addr.as_ptr(), port), 0);
 			assert_eq!(socket_accept(server, accepted), 0);
 
 			assert_eq!(socket_multiplex_init(multiplex), 0);

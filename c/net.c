@@ -25,6 +25,7 @@
 #define ERROR_FCNTL -7
 #define ERROR_REGISTER -8
 #define ERROR_MULTIPLEX_INIT -9
+#define ERROR_GETSOCKNAME -10
 
 typedef struct SocketHandle {
 	int fd;
@@ -106,8 +107,15 @@ int socket_listen(SocketHandle *s, unsigned char addr[4], int port,
 		return ERROR_LISTEN;
 	}
 
-	return 0;
+	socklen_t addr_len = sizeof(address);
+	if (getsockname(s->fd, (struct sockaddr *)&address, &addr_len) < 0) {
+		close(s->fd);
+		return ERROR_GETSOCKNAME;
+	}
+	port = ntohs(address.sin_port);
+	return port;
 }
+
 int socket_accept(SocketHandle *s, SocketHandle *accepted) {
 	struct sockaddr_in client_addr;
 	socklen_t client_len = sizeof(client_addr);
