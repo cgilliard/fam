@@ -556,7 +556,7 @@ mod test {
 				let cmp = (*value).value.compare(&(*cur).value);
 				if cmp == 0 {
 					break;
-				} else if cmp == -1 {
+				} else if cmp < 0 {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;
@@ -720,7 +720,7 @@ mod test {
 				let cmp = (*value).value.compare(&(*cur).value);
 				if cmp == 0 {
 					break;
-				} else if cmp == -1 {
+				} else if cmp < 0 {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;

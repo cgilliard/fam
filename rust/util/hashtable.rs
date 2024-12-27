@@ -2,26 +2,32 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::null_mut;
 use prelude::*;
 
-pub struct Node<V> {
+pub struct Node<V: PartialEq> {
 	next: Ptr<Node<V>>,
 	value: V,
 }
 
-impl<T> Deref for Node<T> {
-	type Target = T;
+impl<V: PartialEq> PartialEq for Node<V> {
+	fn eq(&self, other: &Node<V>) -> bool {
+		self.value == other.value
+	}
+}
+
+impl<V: PartialEq> Deref for Node<V> {
+	type Target = V;
 
 	fn deref(&self) -> &Self::Target {
 		&self.value
 	}
 }
 
-impl<T> DerefMut for Node<T> {
+impl<V: PartialEq> DerefMut for Node<V> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.value
 	}
 }
 
-impl<V> Node<V> {
+impl<V: PartialEq> Node<V> {
 	pub fn new(value: V) -> Self {
 		Self {
 			next: Ptr::new(null_mut()),
@@ -30,11 +36,11 @@ impl<V> Node<V> {
 	}
 }
 
-pub struct Hashtable<V: Equal + Hash> {
+pub struct Hashtable<V: PartialEq + Hash> {
 	arr: Vec<Ptr<Node<V>>>,
 }
 
-impl<V: Equal + Hash> Hashtable<V> {
+impl<V: PartialEq + Hash> Hashtable<V> {
 	pub fn new(size: usize) -> Result<Self, Error> {
 		let mut arr = Vec::new();
 		match arr.resize(size) {
@@ -53,7 +59,7 @@ impl<V: Equal + Hash> Hashtable<V> {
 		} else {
 			let mut prev = Ptr::new(null_mut());
 			while !ptr.is_null() {
-				if (*ptr).equal(&value) {
+				if *ptr == *value {
 					return false;
 				}
 				prev = ptr;
@@ -68,7 +74,7 @@ impl<V: Equal + Hash> Hashtable<V> {
 	pub fn find(&self, value: V) -> Option<Ptr<Node<V>>> {
 		let mut ptr = self.arr[value.hash() % self.arr.len()];
 		while !ptr.is_null() {
-			if (**ptr).equal(&value) {
+			if **ptr == value {
 				return Some(Ptr::new(ptr.raw()));
 			}
 			ptr = (ptr.as_ref()).next;
@@ -80,14 +86,14 @@ impl<V: Equal + Hash> Hashtable<V> {
 		let index = value.hash() % self.arr.len();
 		let mut ptr = self.arr[index];
 
-		if !ptr.is_null() && (*ptr).equal(&value) {
+		if !ptr.is_null() && (*ptr).value == value {
 			self.arr[index] = (*ptr).next;
 			return Some(Ptr::new(ptr.raw()));
 		}
 		let mut prev = self.arr[index];
 
 		while !ptr.is_null() {
-			if (*ptr).equal(&value) {
+			if (*ptr).value == value {
 				(*prev).next = (*ptr).next;
 				return Some(Ptr::new(ptr.raw()));
 			}
@@ -111,17 +117,17 @@ mod test {
 		v: i32,
 	}
 
+	impl PartialEq for TestValue {
+		fn eq(&self, other: &TestValue) -> bool {
+			self.k == other.k
+		}
+	}
+
 	impl Hash for TestValue {
 		fn hash(&self) -> usize {
 			let slice =
 				unsafe { from_raw_parts(&self.k as *const i32 as *const u8, size_of::<i32>()) };
 			murmur3_32_of_slice(slice, MURMUR_SEED) as usize
-		}
-	}
-
-	impl Equal for TestValue {
-		fn equal(&self, other: &Self) -> bool {
-			self.k == other.k
 		}
 	}
 

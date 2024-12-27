@@ -1,14 +1,23 @@
+use core::cmp::PartialEq;
 use prelude::*;
+
+#[derive(PartialEq, Ord, PartialOrd, Eq)]
+struct TestPartialEq {
+	x: u32,
+}
 
 #[no_mangle]
 pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
 	let _ = unsafe { crate::sys::getalloccount() };
 	let _ = unsafe { crate::sys::getpagesize() };
 
+	let v = vec![1, 2, 3].unwrap();
+	println!("v[0]={}", v[0]);
+
 	let ptr = Ptr::alloc(1usize).unwrap();
 	let ptr2 = Ptr::new(ptr.raw());
 	if ptr == ptr2 {
-		println!("eq");
+		println!("they are equal");
 	}
 
 	let mut tree = RbTree::new();
@@ -29,6 +38,19 @@ pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
 			is_right,
 		}
 	});
+
+	let x1 = TestPartialEq { x: 1 };
+	let x2 = TestPartialEq { x: 2 };
+	let x3 = TestPartialEq { x: 1 };
+
+	if x1 == x2 {
+		println!("eq");
+	} else {
+		println!("ne");
+	}
+	if x1 == x3 {
+		println!("eq2");
+	}
 
 	let err: Error = ErrorKind::Alloc.into();
 	let err2: Error = ErrorKind::Alloc.into();

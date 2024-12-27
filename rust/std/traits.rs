@@ -1,25 +1,11 @@
-pub trait Hash {
-	fn hash(&self) -> usize;
-}
-
-pub trait Equal {
-	fn equal(&self, other: &Self) -> bool;
-}
-
-pub enum Ordering {
-	Less = -1,
-	Equal = 0,
-	Greater = 1,
-}
-
-/*
-impl Equal for Ordering {
-	fn equal(&self, other
-}
-*/
+pub use core::cmp::PartialEq;
 
 pub trait Ord {
 	fn compare(&self, other: &Self) -> i8;
+}
+
+pub trait Hash {
+	fn hash(&self) -> usize;
 }
 
 impl Ord for i32 {
