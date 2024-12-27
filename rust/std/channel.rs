@@ -72,19 +72,19 @@ impl<T> ChannelInner<T> {
 	}
 
 	pub fn send(&self, t: T) -> Result<(), Error> {
-		unsafe {
-			let mut msg = match Box::new(Message {
-				_header: MessageHeader { _next: null_mut() },
-				value: t,
-			}) {
-				Ok(msg) => msg,
-				Err(e) => return Err(e),
-			};
+		let mut msg = match Box::new(Message {
+			_header: MessageHeader { _next: null_mut() },
+			value: t,
+		}) {
+			Ok(msg) => msg,
+			Err(e) => return Err(e),
+		};
 
-			// Leak the box so that the other thread can get it and
-			// accept ownership. This also prevents the drop handlers
-			// from being called.
-			msg.leak();
+		// Leak the box so that the other thread can get it and
+		// accept ownership. This also prevents the drop handlers
+		// from being called.
+		msg.leak();
+		unsafe {
 			channel_send(self.handle.raw(), msg.as_ptr().raw() as *mut u8);
 		}
 		Ok(())
@@ -270,22 +270,26 @@ mod test {
 
 	#[test]
 	fn test_send_zero_sized() {
-		let channel1a = Channel::new().unwrap();
-		let channel1b = channel1a.clone().unwrap();
-		let channel2a = Channel::new().unwrap();
-		let channel2b = channel2a.clone().unwrap();
+		let initial = unsafe { getalloccount() };
+		{
+			let channel1a = Channel::new().unwrap();
+			let channel1b = channel1a.clone().unwrap();
+			let channel2a = Channel::new().unwrap();
+			let channel2b = channel2a.clone().unwrap();
 
-		let mut jh = spawnj(move || {
-			assert_eq!(channel1b.recv().unwrap(), ());
-			channel2b.send(()).unwrap();
-		})
-		.unwrap();
+			let mut jh = spawnj(move || {
+				assert_eq!(channel1b.recv().unwrap(), ());
+				channel2b.send(()).unwrap();
+			})
+			.unwrap();
 
-		channel1a.send(()).unwrap();
+			channel1a.send(()).unwrap();
 
-		assert_eq!(channel2a.recv().unwrap(), ());
+			assert_eq!(channel2a.recv().unwrap(), ());
 
-		assert!(jh.join().is_ok());
+			assert!(jh.join().is_ok());
+		}
+		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 
 	#[test]

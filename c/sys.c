@@ -10,7 +10,7 @@ void _exit(int);
 
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
-	// printf("malloc %p (%lu)\n", ptr, size);
+//	printf("malloc %p (%lu)\n", ptr, size);
 #ifdef TEST
 	__atomic_fetch_add(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
@@ -18,7 +18,7 @@ void *alloc(unsigned long size) {
 }
 
 void release(void *ptr) {
-	// printf("free %p\n", ptr);
+//	printf("free %p\n", ptr);
 #ifdef TEST
 	__atomic_fetch_sub(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
