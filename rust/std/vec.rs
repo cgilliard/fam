@@ -32,30 +32,6 @@ impl<T: PartialEq> PartialEq for Vec<T> {
 	}
 }
 
-#[macro_export]
-macro_rules! vec {
-		($($elem:expr),*) => {
-                    #[allow(unused_mut)]
-                    {
-				let mut vec = Vec::new();
-				let mut err: Error = ErrorKind::Unknown.into();
-				$(
-					if err.kind == ErrorKind::Unknown {
-						match vec.push($elem) {
-							Ok(_) => {},
-							Err(e) => err = e,
-						}
-					}
-				)*
-				if err.kind != ErrorKind::Unknown {
-					Err(err)
-				} else {
-					Ok(vec)
-				}
-		    }
-                };
-}
-
 pub struct VecIterator<T> {
 	vec: Vec<T>,
 	index: usize,
@@ -297,7 +273,11 @@ impl<T> Vec<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::fmt::Debug;
+	use core::fmt::Error as CoreError;
+	use core::fmt::Formatter;
 	use core::ops::Drop;
+	use core::result::Result as CoreResult;
 	use sys::getalloccount;
 
 	#[test]
@@ -341,11 +321,6 @@ mod test {
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
-
-	use core::fmt::Debug;
-	use core::fmt::Error as CoreError;
-	use core::fmt::Formatter;
-	use core::result::Result as CoreResult;
 
 	impl<T> Debug for Vec<T> {
 		fn fmt(&self, _: &mut Formatter<'_>) -> CoreResult<(), CoreError> {

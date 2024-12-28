@@ -16,9 +16,9 @@ impl<T: ?Sized> Drop for Box<T> {
 			let value_ptr = self.ptr.raw();
 			unsafe {
 				drop_in_place(value_ptr);
-				if !value_ptr.is_null() {
-					safe_release(value_ptr as *mut u8);
-				}
+			}
+			if !value_ptr.is_null() {
+				safe_release(value_ptr as *mut u8);
 			}
 		}
 	}
@@ -87,13 +87,12 @@ impl Box<[u8]> {
 				return Ok(ret);
 			}
 		}
-		let ptr;
-		unsafe {
-			ptr = safe_alloc(len);
-			write_bytes(ptr, 0, len);
-		}
+		let ptr = safe_alloc(len);
 		if ptr.is_null() {
 			return Err(ErrorKind::Alloc.into());
+		}
+		unsafe {
+			write_bytes(ptr, 0, len);
 		}
 		let slice = unsafe { Box::from_raw(Ptr::new(from_raw_parts_mut(ptr, len))) };
 
