@@ -118,3 +118,96 @@ impl Display for &str {
 		f.write_str(self, self.len())
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn test_formatter1() {
+		let mut fmt = Formatter::new();
+		fmt.write_str("ok1", 3).unwrap();
+		fmt.write_str("hi hi hi", 8).unwrap();
+		fmt.write_str(" ", 1).unwrap();
+		fmt.write_str("7", 1).unwrap();
+		assert_eq!(fmt.as_str(), "ok1hi hi hi 7");
+		let mut fmt = Formatter::new();
+		fmt.write_str("===", 3).unwrap();
+		166u64.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		assert_eq!(fmt.as_str(), "===166===");
+	}
+
+	#[test]
+	fn test_formatter_unsigned() {
+		let mut fmt = Formatter::new();
+		1234u128.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		1234u64.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		1234u32.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		1234u16.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		123u8.format(&mut fmt).unwrap();
+		assert_eq!(fmt.as_str(), "1234===1234===1234===1234===123");
+	}
+
+	#[test]
+	fn test_formatter_signed() {
+		let mut fmt = Formatter::new();
+		(-1234i128).format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		(-1234i64).format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		(-1234i32).format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		(-1234i16).format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		(-123i8).format(&mut fmt).unwrap();
+		assert_eq!(fmt.as_str(), "-1234===-1234===-1234===-1234===-123");
+
+		let mut fmt = Formatter::new();
+		1234i128.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		1234i64.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		1234i32.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		1234i16.format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		123i8.format(&mut fmt).unwrap();
+		assert_eq!(fmt.as_str(), "1234===1234===1234===1234===123");
+	}
+
+	#[test]
+	fn test_float() {
+		let mut fmt = Formatter::new();
+		(-123.456f64).format(&mut fmt).unwrap();
+		fmt.write_str("===", 3).unwrap();
+		(123.1f32).format(&mut fmt).unwrap();
+
+		assert_eq!(fmt.as_str(), "-123.45600===123.10000");
+	}
+
+	#[test]
+	fn test_format() {
+		let mut f = Formatter::new();
+		assert!(writeb!(
+			f,
+			"test {} {} {} {} {} {} {} end",
+			1,
+			-2,
+			3,
+			4.5,
+			true,
+			"ok",
+			String::new("xyz").unwrap()
+		)
+		.is_ok());
+		assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
+
+		let x = format!("this is a test {} {}", 7, 8).unwrap();
+		assert_eq!(x.to_str(), "this is a test 7 8");
+	}
+}
