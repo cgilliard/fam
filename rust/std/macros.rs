@@ -1,29 +1,29 @@
 #[macro_export]
 macro_rules! exit {
-	($msg:expr) => {{
-		unsafe {
+	($fmt:expr) => {{
+		exit!("{}", $fmt);
+	}};
+	($fmt:expr,  $($t:expr),*) => {{
 			use core::panic::Location;
 			use std::util::u128_to_str;
-			use sys::{_exit, write};
+			use sys::{safe_exit, safe_write};
 
-			write(2, "Panic:\n".as_ptr(), 7);
+			safe_write(2, "Panic: ".as_ptr(), 7);
 			#[cfg(not(mrustc))]
 			{
 				let location = Location::caller();
 				let file = location.file();
 				let mut buf = [0u8; 32];
 				let len = u128_to_str(location.line() as u128, 0, &mut buf, 10);
-				write(2, file.as_ptr(), file.len());
-				write(2, ":".as_ptr(), 1);
-				write(2, buf.as_ptr(), len);
-				write(2, "\n".as_ptr(), 1);
+				safe_write(2, file.as_ptr(), file.len());
+				safe_write(2, ":".as_ptr(), 1);
+				safe_write(2, buf.as_ptr(), len);
+				safe_write(2, "\n".as_ptr(), 1);
 			}
 
-			write(2, $msg.as_ptr(), $msg.len());
-			write(2, "\n\0".as_ptr(), 1);
-			_exit(-1);
+                        println!($fmt, $($t)*);
+			safe_exit(-1);
 			loop {}
-		}
 	}};
 }
 

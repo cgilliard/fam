@@ -92,6 +92,15 @@ int socket_listen(SocketHandle *s, unsigned char addr[4], int port,
 		close(s->fd);
 		return ERROR_SETSOCKOPT;
 	}
+	int flags = fcntl(s->fd, F_GETFL, 0);
+	if (flags < 0) {
+		close(s->fd);
+		return ERROR_FCNTL;
+	}
+	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+		close(s->fd);
+		return ERROR_FCNTL;
+	}
 
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
@@ -157,13 +166,13 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 
 	if (flags & MULTIPLEX_REGISTER_TYPE_FLAG_READ) {
 		EV_SET(&change_event[event_count], s->fd, EVFILT_READ,
-		       EV_ADD | EV_ENABLE, 0, 0, NULL);
+		       EV_ADD | EV_ENABLE | EV_CLEAR, 0, 0, NULL);
 		event_count++;
 	}
 
 	if (flags & MULTIPLEX_REGISTER_TYPE_FLAG_WRITE) {
 		EV_SET(&change_event[event_count], s->fd, EVFILT_WRITE,
-		       EV_ADD | EV_ENABLE, 0, 0, NULL);
+		       EV_ADD | EV_ENABLE | EV_CLEAR, 0, 0, NULL);
 		event_count++;
 	}
 
@@ -210,6 +219,8 @@ int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
 			  max_events, -1);
 #endif	// __linux__
 }
+
+int socket_fd(SocketHandle *s) { return s->fd; }
 
 void socket_event_handle(SocketHandle *s, void *event) {
 #ifdef __APPLE__

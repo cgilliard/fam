@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use prelude::*;
 
 #[derive(PartialEq)]
@@ -25,5 +26,12 @@ pub struct Error {
 impl From<ErrorKind> for Error {
 	fn from(kind: ErrorKind) -> Error {
 		Self { kind }
+	}
+}
+
+impl Display for Error {
+	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+		//writeb!(*f, "Error")
+		Ok(())
 	}
 }

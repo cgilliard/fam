@@ -90,7 +90,7 @@ macro_rules! print {
             Ok(line) => {
                 unsafe { crate::sys::write(2, line.to_str().as_ptr(), line.len()); }
             },
-            Err(e) => {},
+            Err(_e) => {},
         }
     }};
 }

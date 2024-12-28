@@ -62,7 +62,7 @@ pub fn murmur3_32_of_slice(source: &[u8], seed: u32) -> u32 {
 				state = (state.wrapping_mul(M)).wrapping_add(N);
 				buffer = subslice(buffer, 4, buffer.len() - 4).unwrap();
 			}
-			_ => unreachable!(),
+			_ => {}
 		};
 	}
 }

@@ -1,6 +1,7 @@
 pub use crate::exit;
 pub use crate::{
-	channel, format, lock, lock_box, lock_pair, print, print_num, println, ptr, rc, vec, writeb,
+	aadd, aload, astore, asub, cas, channel, format, lock, lock_box, lock_pair, print, print_num,
+	println, ptr, rc, vec, writeb,
 };
 pub use std::boxed::Box;
 pub use std::channel::Channel;
@@ -17,6 +18,7 @@ pub use std::thread::{spawn, spawnj};
 pub use std::traits::*;
 pub use std::util::park;
 pub use std::vec::Vec;
+pub use util::hashtable::Hashtable;
 pub use util::murmur::{murmur3_32_of_slice, MURMUR_SEED};
 pub use util::rbtree::*;
 
