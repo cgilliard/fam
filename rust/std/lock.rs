@@ -138,7 +138,7 @@ mod test {
 	use std::lock::Lock;
 	#[test]
 	fn test_lock() {
-		let x = lock!();
+		let x = Lock::new();
 		assert_eq!(unsafe { *x.state.get() }, 0);
 		{
 			let _v = x.write();

@@ -117,15 +117,14 @@ impl<T> Index<Range<usize>> for Vec<T> {
 	type Output = [T];
 
 	fn index(&self, range: Range<usize>) -> &Self::Output {
-		if range.start > range.end || range.end > self.elements {
+		if range.end > self.len() {
 			panic!("Index out of bounds");
 		}
 
 		let element_size = size_of::<T>();
 		let start_offset = range.start * element_size;
-
 		unsafe {
-			let ptr = (self.value.raw() as *mut T).add(start_offset) as *const T;
+			let ptr = (self.value.raw() as *const u8).add(start_offset) as *const T;
 			from_raw_parts(ptr, range.end - range.start)
 		}
 	}
@@ -133,15 +132,14 @@ impl<T> Index<Range<usize>> for Vec<T> {
 
 impl<T> IndexMut<Range<usize>> for Vec<T> {
 	fn index_mut(&mut self, range: Range<usize>) -> &mut Self::Output {
-		if range.start > range.end || range.end > self.elements {
+		if range.end > self.len() {
 			panic!("Index out of bounds");
 		}
 
 		let element_size = size_of::<T>();
 		let start_offset = range.start * element_size;
-
 		unsafe {
-			let ptr = (self.value.raw() as *mut T).add(start_offset) as *mut T;
+			let ptr = (self.value.raw() as *mut u8).add(start_offset) as *mut T;
 			from_raw_parts_mut(ptr, range.end - range.start)
 		}
 	}
@@ -339,6 +337,7 @@ mod test {
 			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
 			assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
 			assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
+			assert!(v1 != v2);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
@@ -389,5 +388,19 @@ mod test {
 			assert_eq!(unsafe { VTEST }, 3);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	#[test]
+	fn test_vec_range() {
+		let mut v = vec![1, 2, 3, 4, 5].unwrap();
+		let r = &v[1..3];
+		assert_eq!(r[0], 2);
+		assert_eq!(&v[1..3], &vec![2, 3].unwrap()[0..2]);
+
+		let slice = &mut v[1..1];
+		assert_eq!(slice, &mut []);
+
+		v.clear();
+		assert_eq!(v.len(), 0);
 	}
 }
