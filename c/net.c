@@ -201,10 +201,16 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 	ev.data.fd = s->fd;
 
 	if (epoll_ctl(multiplex->fd, EPOLL_CTL_ADD, s->fd, &ev) < 0) {
-		return ERROR_REGISTER;
+		if (errno == EEXIST) {
+			if (epoll_ctl(multiplex->fd, EPOLL_CTL_MOD, s->fd,
+				      &ev) < 0) {
+				return ERROR_REGISTER;
+			}
+		} else
+			return ERROR_REGISTER;
 	}
 
-	return 0;
+	return 0;  // Success
 }
 #endif	// __linux__
 
