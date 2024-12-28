@@ -5,12 +5,12 @@
 
 int backtrace(void **array, int capacity);
 char **backtrace_symbols(void **array, int capacity);
+#define PAGE_SIZE 4096
 
+#define byte unsigned char
 #define u64 unsigned long long
-
 #ifdef __linux__
-#define _XOPEN_SOURCE 700
-#define _POSIX_C_SOURCE 200112L
+#include <stdbool.h>
 #endif	// __linux__
 
 #ifdef __APPLE__
@@ -28,66 +28,6 @@ const char *backtrace_full() {
 	for (int i = 0; i < size; i++) {
 		char address[256];
 #ifdef __linux__
-		int len = strlen(strings[i]);
-		int last_plus = -1;
-
-		while (len > 0) {
-			if (strings[i][len] == '+') {
-				last_plus = len;
-				break;
-			}
-			len--;
-		}
-		if (last_plus > 0) {
-			byte *addr = strings[i] + last_plus + 1;
-			int itt = 0;
-			while (addr[itt]) {
-				if (addr[itt] == ')') {
-					addr[itt] = 0;
-					break;
-				}
-				itt++;
-			}
-			u64 address = cstring_strtoull(addr, 16);
-			address -= 8;
-
-			char command[256];
-			snprintf(command, sizeof(command),
-				 "addr2line -f -e ./bin/test_fam %llx",
-				 address);
-
-			void *fp = popen(command, "r");
-			char buffer[128];
-			while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-				int len = strlen(buffer);
-				if (strstr(buffer, ".c:")) {
-					len_sum += len;
-					if (len_sum >= 4 * PAGE_SIZE) break;
-					if (term) {
-						if (buffer[len - 1] == '\n')
-							buffer[len - 1] = 0;
-						strncat(ret, buffer,
-							strlen(buffer));
-						i = size;
-						break;
-					}
-					strncat(ret, buffer, strlen(buffer));
-				} else if (cstring_is_alpha_numeric(buffer)) {
-					if (len && buffer[len - 1] == '\n') {
-						len--;
-						buffer[len] = ' ';
-					}
-					len_sum += len;
-					if (len_sum >= 4 * PAGE_SIZE) break;
-					strncat(ret, buffer, strlen(buffer));
-					if (!cstring_compare(buffer, "main ")) {
-						term = true;
-					}
-				}
-			}
-
-			pclose(fp);
-		}
 #elif defined(__APPLE__)
 		Dl_info info;
 		dladdr(array[i], &info);
