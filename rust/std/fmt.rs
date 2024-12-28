@@ -29,7 +29,7 @@ macro_rules! writeb {
                             None => {
                             },
                         }
-                        match $t.fmt(&mut $f) {
+                        match $t.format(&mut $f) {
                             Ok(_) => {},
                             Err(e) => err = e,
                         }
@@ -101,7 +101,7 @@ pub struct Formatter {
 }
 
 pub trait Display {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error>;
+	fn format(&self, f: &mut Formatter) -> Result<(), Error>;
 }
 
 impl Formatter {
@@ -139,7 +139,7 @@ macro_rules! impl_display_unsigned {
     ($($t:ty),*) => {
         $(
             impl Display for $t {
-                fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+                fn format(&self, f: &mut Formatter) -> Result<(), Error> {
                     let mut buf = [0u8; 64];
                     let len = u128_to_str((*self).into(), 0, &mut buf, 10);
                     unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
@@ -152,7 +152,7 @@ macro_rules! impl_display_unsigned {
 impl_display_unsigned!(u8, u16, u32, u64, u128);
 
 impl Display for usize {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let mut buf = [0u8; 64];
 		let len = u128_to_str(*self as u128, 0, &mut buf, 10);
 		unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
@@ -163,7 +163,7 @@ macro_rules! impl_display_signed {
     ($($t:ty),*) => {
         $(
             impl Display for $t {
-                fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+                fn format(&self, f: &mut Formatter) -> Result<(), Error> {
                     let mut buf = [0u8; 64];
                     let len = i128_to_str((*self).into(), &mut buf, 10);
                     unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
@@ -176,7 +176,7 @@ macro_rules! impl_display_signed {
 impl_display_signed!(i8, i16, i32, i64, i128);
 
 impl Display for f64 {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let mut buf = [0u8; 512];
 		let len = unsafe { f64_to_str(*self, buf.as_mut_ptr(), 512) };
 		if len > 0 {
@@ -188,7 +188,7 @@ impl Display for f64 {
 }
 
 impl Display for bool {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		if *self {
 			f.write_str("true", 4)
 		} else {
@@ -198,7 +198,7 @@ impl Display for bool {
 }
 
 impl Display for f32 {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let mut buf = [0u8; 512];
 		let len = unsafe { f64_to_str((*self).into(), buf.as_mut_ptr(), 512) };
 		if len > 0 {
@@ -210,7 +210,7 @@ impl Display for f32 {
 }
 
 impl Display for &str {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		f.write_str(self, self.len())
 	}
 }
@@ -229,7 +229,7 @@ mod test {
 		assert_eq!(fmt.as_str(), "ok1hi hi hi 7");
 		let mut fmt = Formatter::new();
 		fmt.write_str("===", 3).unwrap();
-		166u64.fmt(&mut fmt).unwrap();
+		166u64.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
 		assert_eq!(fmt.as_str(), "===166===");
 	}
@@ -237,56 +237,57 @@ mod test {
 	#[test]
 	fn test_formatter_unsigned() {
 		let mut fmt = Formatter::new();
-		1234u128.fmt(&mut fmt).unwrap();
+		1234u128.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		1234u64.fmt(&mut fmt).unwrap();
+		1234u64.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		1234u32.fmt(&mut fmt).unwrap();
+		1234u32.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		1234u16.fmt(&mut fmt).unwrap();
+		1234u16.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		123u8.fmt(&mut fmt).unwrap();
+		123u8.format(&mut fmt).unwrap();
 		assert_eq!(fmt.as_str(), "1234===1234===1234===1234===123");
 	}
 
 	#[test]
 	fn test_formatter_signed() {
 		let mut fmt = Formatter::new();
-		(-1234i128).fmt(&mut fmt).unwrap();
+		(-1234i128).format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		(-1234i64).fmt(&mut fmt).unwrap();
+		(-1234i64).format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		(-1234i32).fmt(&mut fmt).unwrap();
+		(-1234i32).format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		(-1234i16).fmt(&mut fmt).unwrap();
+		(-1234i16).format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		(-123i8).fmt(&mut fmt).unwrap();
+		(-123i8).format(&mut fmt).unwrap();
 		assert_eq!(fmt.as_str(), "-1234===-1234===-1234===-1234===-123");
 
 		let mut fmt = Formatter::new();
-		1234i128.fmt(&mut fmt).unwrap();
+		1234i128.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		1234i64.fmt(&mut fmt).unwrap();
+		1234i64.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		1234i32.fmt(&mut fmt).unwrap();
+		1234i32.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		1234i16.fmt(&mut fmt).unwrap();
+		1234i16.format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		123i8.fmt(&mut fmt).unwrap();
+		123i8.format(&mut fmt).unwrap();
 		assert_eq!(fmt.as_str(), "1234===1234===1234===1234===123");
 	}
 
 	#[test]
 	fn test_float() {
 		let mut fmt = Formatter::new();
-		(-123.456f64).fmt(&mut fmt).unwrap();
+		(-123.456f64).format(&mut fmt).unwrap();
 		fmt.write_str("===", 3).unwrap();
-		(123.1f32).fmt(&mut fmt).unwrap();
+		(123.1f32).format(&mut fmt).unwrap();
+
 		assert_eq!(fmt.as_str(), "-123.45600===123.10000");
 	}
 
 	#[test]
-	fn test_fmt() {
+	fn test_format() {
 		let mut f = Formatter::new();
 		assert!(writeb!(
 			f,

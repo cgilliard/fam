@@ -23,7 +23,7 @@ enum Color {
 }
 
 impl<V: Ord> Display for RbTreeNode<V> {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		writeb!(
 			*f,
 			"Node: parent={},left={},right={},color={},bitcolor={}",

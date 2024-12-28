@@ -15,7 +15,7 @@ pub struct String {
 }
 
 impl Display for String {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		f.write_str(self.to_str(), self.len())
 	}
 }

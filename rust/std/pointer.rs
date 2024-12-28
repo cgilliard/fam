@@ -20,7 +20,7 @@ impl<T: ?Sized> PartialEq for Ptr<T> {
 }
 
 impl<T: ?Sized> Display for Ptr<T> {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let v = self.raw() as *mut u8 as u128;
 		let mut buf = [0u8; 64];
 		buf[0] = b'0';

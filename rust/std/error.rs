@@ -1,8 +1,24 @@
-use core::fmt::Debug;
 use prelude::*;
 
-#[derive(PartialEq)]
-pub enum ErrorKind {
+macro_rules! define_enum_with_strings {
+    ($enum_name:ident { $($variant:ident),* $(,)? }) => {
+        #[derive(PartialEq)]
+        pub enum $enum_name {
+            $($variant),*
+        }
+
+        impl $enum_name {
+            pub fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => stringify!($variant),)*
+                }
+            }
+        }
+    };
+}
+
+// Define the enum and string conversion
+define_enum_with_strings!(ErrorKind {
 	Unknown,
 	Alloc,
 	OutOfBounds,
@@ -16,22 +32,27 @@ pub enum ErrorKind {
 	ChannelInit,
 	IO,
 	Todo,
-}
+});
 
 #[derive(PartialEq)]
 pub struct Error {
 	pub kind: ErrorKind,
 }
 
-impl From<ErrorKind> for Error {
-	fn from(kind: ErrorKind) -> Error {
+impl Error {
+	fn new(kind: ErrorKind) -> Self {
 		Self { kind }
 	}
 }
 
+impl From<ErrorKind> for Error {
+	fn from(kind: ErrorKind) -> Error {
+		Error::new(kind)
+	}
+}
+
 impl Display for Error {
-	fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-		//writeb!(*f, "Error")
-		Ok(())
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		writeb!(*f, "Error[kind={}]", self.kind.as_str())
 	}
 }
