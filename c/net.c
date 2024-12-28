@@ -7,6 +7,7 @@
 #include <sys/event.h>
 #endif	// __APPLE__
 #ifdef __linux__
+#include <errno.h>
 #include <sys/epoll.h>
 #endif	// __linux__
 #include <sys/un.h>
