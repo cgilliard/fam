@@ -36,6 +36,7 @@ extern "C" {
 	pub fn getpagesize() -> i32;
 	pub fn sched_yield() -> i32;
 	pub fn getmicros() -> u64;
+	pub fn backtrace_full() -> *const u8;
 	pub fn thread_create(start_routine: extern "C" fn(*mut u8), arg: *mut u8) -> i32;
 	pub fn thread_create_joinable(
 		handle: *const u8,
@@ -100,6 +101,9 @@ pub fn safe_exit(code: i32) {
 mod test {
 	use super::*;
 	use core::mem::size_of;
+	use core::slice::from_raw_parts;
+	use core::str::from_utf8_unchecked;
+	use prelude::*;
 
 	extern "C" fn test_thread(channel: *mut u8) {
 		unsafe {
@@ -331,6 +335,25 @@ mod test {
 			release(readablehandle);
 			release(events);
 			release(multiplex);
+		}
+	}
+
+	#[test]
+	fn test_backtrace() {
+		unsafe {
+			let x = backtrace_full();
+			let mut itt = x;
+			let mut count = 0;
+			loop {
+				if *itt == b'\0' {
+					break;
+				}
+				itt = itt.wrapping_add(1);
+				count += 1;
+			}
+			//println!("count={}", count);
+			let v = from_utf8_unchecked(from_raw_parts(x, count));
+			//println!("v={}", v);
 		}
 	}
 }
