@@ -8,7 +8,7 @@ use core::ptr;
 use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
-use sys::{alloc, release, resize};
+use sys::{safe_alloc, safe_release, safe_resize};
 
 pub struct Vec<T> {
 	value: Ptr<u8>,
@@ -102,9 +102,7 @@ impl<T> Drop for Vec<T> {
 		}
 		let raw = self.value.raw();
 		if !raw.is_null() {
-			unsafe {
-				release(raw);
-			}
+			safe_release(raw);
 		}
 	}
 }
@@ -219,9 +217,7 @@ impl<T> Vec<T> {
 	fn resize_impl(&mut self, needed: usize) -> bool {
 		if needed == 0 {
 			if !self.value.raw().is_null() {
-				unsafe {
-					release(self.value.raw());
-				}
+				safe_release(self.value.raw());
 			}
 			self.value = Ptr::new(null_mut());
 		}
@@ -230,9 +226,9 @@ impl<T> Vec<T> {
 		let rptr = self.value.raw();
 
 		let nptr = if self.capacity == 0 {
-			unsafe { alloc(ncapacity * size_of::<T>()) }
+			safe_alloc(ncapacity * size_of::<T>())
 		} else {
-			unsafe { resize(rptr as *mut u8, ncapacity * size_of::<T>()) }
+			safe_resize(rptr as *mut u8, ncapacity * size_of::<T>())
 		};
 		if !nptr.is_null() {
 			if ncapacity > self.capacity {

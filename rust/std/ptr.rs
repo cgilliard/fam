@@ -7,7 +7,7 @@ use core::ptr::{null_mut, write};
 use core::str::from_utf8_unchecked;
 use prelude::*;
 use std::util::u128_to_str;
-use sys::{alloc, ptr_add, release, resize};
+use sys::{safe_alloc, safe_ptr_add, safe_release, safe_resize};
 
 pub struct Ptr<T: ?Sized> {
 	ptr: *mut T,
@@ -67,10 +67,8 @@ impl<T: ?Sized> Ptr<T> {
 	}
 
 	pub fn new_bit_set(mut ptr: *mut T) -> Self {
-		unsafe {
-			let tmp = (&mut ptr) as *mut _ as *mut *mut u8;
-			ptr_add(tmp as *mut _, 1);
-		}
+		let tmp = (&mut ptr) as *mut _ as *mut *mut u8;
+		safe_ptr_add(tmp as *mut _, 1);
 		Self { ptr }
 	}
 
@@ -80,12 +78,10 @@ impl<T: ?Sized> Ptr<T> {
 
 	pub fn set_bit(&mut self, v: bool) {
 		let ptr = (&mut self.ptr) as *mut _ as *mut *mut u8;
-		unsafe {
-			if v && (self.ptr as *mut u8 as usize) % 2 == 0 {
-				ptr_add(ptr as *mut _, 1); // Add 1 to set the bit
-			} else if !v && (self.ptr as *mut u8 as usize) % 2 != 0 {
-				ptr_add(ptr as *mut _, -1); // Subtract 1 to clear the bit
-			}
+		if v && (self.ptr as *mut u8 as usize) % 2 == 0 {
+			safe_ptr_add(ptr as *mut _, 1); // Add 1 to set the bit
+		} else if !v && (self.ptr as *mut u8 as usize) % 2 != 0 {
+			safe_ptr_add(ptr as *mut _, -1); // Subtract 1 to clear the bit
 		}
 	}
 
@@ -96,9 +92,7 @@ impl<T: ?Sized> Ptr<T> {
 	pub fn raw(&self) -> *mut T {
 		if self.get_bit() {
 			let mut ret = self.ptr;
-			unsafe {
-				ptr_add(&mut ret as *mut _ as *mut u8, -1);
-			}
+			safe_ptr_add(&mut ret as *mut _ as *mut u8, -1);
 			ret
 		} else {
 			self.ptr
@@ -106,13 +100,11 @@ impl<T: ?Sized> Ptr<T> {
 	}
 
 	pub fn release(&self) {
-		unsafe {
-			release(self.raw() as *mut u8);
-		}
+		safe_release(self.raw() as *mut u8);
 	}
 
 	pub fn resize<R>(&mut self, n: usize) -> Result<Ptr<R>, Error> {
-		let ptr = unsafe { resize(self.raw() as *mut u8, n) };
+		let ptr = safe_resize(self.raw() as *mut u8, n);
 		if ptr.is_null() {
 			Err(ErrorKind::Alloc.into())
 		} else {
@@ -122,9 +114,7 @@ impl<T: ?Sized> Ptr<T> {
 
 	pub fn byte_add(&self, n: i64) -> *mut u8 {
 		let mut ret = self.raw() as *mut u8;
-		unsafe {
-			ptr_add(&mut ret as *mut _ as *mut u8, n);
-		}
+		safe_ptr_add(&mut ret as *mut _ as *mut u8, n);
 		ret
 	}
 
@@ -139,7 +129,7 @@ impl<T: ?Sized> Ptr<T> {
 
 impl<T> Ptr<T> {
 	pub fn alloc(t: T) -> Result<Self, Error> {
-		let ptr = unsafe { alloc(size_of::<T>()) } as *mut T;
+		let ptr = safe_alloc(size_of::<T>()) as *mut T;
 
 		if ptr.is_null() {
 			Err(ErrorKind::Alloc.into())
@@ -170,7 +160,6 @@ mod test {
 	use super::*;
 	use core::mem::size_of;
 	use core::ptr::write;
-	use sys::{alloc, release};
 
 	#[derive(Clone)]
 	struct MyBox<T: ?Sized> {
@@ -179,16 +168,14 @@ mod test {
 
 	impl<T: ?Sized> Drop for MyBox<T> {
 		fn drop(&mut self) {
-			unsafe {
-				release(self.ptr.raw() as *mut u8);
-			}
+			safe_release(self.ptr.raw() as *mut u8);
 		}
 	}
 
 	impl<T> MyBox<T> {
 		fn new(t: T) -> Self {
 			unsafe {
-				let ptr = alloc(size_of::<T>());
+				let ptr = safe_alloc(size_of::<T>());
 				write(ptr as *mut T, t);
 				let ptr = Ptr::new(ptr as *mut T);
 				Self { ptr }

@@ -4,7 +4,7 @@ use core::ops::{CoerceUnsized, Deref, DerefMut};
 use core::ptr::{drop_in_place, null_mut, write, write_bytes, NonNull};
 use core::slice::from_raw_parts_mut;
 use prelude::*;
-use sys::{alloc, release};
+use sys::{safe_alloc, safe_release};
 
 pub struct Box<T: ?Sized> {
 	ptr: Ptr<T>,
@@ -17,7 +17,7 @@ impl<T: ?Sized> Drop for Box<T> {
 			unsafe {
 				drop_in_place(value_ptr);
 				if !value_ptr.is_null() {
-					release(value_ptr as *mut u8);
+					safe_release(value_ptr as *mut u8);
 				}
 			}
 		}
@@ -62,7 +62,7 @@ impl<T> Box<T> {
 			ptr
 		} else {
 			let mut ptr = unsafe {
-				let rptr = alloc(size) as *mut T;
+				let rptr = safe_alloc(size) as *mut T;
 				if rptr.is_null() {
 					return Err(ErrorKind::Alloc.into());
 				}
@@ -89,7 +89,7 @@ impl Box<[u8]> {
 		}
 		let ptr;
 		unsafe {
-			ptr = alloc(len);
+			ptr = safe_alloc(len);
 			write_bytes(ptr, 0, len);
 		}
 		if ptr.is_null() {

@@ -52,6 +52,9 @@ macro_rules! writeb {
 
 #[macro_export]
 macro_rules! format {
+        ($fmt:expr) => {{
+                format!("{}", $fmt)
+        }};
         ($fmt:expr, $($t:expr),*) => {{
                 let mut formatter = Formatter::new();
                 match writeb!(formatter, $fmt, $($t),*) {
@@ -62,16 +65,55 @@ macro_rules! format {
 }
 
 #[macro_export]
+macro_rules! exit {
+        ($fmt:expr) => {{
+                exit!("{}", $fmt);
+        }};
+        ($fmt:expr,  $($t:expr),*) => {{
+                        use core::panic::Location;
+                        use std::util::u128_to_str;
+                        use sys::{safe_exit, safe_write};
+
+                        safe_write(2, "Panic: ".as_ptr(), 7);
+                        println!($fmt, $($t),*);
+                        #[cfg(not(mrustc))]
+                        {
+                                let location = Location::caller();
+                                let file = location.file();
+                                let mut buf = [0u8; 32];
+                                let len = u128_to_str(location.line() as u128, 0, &mut buf, 10);
+                                safe_write(2, file.as_ptr(), file.len());
+                                safe_write(2, ":".as_ptr(), 1);
+                                safe_write(2, buf.as_ptr(), len);
+                                safe_write(2, "\n".as_ptr(), 1);
+                        }
+
+                        safe_exit(-1);
+                        loop {}
+        }};
+}
+
+#[macro_export]
+macro_rules! panic {
+        ($fmt:expr) => {{
+                exit!("{}", $fmt);
+        }};
+        ($fmt:expr,  $($t:expr),*) => {{
+                exit!($fmt, $($t),*);
+        }};
+}
+
+#[macro_export]
 macro_rules! println {
     ($fmt:expr) => {{
-            unsafe { crate::sys::write(2, $fmt.as_ptr(), $fmt.len()); }
-            unsafe { crate::sys::write(2, "\n".as_ptr(), 1); }
+            crate::sys::safe_write(2, $fmt.as_ptr(), $fmt.len());
+            crate::sys::safe_write(2, "\n".as_ptr(), 1);
     }};
     ($fmt:expr, $($t:expr),*) => {{
         match format!($fmt, $($t),*) {
             Ok(line) => {
-                unsafe { crate::sys::write(2, line.to_str().as_ptr(), line.len()); }
-                unsafe { crate::sys::write(2, "\n".as_ptr(), 1); }
+                crate::sys::safe_write(2, line.to_str().as_ptr(), line.len());
+                crate::sys::safe_write(2, "\n".as_ptr(), 1);
             },
             Err(_e) => {},
         }

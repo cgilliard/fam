@@ -154,11 +154,11 @@ impl String {
 mod test {
 	use super::*;
 	use core::convert::Into;
-	use sys::getalloccount;
+	use sys::safe_getalloccount;
 
 	#[test]
 	fn test_strings() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let x1 = String::new("abcdefghijkl").unwrap();
 			assert_eq!(x1.len(), 12);
@@ -200,6 +200,6 @@ mod test {
 			assert_eq!(x9.len(), 4);
 		}
 
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 }

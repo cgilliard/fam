@@ -2,6 +2,7 @@ use core::intrinsics::{unchecked_div, unchecked_rem};
 use core::ptr::copy_nonoverlapping;
 use core::slice::from_raw_parts;
 use prelude::*;
+use sys::safe_sleep_millis;
 
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	if len + off > n.len() {
@@ -107,9 +108,7 @@ pub fn rem_usize(n: usize, d: usize) -> usize {
 
 pub fn park() {
 	loop {
-		unsafe {
-			crate::sys::sleep_millis(1000 * 60);
-		}
+		safe_sleep_millis(1000 * 60);
 	}
 }
 
