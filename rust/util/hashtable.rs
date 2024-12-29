@@ -52,6 +52,9 @@ impl<V: PartialEq + Hash> Hashtable<V> {
 	pub fn insert(&mut self, mut node: Ptr<Node<V>>) -> bool {
 		(*node).next = Ptr::null();
 		let value = &*node;
+		if self.arr.len() == 0 {
+			return false;
+		}
 		let index = value.hash() % self.arr.len();
 		let mut ptr = self.arr[index];
 		if ptr.is_null() {
@@ -71,10 +74,13 @@ impl<V: PartialEq + Hash> Hashtable<V> {
 		true
 	}
 
-	pub fn find(&self, value: V) -> Option<Ptr<Node<V>>> {
+	pub fn find(&self, value: &V) -> Option<Ptr<Node<V>>> {
+		if self.arr.len() == 0 {
+			return None;
+		}
 		let mut ptr = self.arr[value.hash() % self.arr.len()];
 		while !ptr.is_null() {
-			if **ptr == value {
+			if &ptr.value == value {
 				return Some(Ptr::new(ptr.raw()));
 			}
 			ptr = (ptr.as_ref()).next;
@@ -82,18 +88,18 @@ impl<V: PartialEq + Hash> Hashtable<V> {
 		None
 	}
 
-	pub fn remove(&mut self, value: V) -> Option<Ptr<Node<V>>> {
+	pub fn remove(&mut self, value: &V) -> Option<Ptr<Node<V>>> {
 		let index = value.hash() % self.arr.len();
 		let mut ptr = self.arr[index];
 
-		if !ptr.is_null() && (*ptr).value == value {
+		if !ptr.is_null() && (*ptr).value == *value {
 			self.arr[index] = (*ptr).next;
 			return Some(Ptr::new(ptr.raw()));
 		}
 		let mut prev = self.arr[index];
 
 		while !ptr.is_null() {
-			if (*ptr).value == value {
+			if (*ptr).value == *value {
 				(*prev).next = (*ptr).next;
 				return Some(Ptr::new(ptr.raw()));
 			}
@@ -150,16 +156,16 @@ mod test {
 			let node = Ptr::new(v);
 			hash.insert(node);
 
-			let mut n = hash.find(1i32.into()).unwrap();
+			let mut n = hash.find(&1i32.into()).unwrap();
 			assert_eq!((*n).v, 2);
 			(*n).v = 3i32;
-			assert!(hash.find(4i32.into()).is_none());
-			let n = hash.find(1i32.into()).unwrap();
+			assert!(hash.find(&4i32.into()).is_none());
+			let n = hash.find(&1i32.into()).unwrap();
 			assert_eq!((*n).v, 3);
-			let n = hash.remove(1i32.into()).unwrap();
+			let n = hash.remove(&1i32.into()).unwrap();
 			assert_eq!((*n).v, 3);
 			n.release();
-			assert!(hash.remove(1i32.into()).is_none());
+			assert!(hash.remove(&1i32.into()).is_none());
 		}
 		assert_eq!(unsafe { getalloccount() }, initial);
 	}
@@ -185,46 +191,46 @@ mod test {
 			assert!(!hash.insert(v5));
 			assert!(!hash.insert(v6));
 
-			assert_eq!(hash.find(1i32.into()).unwrap().v, 2);
-			assert!(hash.remove(4i32.into()).is_none());
+			assert_eq!(hash.find(&1i32.into()).unwrap().v, 2);
+			assert!(hash.remove(&4i32.into()).is_none());
 
 			v4.release();
 			v5.release();
 			v6.release();
 
-			let mut n = hash.find(1i32.into()).unwrap();
+			let mut n = hash.find(&1i32.into()).unwrap();
 			assert_eq!((*n).v, 2);
 			(*n).v = 3;
-			let n = hash.find(1i32.into()).unwrap();
+			let n = hash.find(&1i32.into()).unwrap();
 			assert_eq!((*n).v, 3);
 
-			let mut n = hash.find(2i32.into()).unwrap();
+			let mut n = hash.find(&2i32.into()).unwrap();
 			assert_eq!((*n).v, 3);
 			(*n).v = 4;
-			let n = hash.find(2i32.into()).unwrap();
+			let n = hash.find(&2i32.into()).unwrap();
 			assert_eq!((*n).v, 4);
 
-			let mut n = hash.find(3i32.into()).unwrap();
+			let mut n = hash.find(&3i32.into()).unwrap();
 			assert_eq!((*n).v, 4);
 			(*n).v = 5;
-			let n = hash.find(3i32.into()).unwrap();
+			let n = hash.find(&3i32.into()).unwrap();
 			assert_eq!((*n).v, 5);
 
-			let n = hash.remove(1i32.into()).unwrap();
+			let n = hash.remove(&1i32.into()).unwrap();
 			assert_eq!((*n).v, 3);
-			assert!(hash.remove(1i32.into()).is_none());
+			assert!(hash.remove(&1i32.into()).is_none());
 
 			n.release();
 
-			let n = hash.remove(2i32.into()).unwrap();
+			let n = hash.remove(&2i32.into()).unwrap();
 			assert_eq!((*n).v, 4);
-			assert!(hash.remove(2i32.into()).is_none());
+			assert!(hash.remove(&2i32.into()).is_none());
 
 			n.release();
 
-			let n = hash.remove(3i32.into()).unwrap();
+			let n = hash.remove(&3i32.into()).unwrap();
 			assert_eq!((*n).v, 5);
-			assert!(hash.remove(3i32.into()).is_none());
+			assert!(hash.remove(&3i32.into()).is_none());
 			n.release();
 		}
 		assert_eq!(unsafe { getalloccount() }, initial);

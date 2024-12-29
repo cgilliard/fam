@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -7,7 +8,6 @@
 #include <sys/event.h>
 #endif	// __APPLE__
 #ifdef __linux__
-#include <errno.h>
 #include <sys/epoll.h>
 #endif	// __linux__
 #include <sys/un.h>
@@ -27,6 +27,7 @@
 #define ERROR_REGISTER -8
 #define ERROR_MULTIPLEX_INIT -9
 #define ERROR_GETSOCKNAME -10
+#define ERROR_EAGAIN -11
 
 typedef struct SocketHandle {
 	int fd;
@@ -131,7 +132,12 @@ int socket_accept(SocketHandle *s, SocketHandle *accepted) {
 	socklen_t client_len = sizeof(client_addr);
 	accepted->fd =
 	    accept(s->fd, (struct sockaddr *)&client_addr, &client_len);
-	if (accepted->fd < 0) return ERROR_ACCEPT;
+	if (accepted->fd < 0) {
+		if (errno == EAGAIN) {
+			return ERROR_EAGAIN;
+		}
+		return ERROR_ACCEPT;
+	}
 
 	int flags = fcntl(s->fd, F_GETFL, 0);
 	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {

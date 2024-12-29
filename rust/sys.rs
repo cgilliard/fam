@@ -38,6 +38,82 @@ extern "C" {
 	pub fn channel_handle_size() -> usize;
 	pub fn channel_destroy(channel: *const u8) -> i32;
 	pub fn channel_pending(channel: *const u8) -> bool;
+
+	pub fn socket_handle_size() -> usize;
+	pub fn socket_event_size() -> usize;
+	pub fn socket_multiplex_handle_size() -> usize;
+	pub fn socket_connect(handle: *mut u8, addr: *const u8, port: i32) -> i32;
+	pub fn socket_shutdown(handle: *mut u8) -> i32;
+	pub fn socket_close(handle: *mut u8) -> i32;
+	pub fn socket_listen(handle: *mut u8, addr: *const u8, port: u16, backlog: i32) -> i32;
+	pub fn socket_accept(handle: *mut u8, nhandle: *mut u8) -> i32;
+	pub fn socket_send(handle: *mut u8, buf: *const u8, len: usize) -> i64;
+	pub fn socket_recv(handle: *mut u8, buf: *const u8, capacity: usize) -> i64;
+
+	pub fn socket_multiplex_init(handle: *mut u8) -> i32;
+	pub fn socket_multiplex_register(handle: *mut u8, socket: *mut u8, flags: i32) -> i32;
+	pub fn socket_multiplex_wait(handle: *mut u8, events: *mut u8, max_events: i32) -> i32;
+	pub fn socket_event_handle(handle: *mut u8, event: *mut u8);
+	pub fn socket_event_is_read(event: *mut u8) -> bool;
+	pub fn socket_event_is_write(event: *mut u8) -> bool;
+	pub fn socket_fd(handle: *mut u8) -> i32;
+	pub fn Base64decode(output: *mut u8, input: *mut u8);
+	pub fn Base64encode(input: *const u8, output: *mut u8, len: usize);
+	pub fn SHA1(data: *const u8, size: usize, hash: *mut u8);
+
+}
+
+pub fn safe_socket_handle_size() -> usize {
+	unsafe { socket_handle_size() }
+}
+pub fn safe_socket_event_size() -> usize {
+	unsafe { socket_event_size() }
+}
+pub fn safe_socket_multiplex_handle_size() -> usize {
+	unsafe { socket_multiplex_handle_size() }
+}
+pub fn safe_socket_connect(handle: *mut u8, addr: *const u8, port: i32) -> i32 {
+	unsafe { socket_connect(handle, addr, port) }
+}
+pub fn safe_socket_shutdown(handle: *mut u8) -> i32 {
+	unsafe { socket_shutdown(handle) }
+}
+pub fn safe_socket_close(handle: *mut u8) -> i32 {
+	unsafe { socket_close(handle) }
+}
+pub fn safe_socket_listen(handle: *mut u8, addr: *const u8, port: u16, backlog: i32) -> i32 {
+	unsafe { socket_listen(handle, addr, port, backlog) }
+}
+pub fn safe_socket_accept(handle: *mut u8, nhandle: *mut u8) -> i32 {
+	unsafe { socket_accept(handle, nhandle) }
+}
+pub fn safe_socket_send(handle: *mut u8, buf: *const u8, len: usize) -> i64 {
+	unsafe { socket_send(handle, buf, len) }
+}
+pub fn safe_socket_recv(handle: *mut u8, buf: *const u8, capacity: usize) -> i64 {
+	unsafe { socket_recv(handle, buf, capacity) }
+}
+
+pub fn safe_socket_multiplex_init(handle: *mut u8) -> i32 {
+	unsafe { socket_multiplex_init(handle) }
+}
+pub fn safe_socket_multiplex_register(handle: *mut u8, socket: *mut u8, flags: i32) -> i32 {
+	unsafe { socket_multiplex_register(handle, socket, flags) }
+}
+pub fn safe_socket_multiplex_wait(handle: *mut u8, events: *mut u8, max_events: i32) -> i32 {
+	unsafe { socket_multiplex_wait(handle, events, max_events) }
+}
+pub fn safe_socket_event_handle(handle: *mut u8, event: *mut u8) {
+	unsafe { socket_event_handle(handle, event) }
+}
+pub fn safe_socket_event_is_read(event: *mut u8) -> bool {
+	unsafe { socket_event_is_read(event) }
+}
+pub fn safe_socket_event_is_write(event: *mut u8) -> bool {
+	unsafe { socket_event_is_write(event) }
+}
+pub fn safe_socket_as_i32(handle: *mut u8) -> i32 {
+	unsafe { socket_fd(handle) }
 }
 
 pub fn safe_channel_init(channel: *const u8) -> i32 {

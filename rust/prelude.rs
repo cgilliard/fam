@@ -11,8 +11,9 @@ pub use std::result::{Result, Result::Err, Result::Ok};
 pub use std::string::String;
 pub use std::thread::{spawn, spawnj};
 pub use std::traits::{Display, Hash, Ord};
-pub use std::util::{i128_to_str, u128_to_str};
+pub use std::util::{i128_to_str, park, u128_to_str};
 pub use std::vec::Vec;
+pub use util::hashtable::{Hashtable, Node};
 pub use util::murmur::{murmur3_32_of_slice, MURMUR_SEED};
 
 // Core imports
@@ -20,4 +21,4 @@ pub use core::cmp::PartialEq;
 pub use core::convert::From;
 pub use core::convert::Into;
 pub use core::default::Default;
-pub use core::ops::Drop;
+pub use core::ops::{Drop, FnMut};

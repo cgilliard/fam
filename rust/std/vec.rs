@@ -1,7 +1,7 @@
 use core::cmp::PartialEq;
 use core::iter::{IntoIterator, Iterator};
 use core::marker::PhantomData;
-use core::mem::{replace, size_of, zeroed};
+use core::mem::{needs_drop, replace, size_of, zeroed};
 use core::ops::{Drop, Index, IndexMut, Range};
 use core::option::Option as CoreOption;
 use core::ptr;
@@ -70,10 +70,12 @@ impl<T> IntoIterator for Vec<T> {
 
 impl<T> Drop for Vec<T> {
 	fn drop(&mut self) {
-		for i in 0..self.elements {
-			unsafe {
-				let ptr = (self.value.raw() as *const u8).add(i * size_of::<T>()) as *mut T;
-				drop_in_place(ptr);
+		if needs_drop::<T>() {
+			for i in 0..self.elements {
+				unsafe {
+					let ptr = (self.value.raw() as *const u8).add(i * size_of::<T>()) as *mut T;
+					drop_in_place(ptr);
+				}
 			}
 		}
 		let raw = self.value.raw();

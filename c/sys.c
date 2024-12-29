@@ -10,7 +10,7 @@ void _exit(int);
 
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
-//	printf("malloc %p (%lu)\n", ptr, size);
+	// printf("malloc %p (%lu)\n", ptr, size);
 #ifdef TEST
 	__atomic_fetch_add(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
@@ -18,14 +18,18 @@ void *alloc(unsigned long size) {
 }
 
 void release(void *ptr) {
-//	printf("free %p\n", ptr);
+	// printf("free %p\n", ptr);
 #ifdef TEST
 	__atomic_fetch_sub(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
 	free(ptr);
 }
 
-void *resize(void *ptr, unsigned long long len) { return realloc(ptr, len); }
+void *resize(void *ptr, unsigned long long len) {
+	void *ret = realloc(ptr, len);
+	// printf("realloc size=%llu [%p -> %p]\n", len, ptr, ret);
+	return ret;
+}
 
 unsigned long long getmicros() {
 	struct timespec now;

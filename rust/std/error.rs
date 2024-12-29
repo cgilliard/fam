@@ -30,6 +30,8 @@ define_enum_with_strings!(ErrorKind {
 	NotInitialized,
 	ChannelRecv,
 	ChannelInit,
+	CreateFileDescriptor,
+	MultiplexRegister,
 	IO,
 	Todo,
 });
