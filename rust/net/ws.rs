@@ -1,7 +1,7 @@
 use core::mem::size_of;
 use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut};
 use core::slice::from_raw_parts;
-use core::str::from_utf8_unchecked;
+//use core::str::from_utf8_unchecked;
 use prelude::*;
 use sys::*;
 
@@ -51,6 +51,8 @@ pub struct WsServer {
 	config: WsConfig,
 	port: u16,
 	handle: *mut u8,
+	wakeup: [u8; 8],
+	stop: Rc<u64>,
 }
 
 enum ConnectionState {
@@ -69,9 +71,7 @@ struct ConnectionInner {
 }
 
 impl Drop for ConnectionInner {
-	fn drop(&mut self) {
-		println!("drop connection inner");
-	}
+	fn drop(&mut self) {}
 }
 
 struct Connection {
@@ -114,11 +114,13 @@ struct WsContext {
 	handles: Hashtable<Handle>,
 	itt: Rc<u64>,
 	id: Rc<u64>,
+	stop: Rc<u64>,
 	tid: u64,
 	multiplex: *mut u8,
 	events: *mut u8,
 	handle: *mut u8,
 	fhandle: Handle,
+	wakeup: [u8; 8],
 }
 
 impl WsContext {
@@ -128,6 +130,8 @@ impl WsContext {
 		tid: u64,
 		config: &WsConfig,
 		handle: *mut u8,
+		mut wakeup: [u8; 8],
+		stop: Rc<u64>,
 	) -> Result<Self, Error> {
 		let connections = match Hashtable::new(1024) {
 			Ok(connections) => connections,
@@ -143,9 +147,12 @@ impl WsContext {
 			return Err(ErrorKind::CreateFileDescriptor.into());
 		}
 
+		let wakeup_ptr = &mut wakeup as *mut u8;
+		safe_socket_multiplex_register(multiplex, wakeup_ptr, REG_READ_FLAG);
+
 		let events = safe_alloc(safe_socket_event_size() * config.max_events as usize);
 
-		if unsafe { socket_multiplex_register(multiplex, handle, REG_READ_FLAG) } < 0 {
+		if safe_socket_multiplex_register(multiplex, handle, REG_READ_FLAG) < 0 {
 			safe_release(multiplex);
 			safe_release(events);
 			return Err(ErrorKind::MultiplexRegister.into());
@@ -173,6 +180,8 @@ impl WsContext {
 			events,
 			handle,
 			fhandle,
+			wakeup,
+			stop,
 		})
 	}
 }
@@ -181,10 +190,19 @@ impl WsServer {
 	pub fn new(config: WsConfig) -> Result<Self, Error> {
 		let port = config.port;
 		let handle = null_mut();
+		let wakeup = [0u8; 8];
+
+		let stop = match Rc::new(0) {
+			Ok(stop) => stop,
+			Err(e) => return Err(e),
+		};
+
 		Ok(Self {
 			config,
 			port,
 			handle,
+			wakeup,
+			stop,
 		})
 	}
 
@@ -200,11 +218,29 @@ impl WsServer {
 			Ok(_) => {}
 			Err(e) => return Err(e),
 		};
-		match Self::start_threads(&self.config, self.handle) {
+
+		let stop = match self.stop.clone() {
+			Ok(stop) => stop,
+			Err(e) => return Err(e),
+		};
+
+		let wakeup_ptr = &mut self.wakeup as *mut u8;
+		safe_pipe(wakeup_ptr);
+
+		match Self::start_threads(&self.config, self.handle, self.wakeup, stop) {
 			Ok(_) => {}
 			Err(e) => return Err(e),
 		}
 
+		Ok(())
+	}
+
+	pub fn stop(&mut self) -> Result<(), Error> {
+		let wakeup = &mut self.wakeup as *mut u8;
+		let wakeup = unsafe { wakeup.add(4) };
+		safe_socket_send(wakeup, "1".as_ptr(), 1);
+		astore!(&mut *self.stop, 1);
+		safe_sleep_millis(100);
 		Ok(())
 	}
 
@@ -220,7 +256,12 @@ impl WsServer {
 		Ok(())
 	}
 
-	fn start_threads(config: &WsConfig, handle: *mut u8) -> Result<(), Error> {
+	fn start_threads(
+		config: &WsConfig,
+		handle: *mut u8,
+		wakeup: [u8; 8],
+		stop: Rc<u64>,
+	) -> Result<(), Error> {
 		let itt = match Rc::new(0) {
 			Ok(itt) => itt,
 			Err(e) => return Err(e),
@@ -229,11 +270,18 @@ impl WsServer {
 			Ok(id) => id,
 			Err(e) => return Err(e),
 		};
+
 		for tid in 0..config.threads {
 			let ctx = match itt.clone() {
 				Ok(itt) => match id.clone() {
-					Ok(id) => match WsContext::new(itt, id, tid as u64, config, handle) {
-						Ok(ctx) => ctx,
+					Ok(id) => match stop.clone() {
+						Ok(stop) => {
+							match WsContext::new(itt, id, tid as u64, config, handle, wakeup, stop)
+							{
+								Ok(ctx) => ctx,
+								Err(e) => return Err(e),
+							}
+						}
 						Err(e) => return Err(e),
 					},
 					Err(e) => return Err(e),
@@ -270,7 +318,6 @@ impl WsServer {
 			unsafe {
 				drop_in_place(to_drop.raw());
 			}
-			println!("close {}", safe_socket_as_i32(ehandle));
 		}
 
 		handle.inner.read.resize(len as usize + rlen).unwrap();
@@ -331,9 +378,6 @@ impl WsServer {
 						Self::bad_request(ehandle);
 						return;
 					}
-
-					let uri = &rvec[4..uri_end];
-					println!("uri='{}'", unsafe { from_utf8_unchecked(uri) });
 
 					let mut sec_key: &[u8] = &[];
 					let mut version: &[u8] = &[];
@@ -439,6 +483,8 @@ impl WsServer {
 		let s = spawn(move || {
 			let mut ehandle = [0u8; 4];
 			let ehandle: *mut u8 = &mut ehandle as *mut u8;
+			let wakeup: *mut u8 = &mut ctx.wakeup as *mut u8;
+			let mut stop = false;
 			loop {
 				let count =
 					safe_socket_multiplex_wait(ctx.multiplex, ctx.events, config.max_events);
@@ -462,9 +508,17 @@ impl WsServer {
 							Self::proc_accept(&mut ctx, ehandle);
 							aadd!(&mut *ctx.itt, 1);
 						}
+					} else if safe_socket_as_i32(ehandle) == safe_socket_as_i32(wakeup) {
+						if aload!(&*ctx.stop) != 0 {
+							stop = true;
+							break;
+						}
 					} else {
 						Self::proc_read(&mut ctx, ehandle);
 					}
+				}
+				if stop {
+					break;
 				}
 			}
 		});
@@ -482,12 +536,15 @@ mod test {
 
 	#[test]
 	fn test_ws1() {
-		let config = WsConfig {
-			port: 9999,
-			..Default::default()
-		};
-		let mut ws = WsServer::new(config).unwrap();
-		ws.start().unwrap();
+		{
+			let config = WsConfig {
+				port: 9999,
+				..Default::default()
+			};
+			let mut ws = WsServer::new(config).unwrap();
+			ws.start().unwrap();
+			ws.stop().unwrap();
+		}
 		//park();
 	}
 }

@@ -57,10 +57,16 @@ extern "C" {
 	pub fn socket_event_is_read(event: *mut u8) -> bool;
 	pub fn socket_event_is_write(event: *mut u8) -> bool;
 	pub fn socket_fd(handle: *mut u8) -> i32;
+
+	pub fn pipe(pair: *mut u8) -> i32;
 	pub fn Base64decode(output: *mut u8, input: *mut u8);
 	pub fn Base64encode(input: *const u8, output: *mut u8, len: usize);
 	pub fn SHA1(data: *const u8, size: usize, hash: *mut u8);
 
+}
+
+pub fn safe_pipe(pair: *mut u8) -> i32 {
+	unsafe { pipe(pair) }
 }
 
 pub fn safe_socket_handle_size() -> usize {
