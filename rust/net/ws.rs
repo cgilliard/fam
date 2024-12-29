@@ -611,6 +611,7 @@ mod test {
 			let start = "HTTP/1.1 400";
 			assert!(x > start.len() as i64);
 			assert_eq!(unsafe { from_utf8_unchecked(&buf[0..start.len()]) }, start);
+			//park();
 			ws.stop().unwrap();
 			safe_release(handle);
 		}

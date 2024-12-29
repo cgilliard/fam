@@ -74,7 +74,9 @@ impl<T> Drop for Vec<T> {
 			for i in 0..self.elements {
 				unsafe {
 					let ptr = (self.value.raw() as *const u8).add(i * size_of::<T>()) as *mut T;
-					drop_in_place(ptr);
+					if !self.value.raw().is_null() {
+						drop_in_place(ptr);
+					}
 				}
 			}
 		}

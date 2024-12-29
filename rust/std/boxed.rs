@@ -14,10 +14,10 @@ impl<T: ?Sized> Drop for Box<T> {
 	fn drop(&mut self) {
 		if !self.ptr.get_bit() {
 			let value_ptr = self.ptr.raw();
-			unsafe {
-				drop_in_place(value_ptr);
-			}
 			if !value_ptr.is_null() {
+				unsafe {
+					drop_in_place(value_ptr);
+				}
 				safe_release(value_ptr as *mut u8);
 			}
 		}

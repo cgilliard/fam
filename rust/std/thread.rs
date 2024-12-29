@@ -14,9 +14,11 @@ pub struct JoinHandle {
 impl Drop for JoinHandle {
 	fn drop(&mut self) {
 		if self.need_detach {
-			let _ = self.detach();
+			let _x = self.detach();
 		}
-		safe_release(self.handle as *mut u8);
+		if !self.handle.is_null() {
+			safe_release(self.handle as *mut u8);
+		}
 	}
 }
 

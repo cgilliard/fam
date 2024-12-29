@@ -1,4 +1,8 @@
+use core::iter::IntoIterator;
+use core::iter::Iterator;
+use core::mem::{replace, zeroed};
 use core::ops::{Deref, DerefMut};
+use core::option::Option as CoreOption;
 use core::ptr::null_mut;
 use prelude::*;
 
@@ -38,6 +42,58 @@ impl<V: PartialEq> Node<V> {
 
 pub struct Hashtable<V: PartialEq + Hash> {
 	arr: Vec<Ptr<Node<V>>>,
+}
+
+pub struct HashtableIterator<V: PartialEq + Hash> {
+	hashtable: Hashtable<V>,
+	cur: Ptr<Node<V>>,
+	index: usize,
+}
+
+impl<V: PartialEq + Hash> Iterator for HashtableIterator<V> {
+	type Item = V;
+	fn next(&mut self) -> CoreOption<Self::Item> {
+		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
+			self.cur = self.hashtable.arr[self.index];
+			if !self.cur.is_null() {
+				break;
+			}
+			self.index += 1;
+		}
+
+		match self.cur.is_null() {
+			true => CoreOption::None,
+			false => match self.cur.next.is_null() {
+				true => {
+					self.index += 1;
+					let element = unsafe { replace(&mut (*self.cur).value, zeroed()) };
+					self.cur = Ptr::null();
+					CoreOption::Some(element)
+				}
+				false => {
+					let mut ret = self.cur;
+					self.cur = self.cur.next;
+
+					let element = unsafe { replace(&mut (*ret).value, zeroed()) };
+					CoreOption::Some(element)
+				}
+			},
+		}
+	}
+}
+
+impl<V: PartialEq + Hash> IntoIterator for Hashtable<V> {
+	type Item = V;
+	type IntoIter = HashtableIterator<V>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		let cur = self.arr[0];
+		HashtableIterator {
+			hashtable: self,
+			cur,
+			index: 0,
+		}
+	}
 }
 
 impl<V: PartialEq + Hash> Hashtable<V> {
@@ -234,5 +290,23 @@ mod test {
 			n.release();
 		}
 		assert_eq!(unsafe { getalloccount() }, initial);
+	}
+
+	#[test]
+	fn test_hashtable_iter() {
+		let mut hash = Hashtable::new(3).unwrap();
+		for i in 0..10 {
+			let v = Ptr::alloc(Node::new(TestValue { k: i, v: i })).unwrap();
+			hash.insert(v);
+		}
+
+		let mut check: Vec<u32> = Vec::new();
+		assert!(check.resize(10).is_ok());
+		for x in hash {
+			check[x.v as usize] += 1;
+		}
+		for i in 0..10 {
+			assert_eq!(check[i], 1);
+		}
 	}
 }

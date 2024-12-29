@@ -47,11 +47,13 @@ impl<T> Clone for Channel<T> {
 
 impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
-		while safe_channel_pending(self.handle.raw()) {
-			let _recv = self.recv();
+		if !self.handle.raw().is_null() {
+			while safe_channel_pending(self.handle.raw()) {
+				let _recv = self.recv();
+			}
+			safe_channel_destroy(self.handle.raw());
+			safe_release(self.handle.raw());
 		}
-		safe_channel_destroy(self.handle.raw());
-		safe_release(self.handle.raw());
 	}
 }
 
