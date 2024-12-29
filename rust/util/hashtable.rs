@@ -1,6 +1,5 @@
 use core::iter::IntoIterator;
 use core::iter::Iterator;
-use core::mem::{replace, zeroed};
 use core::ops::{Deref, DerefMut};
 use core::option::Option as CoreOption;
 use core::ptr::null_mut;
@@ -51,7 +50,7 @@ pub struct HashtableIterator<V: PartialEq + Hash> {
 }
 
 impl<V: PartialEq + Hash> Iterator for HashtableIterator<V> {
-	type Item = V;
+	type Item = Ptr<Node<V>>;
 	fn next(&mut self) -> CoreOption<Self::Item> {
 		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
 			self.cur = self.hashtable.arr[self.index];
@@ -66,16 +65,14 @@ impl<V: PartialEq + Hash> Iterator for HashtableIterator<V> {
 			false => match self.cur.next.is_null() {
 				true => {
 					self.index += 1;
-					let element = unsafe { replace(&mut (*self.cur).value, zeroed()) };
+					let ret = self.cur;
 					self.cur = Ptr::null();
-					CoreOption::Some(element)
+					CoreOption::Some(ret)
 				}
 				false => {
-					let mut ret = self.cur;
+					let ret = self.cur;
 					self.cur = self.cur.next;
-
-					let element = unsafe { replace(&mut (*ret).value, zeroed()) };
-					CoreOption::Some(element)
+					CoreOption::Some(ret)
 				}
 			},
 		}
@@ -83,7 +80,7 @@ impl<V: PartialEq + Hash> Iterator for HashtableIterator<V> {
 }
 
 impl<V: PartialEq + Hash> IntoIterator for Hashtable<V> {
-	type Item = V;
+	type Item = Ptr<Node<V>>;
 	type IntoIter = HashtableIterator<V>;
 
 	fn into_iter(self) -> Self::IntoIter {

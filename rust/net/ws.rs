@@ -221,6 +221,10 @@ impl WsServer {
 		})
 	}
 
+	pub fn port(&self) -> u16 {
+		self.port
+	}
+
 	pub fn register_handler(
 		&mut self,
 		_handler: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>,
@@ -571,6 +575,13 @@ impl WsServer {
 					}
 				}
 				if stop {
+					for element in ctx.handles {
+						safe_socket_close(ctx.handle);
+						unsafe {
+							drop_in_place(element.raw());
+						}
+						element.release();
+					}
 					safe_release(ctx.events);
 					break;
 				}
@@ -597,21 +608,39 @@ mod test {
 		let initial = unsafe { getalloccount() };
 		{
 			let config = WsConfig {
-				port: 9999,
+				port: 0,
 				..Default::default()
 			};
 			let mut ws = WsServer::new(config).unwrap();
 			ws.start().unwrap();
 			let handle = safe_alloc(safe_socket_handle_size());
 			let addr = [127u8, 0u8, 0u8, 1u8];
-			safe_socket_connect(handle, &addr as *const u8, 9999);
+			safe_socket_connect(handle, &addr as *const u8, ws.port() as i32);
 			safe_socket_send(handle, "POST /\r\n".as_ptr(), 8);
 			let mut buf = [0u8; 512];
 			let x = safe_socket_recv(handle, &mut buf as *mut u8, 512);
 			let start = "HTTP/1.1 400";
 			assert!(x > start.len() as i64);
 			assert_eq!(unsafe { from_utf8_unchecked(&buf[0..start.len()]) }, start);
-			//park();
+			ws.stop().unwrap();
+			safe_release(handle);
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	#[test]
+	fn test_ws_cleanup_existing_connections() {
+		let initial = unsafe { getalloccount() };
+		{
+			let config = WsConfig {
+				port: 0,
+				..Default::default()
+			};
+			let mut ws = WsServer::new(config).unwrap();
+			ws.start().unwrap();
+			let handle = safe_alloc(safe_socket_handle_size());
+			let addr = [127u8, 0u8, 0u8, 1u8];
+			safe_socket_connect(handle, &addr as *const u8, ws.port() as i32);
 			ws.stop().unwrap();
 			safe_release(handle);
 		}
