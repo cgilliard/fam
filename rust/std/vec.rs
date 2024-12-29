@@ -198,8 +198,19 @@ impl<T> Vec<T> {
 				safe_release(self.value.raw());
 			}
 			self.value = Ptr::new(null_mut());
+			self.capacity = 0;
+			self.elements = 0;
+			return true;
 		}
-		let ncapacity = Self::next_power_of_two(needed);
+		let ncapacity = if needed < 512 {
+			512
+		} else {
+			Self::next_power_of_two(needed)
+		};
+
+		if ncapacity == self.capacity {
+			return true;
+		}
 
 		let rptr = self.value.raw();
 

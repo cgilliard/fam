@@ -355,9 +355,9 @@ impl WsServer {
 		let mut handle = ctx.handles.find(&ctx.fhandle).unwrap();
 
 		let rlen = handle.inner.read.len();
-		handle.inner.read.resize(rlen + 512).unwrap();
-		let buf = &handle.inner.read[rlen..rlen + 512];
-		let len = safe_socket_recv(ehandle, buf.as_ptr(), 512);
+		handle.inner.read.resize(rlen + 256).unwrap();
+		let buf = &handle.inner.read[rlen..rlen + 256];
+		let len = safe_socket_recv(ehandle, buf.as_ptr(), 256);
 
 		if len == 0 {
 			safe_socket_close(ehandle);
@@ -608,11 +608,12 @@ mod test {
 		let initial = unsafe { getalloccount() };
 		{
 			let config = WsConfig {
-				port: 0,
+				port: 9999,
 				..Default::default()
 			};
 			let mut ws = WsServer::new(config).unwrap();
 			ws.start().unwrap();
+			println!("ws.port={}", ws.port());
 			let handle = safe_alloc(safe_socket_handle_size());
 			let addr = [127u8, 0u8, 0u8, 1u8];
 			safe_socket_connect(handle, &addr as *const u8, ws.port() as i32);
