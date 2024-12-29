@@ -10,7 +10,7 @@ pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
 pub use std::string::String;
 pub use std::thread::{spawn, spawnj};
-pub use std::traits::{Display, Hash, Ord};
+pub use std::traits::{get_murmur_seed, Display, Hash, Ord};
 pub use std::util::{i128_to_str, park, u128_to_str};
 pub use std::vec::Vec;
 pub use util::hashtable::{Hashtable, Node};

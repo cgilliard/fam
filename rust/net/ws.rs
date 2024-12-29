@@ -92,7 +92,7 @@ impl Hash for Connection {
 	fn hash(&self) -> usize {
 		let slice =
 			unsafe { from_raw_parts(&self.inner.id as *const u64 as *const u8, size_of::<u64>()) };
-		murmur3_32_of_slice(slice, MURMUR_SEED) as usize
+		murmur3_32_of_slice(slice, get_murmur_seed()) as usize
 	}
 }
 
@@ -104,7 +104,7 @@ impl PartialEq for Handle {
 
 impl Hash for Handle {
 	fn hash(&self) -> usize {
-		murmur3_32_of_slice(&self.inner.handle, MURMUR_SEED) as usize
+		murmur3_32_of_slice(&self.inner.handle, get_murmur_seed()) as usize
 	}
 }
 

@@ -63,6 +63,12 @@ extern "C" {
 	pub fn Base64encode(input: *const u8, output: *mut u8, len: usize);
 	pub fn SHA1(data: *const u8, size: usize, hash: *mut u8);
 
+	pub fn rand_bytes(data: *mut u8, len: usize);
+
+}
+
+pub fn safe_rand_bytes(data: *mut u8, len: usize) {
+	unsafe { rand_bytes(data, len) }
 }
 
 pub fn safe_pipe(pair: *mut u8) -> i32 {
