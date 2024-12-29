@@ -1,7 +1,6 @@
 use core::mem::size_of;
 use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut};
 use core::slice::from_raw_parts;
-//use core::str::from_utf8_unchecked;
 use prelude::*;
 use sys::*;
 
@@ -118,7 +117,7 @@ struct WsContext {
 	id: Rc<u64>,
 	stop: Rc<u64>,
 	tid: u64,
-	multiplex: *mut u8,
+	mplex: [u8; 4],
 	events: *mut u8,
 	handle: *mut u8,
 	fhandle: Handle,
@@ -137,6 +136,8 @@ impl WsContext {
 		stop: Rc<u64>,
 		jhs: Rc<Vec<JoinHandle>>,
 	) -> Result<Self, Error> {
+		let mut mplex = [0u8; 4];
+
 		let connections = match Hashtable::new(1024) {
 			Ok(connections) => connections,
 			Err(e) => return Err(e),
@@ -145,19 +146,16 @@ impl WsContext {
 			Ok(handles) => handles,
 			Err(e) => return Err(e),
 		};
-		let multiplex = safe_alloc(safe_socket_multiplex_handle_size());
-		if safe_socket_multiplex_init(multiplex) < 0 {
-			safe_release(multiplex);
+		if safe_socket_multiplex_init(&mut mplex as *mut u8) < 0 {
 			return Err(ErrorKind::CreateFileDescriptor.into());
 		}
 
 		let wakeup_ptr = &mut wakeup as *mut u8;
-		safe_socket_multiplex_register(multiplex, wakeup_ptr, REG_READ_FLAG);
+		safe_socket_multiplex_register(&mut mplex as *mut u8, wakeup_ptr, REG_READ_FLAG);
 
 		let events = safe_alloc(safe_socket_event_size() * config.max_events as usize);
 
-		if safe_socket_multiplex_register(multiplex, handle, REG_READ_FLAG) < 0 {
-			safe_release(multiplex);
+		if safe_socket_multiplex_register(&mut mplex as *mut u8, handle, REG_READ_FLAG) < 0 {
 			safe_release(events);
 			return Err(ErrorKind::MultiplexRegister.into());
 		}
@@ -180,13 +178,13 @@ impl WsContext {
 			itt,
 			id,
 			tid,
-			multiplex,
 			events,
 			handle,
 			fhandle,
 			wakeup,
 			stop,
 			jhs,
+			mplex,
 		})
 	}
 }
@@ -275,6 +273,9 @@ impl WsServer {
 			}
 		}
 
+		safe_socket_close(self.handle);
+		safe_release(self.handle);
+
 		Ok(())
 	}
 
@@ -360,6 +361,7 @@ impl WsServer {
 			unsafe {
 				drop_in_place(to_drop.raw());
 			}
+			to_drop.release();
 			return;
 		}
 
@@ -501,7 +503,8 @@ impl WsServer {
 					continue;
 				}
 			}
-			if safe_socket_multiplex_register(ctx.multiplex, nhandle, REG_READ_FLAG) < 0 {
+			if safe_socket_multiplex_register(&mut ctx.mplex as *mut u8, nhandle, REG_READ_FLAG) < 0
+			{
 				println!("WARN: could not register accepted connection!");
 				safe_socket_close(nhandle);
 			}
@@ -533,8 +536,11 @@ impl WsServer {
 			let wakeup: *mut u8 = &mut ctx.wakeup as *mut u8;
 			let mut stop = false;
 			loop {
-				let count =
-					safe_socket_multiplex_wait(ctx.multiplex, ctx.events, config.max_events);
+				let count = safe_socket_multiplex_wait(
+					&mut ctx.mplex as *mut u8,
+					ctx.events,
+					config.max_events,
+				);
 				for i in 0..count {
 					safe_socket_event_handle(ehandle, unsafe {
 						ctx.events
@@ -565,6 +571,7 @@ impl WsServer {
 					}
 				}
 				if stop {
+					safe_release(ctx.events);
 					break;
 				}
 			}
@@ -607,6 +614,6 @@ mod test {
 			ws.stop().unwrap();
 			safe_release(handle);
 		}
-		//assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, unsafe { getalloccount() });
 	}
 }
