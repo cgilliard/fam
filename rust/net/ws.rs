@@ -19,8 +19,6 @@ Sec-WebSocket-Accept: ";
 
 const GET_PREFIX: &[u8] = "GET /".as_bytes();
 const SEC_KEY_PREFIX: &[u8] = "Sec-WebSocket-Key: ".as_bytes();
-const SEC_WEBSOCKET_PROTOCOLS: &[u8] = "Sec-WebSocket-Protocol: ".as_bytes();
-const SEC_WEBSOCKET_VERSION: &[u8] = "Sec-WebSocket-Version: ".as_bytes();
 
 pub struct WsConfig {
 	addr: [u8; 4],
@@ -151,7 +149,9 @@ impl WsContext {
 		}
 
 		let wakeup_ptr = &mut wakeup as *mut u8;
-		safe_socket_multiplex_register(&mut mplex as *mut u8, wakeup_ptr, REG_READ_FLAG);
+		if safe_socket_multiplex_register(&mut mplex as *mut u8, wakeup_ptr, REG_READ_FLAG) < 0 {
+			return Err(ErrorKind::MultiplexRegister.into());
+		}
 
 		let events = safe_alloc(safe_socket_event_size() * config.max_events as usize);
 
@@ -160,17 +160,22 @@ impl WsContext {
 			return Err(ErrorKind::MultiplexRegister.into());
 		}
 
-		let fhandle = Handle {
-			inner: Rc::new(ConnectionInner {
-				handle: [0u8; 4],
-				id: 0,
-				lock: Lock::new(),
-				read: Vec::new(),
-				write: Vec::new(),
-				state: ConnectionState::NeedHandshake,
-			})
-			.unwrap(),
+		let inner = match Rc::new(ConnectionInner {
+			handle: [0u8; 4],
+			id: 0,
+			lock: Lock::new(),
+			read: Vec::new(),
+			write: Vec::new(),
+			state: ConnectionState::NeedHandshake,
+		}) {
+			Ok(inner) => inner,
+			Err(e) => {
+				safe_release(events);
+				return Err(e);
+			}
 		};
+
+		let fhandle = Handle { inner };
 
 		Ok(Self {
 			connections,
@@ -344,7 +349,7 @@ impl WsServer {
 		Ok(())
 	}
 
-	fn proc_read(ctx: &mut WsContext, ehandle: *mut u8) {
+	fn proc_read(ctx: &mut WsContext, ehandle: *mut u8) -> usize {
 		unsafe {
 			copy_nonoverlapping(
 				ehandle,
@@ -359,18 +364,32 @@ impl WsServer {
 		let buf = &handle.inner.read[rlen..rlen + 256];
 		let len = safe_socket_recv(ehandle, buf.as_ptr(), 256);
 
-		if len == 0 {
+		if len == 0 || (len < 0 && len != EAGAIN as i64) {
 			safe_socket_close(ehandle);
 			let to_drop = ctx.handles.remove(&ctx.fhandle).unwrap();
 			unsafe {
 				drop_in_place(to_drop.raw());
 			}
 			to_drop.release();
-			return;
+			return 0;
+		} else if len < 0 {
+			if rlen == 0 {
+				handle.inner.read.clear();
+			} else {
+				// TODO: handle error
+				let _ = handle.inner.read.resize(rlen);
+			}
+			// EAGAIN
+			return 0;
 		}
 
 		handle.inner.read.resize(len as usize + rlen).unwrap();
 		Self::proc_messages(&mut handle, ehandle);
+		if len < 0 {
+			0
+		} else {
+			len as usize
+		}
 	}
 
 	fn bad_request(ehandle: *mut u8) {
@@ -410,6 +429,100 @@ impl WsServer {
 		safe_socket_send(ehandle, "\r\n\r\n".as_ptr(), 4);
 	}
 
+	fn close_cleanly(handle: &mut Handle, ehandle: *mut u8) {
+		safe_socket_shutdown(ehandle);
+	}
+
+	fn proc_frames(handle: &mut Handle, ehandle: *mut u8) {
+		let len = handle.inner.read.len();
+
+		// min length to try to process
+		if len < 2 {
+			return;
+		}
+
+		let rvec = &mut handle.inner.read;
+		let fin = rvec[0] & 0x80 != 0;
+
+		// reserved bits not 0
+		if rvec[0] & 0x70 != 0 {
+			Self::close_cleanly(handle, ehandle);
+			return;
+		}
+
+		let op = rvec[0] & !0x80;
+		let mask = rvec[1] & 0x80 != 0;
+
+		// determine variable payload len
+		let payload_len = rvec[1] & 0x7F;
+		let (payload_len, mut offset) = if payload_len == 126 {
+			if len < 4 {
+				return;
+			}
+			((rvec[2] as usize) << 8 | rvec[3] as usize, 4)
+		} else if payload_len == 127 {
+			if len < 10 {
+				return;
+			}
+			(
+				(rvec[2] as usize) << 56
+					| (rvec[3] as usize) << 48
+					| (rvec[4] as usize) << 40
+					| (rvec[5] as usize) << 32
+					| (rvec[6] as usize) << 24
+					| (rvec[7] as usize) << 16
+					| (rvec[8] as usize) << 8
+					| (rvec[9] as usize),
+				10,
+			)
+		} else {
+			(payload_len as usize, 2)
+		};
+
+		// if masking set we add 4 bytes for the masking key
+		if mask {
+			offset += 4;
+			if offset + payload_len > len {
+				return;
+			}
+			let masking_key = [
+				rvec[offset - 4],
+				rvec[offset - 3],
+				rvec[offset - 2],
+				rvec[offset - 1],
+			];
+
+			for i in 0..payload_len {
+				rvec[offset + i] ^= masking_key[i % 4];
+			}
+		}
+
+		if offset + payload_len > len {
+			return;
+		}
+		let payload = &rvec[offset..payload_len + offset];
+
+		/*
+				use core::str::from_utf8_unchecked;
+		println!(
+			"payload[{}]='{}',offset={},len={},payload_len={},op={}",
+			payload_len,
+			unsafe { from_utf8_unchecked(payload) },
+			offset,
+			len,
+			payload_len,
+			op
+		);
+				*/
+
+		if payload_len + offset == len {
+			handle.inner.read.clear();
+		} else {
+			// TODO: handle err
+			let _ = handle.inner.read.shift(payload_len + offset);
+		}
+	}
+
 	fn proc_messages(handle: &mut Handle, ehandle: *mut u8) {
 		match handle.inner.state {
 			ConnectionState::NeedHandshake => {
@@ -429,8 +542,6 @@ impl WsServer {
 					}
 
 					let mut sec_key: &[u8] = &[];
-					let mut version: &[u8] = &[];
-					let mut protocols: &[u8] = &[];
 
 					for i in uri_end..len {
 						if rvec[i] == b'\n'
@@ -438,14 +549,6 @@ impl WsServer {
 							&& rvec[i - 2] == b'\n'
 							&& rvec[i - 3] == b'\r'
 						{
-							if version != &[b'1', b'3']
-								|| protocols != &[b'c', b'h', b'a', b't']
-								|| sec_key.len() != 24
-							{
-								Self::bad_request(ehandle);
-								return;
-							}
-
 							let accept_key = Self::handle_websocket_handshake(sec_key);
 							Self::switch_protocol(ehandle, &accept_key);
 							handle.inner.read.clear();
@@ -461,28 +564,6 @@ impl WsServer {
 									break;
 								}
 							}
-						} else if rvec[i] == b'\n'
-							&& len > i + 1 + SEC_WEBSOCKET_VERSION.len()
-							&& &rvec[i + 1..i + 1 + SEC_WEBSOCKET_VERSION.len()]
-								== SEC_WEBSOCKET_VERSION
-						{
-							for j in i + 1 + SEC_WEBSOCKET_VERSION.len()..len {
-								if rvec[j] == b'\r' || rvec[j] == b'\n' {
-									version = &rvec[i + 1 + SEC_WEBSOCKET_VERSION.len()..j];
-									break;
-								}
-							}
-						} else if rvec[i] == b'\n'
-							&& len > i + 1 + SEC_WEBSOCKET_PROTOCOLS.len()
-							&& &rvec[i + 1..i + 1 + SEC_WEBSOCKET_PROTOCOLS.len()]
-								== SEC_WEBSOCKET_PROTOCOLS
-						{
-							for j in i + 1 + SEC_WEBSOCKET_PROTOCOLS.len()..len {
-								if rvec[j] == b'\r' || rvec[j] == b'\n' {
-									protocols = &rvec[i + 1 + SEC_WEBSOCKET_PROTOCOLS.len()..j];
-									break;
-								}
-							}
 						}
 					}
 				} else {
@@ -490,7 +571,7 @@ impl WsServer {
 					return;
 				}
 			}
-			_ => {}
+			_ => Self::proc_frames(handle, ehandle),
 		}
 	}
 
@@ -571,7 +652,7 @@ impl WsServer {
 							break;
 						}
 					} else {
-						Self::proc_read(&mut ctx, ehandle);
+						while Self::proc_read(&mut ctx, ehandle) != 0 {}
 					}
 				}
 				if stop {
@@ -613,7 +694,6 @@ mod test {
 			};
 			let mut ws = WsServer::new(config).unwrap();
 			ws.start().unwrap();
-			println!("ws.port={}", ws.port());
 			let handle = safe_alloc(safe_socket_handle_size());
 			let addr = [127u8, 0u8, 0u8, 1u8];
 			safe_socket_connect(handle, &addr as *const u8, ws.port() as i32);
@@ -623,6 +703,7 @@ mod test {
 			let start = "HTTP/1.1 400";
 			assert!(x > start.len() as i64);
 			assert_eq!(unsafe { from_utf8_unchecked(&buf[0..start.len()]) }, start);
+			//park();
 			ws.stop().unwrap();
 			safe_release(handle);
 		}

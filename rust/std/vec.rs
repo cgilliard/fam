@@ -159,6 +159,19 @@ impl<T> Vec<T> {
 		}
 	}
 
+	pub fn shift(&mut self, n: usize) -> Result<(), Error> {
+		if n > self.elements {
+			return Err(ErrorKind::OutOfBounds.into());
+		}
+
+		use core::ptr::copy;
+		unsafe {
+			copy(self.value.raw(), self.value.raw(), n);
+		}
+
+		Ok(())
+	}
+
 	pub fn push(&mut self, v: T) -> Result<(), Error> {
 		let size = size_of::<T>();
 
@@ -202,7 +215,7 @@ impl<T> Vec<T> {
 			self.elements = 0;
 			return true;
 		}
-		let ncapacity = if needed < 512 {
+		let ncapacity = if needed <= 512 {
 			512
 		} else {
 			Self::next_power_of_two(needed)
@@ -245,8 +258,9 @@ impl<T> Vec<T> {
 	}
 
 	pub fn clear(&mut self) {
-		self.resize_impl(0);
+		self.resize_impl(512);
 		self.elements = 0;
+		self.capacity = 512;
 	}
 
 	pub fn as_mut_ptr(&mut self) -> *mut u8 {

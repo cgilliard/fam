@@ -152,7 +152,15 @@ long long socket_send(SocketHandle *s, const char *buf,
 	return write(s->fd, buf, len);
 }
 long long socket_recv(SocketHandle *s, char *buf, unsigned long long capacity) {
-	return read(s->fd, buf, capacity);
+	int ret = read(s->fd, buf, capacity);
+	if (ret < 0) {
+		if (errno == EAGAIN) {
+			return ERROR_EAGAIN;
+		}
+		printf("err=%i\n", errno);
+		perror("read");
+	}
+	return ret;
 }
 int socket_multiplex_init(MultiplexHandle *multiplex) {
 #ifdef __APPLE__
