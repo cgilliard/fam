@@ -53,6 +53,8 @@ pub struct WsServer {
 	handle: *mut u8,
 	wakeup: [u8; 8],
 	stop: Rc<u64>,
+	jhs: Rc<Vec<JoinHandle>>,
+	lock: LockBox,
 }
 
 enum ConnectionState {
@@ -121,6 +123,7 @@ struct WsContext {
 	handle: *mut u8,
 	fhandle: Handle,
 	wakeup: [u8; 8],
+	jhs: Rc<Vec<JoinHandle>>,
 }
 
 impl WsContext {
@@ -132,6 +135,7 @@ impl WsContext {
 		handle: *mut u8,
 		mut wakeup: [u8; 8],
 		stop: Rc<u64>,
+		jhs: Rc<Vec<JoinHandle>>,
 	) -> Result<Self, Error> {
 		let connections = match Hashtable::new(1024) {
 			Ok(connections) => connections,
@@ -182,6 +186,7 @@ impl WsContext {
 			fhandle,
 			wakeup,
 			stop,
+			jhs,
 		})
 	}
 }
@@ -197,12 +202,24 @@ impl WsServer {
 			Err(e) => return Err(e),
 		};
 
+		let jhs = match Rc::new(Vec::new()) {
+			Ok(jhs) => jhs,
+			Err(e) => return Err(e),
+		};
+
+		let lock = match lock_box!() {
+			Ok(lock) => lock,
+			Err(e) => return Err(e),
+		};
+
 		Ok(Self {
 			config,
 			port,
 			handle,
 			wakeup,
 			stop,
+			jhs,
+			lock,
 		})
 	}
 
@@ -224,10 +241,20 @@ impl WsServer {
 			Err(e) => return Err(e),
 		};
 
+		let jhs = match self.jhs.clone() {
+			Ok(jhs) => jhs,
+			Err(e) => return Err(e),
+		};
+
+		let lock = match self.lock.clone() {
+			Ok(lock) => lock,
+			Err(e) => return Err(e),
+		};
+
 		let wakeup_ptr = &mut self.wakeup as *mut u8;
 		safe_pipe(wakeup_ptr);
 
-		match Self::start_threads(&self.config, self.handle, self.wakeup, stop) {
+		match Self::start_threads(&self.config, self.handle, self.wakeup, stop, jhs, lock) {
 			Ok(_) => {}
 			Err(e) => return Err(e),
 		}
@@ -238,9 +265,16 @@ impl WsServer {
 	pub fn stop(&mut self) -> Result<(), Error> {
 		let wakeup = &mut self.wakeup as *mut u8;
 		let wakeup = unsafe { wakeup.add(4) };
-		safe_socket_send(wakeup, "1".as_ptr(), 1);
 		astore!(&mut *self.stop, 1);
-		safe_sleep_millis(100);
+		safe_socket_send(wakeup, "1".as_ptr(), 1);
+
+		{
+			let _l = self.lock.write();
+			for i in 0..self.jhs.len() {
+				let _ = self.jhs[i].join();
+			}
+		}
+
 		Ok(())
 	}
 
@@ -261,6 +295,8 @@ impl WsServer {
 		handle: *mut u8,
 		wakeup: [u8; 8],
 		stop: Rc<u64>,
+		jhs: Rc<Vec<JoinHandle>>,
+		lock: LockBox,
 	) -> Result<(), Error> {
 		let itt = match Rc::new(0) {
 			Ok(itt) => itt,
@@ -272,12 +308,17 @@ impl WsServer {
 		};
 
 		for tid in 0..config.threads {
+			let jhs = match jhs.clone() {
+				Ok(jhs) => jhs,
+				Err(e) => return Err(e),
+			};
 			let ctx = match itt.clone() {
 				Ok(itt) => match id.clone() {
 					Ok(id) => match stop.clone() {
 						Ok(stop) => {
-							match WsContext::new(itt, id, tid as u64, config, handle, wakeup, stop)
-							{
+							match WsContext::new(
+								itt, id, tid as u64, config, handle, wakeup, stop, jhs,
+							) {
 								Ok(ctx) => ctx,
 								Err(e) => return Err(e),
 							}
@@ -289,6 +330,7 @@ impl WsServer {
 				Err(e) => return Err(e),
 			};
 
+			let _l = lock.write();
 			match Self::thread_init(config, ctx) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
@@ -480,7 +522,11 @@ impl WsServer {
 	}
 
 	fn thread_init(config: &WsConfig, mut ctx: WsContext) -> Result<(), Error> {
-		let s = spawn(move || {
+		let mut jhs = match ctx.jhs.clone() {
+			Ok(jhs) => jhs,
+			Err(e) => return Err(e),
+		};
+		let s = spawnj(move || {
 			let mut ehandle = [0u8; 4];
 			let ehandle: *mut u8 = &mut ehandle as *mut u8;
 			let wakeup: *mut u8 = &mut ctx.wakeup as *mut u8;
@@ -524,7 +570,10 @@ impl WsServer {
 		});
 
 		match s {
-			Ok(_) => Ok(()),
+			Ok(jh) => match jhs.push(jh) {
+				Ok(_) => Ok(()),
+				Err(e) => Err(e),
+			},
 			Err(e) => Err(e),
 		}
 	}
