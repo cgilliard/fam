@@ -49,6 +49,43 @@ pub struct HashtableIterator<V: PartialEq + Hash> {
 	index: usize,
 }
 
+pub struct HashtableRefIterator<'a, V: PartialEq + Hash> {
+	hashtable: &'a Hashtable<V>,
+	cur: Ptr<Node<V>>,
+	index: usize,
+}
+
+impl<'a, V: PartialEq + Hash> Iterator for HashtableRefIterator<'a, V> {
+	type Item = Ptr<Node<V>>;
+
+	fn next(&mut self) -> CoreOption<Self::Item> {
+		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
+			self.cur = self.hashtable.arr[self.index];
+			if !self.cur.is_null() {
+				break;
+			}
+			self.index += 1;
+		}
+
+		match self.cur.is_null() {
+			true => CoreOption::None,
+			false => match self.cur.next.is_null() {
+				true => {
+					self.index += 1;
+					let ret = self.cur;
+					self.cur = Ptr::null();
+					CoreOption::Some(ret)
+				}
+				false => {
+					let ret = self.cur;
+					self.cur = self.cur.next;
+					CoreOption::Some(ret)
+				}
+			},
+		}
+	}
+}
+
 impl<V: PartialEq + Hash> Iterator for HashtableIterator<V> {
 	type Item = Ptr<Node<V>>;
 	fn next(&mut self) -> CoreOption<Self::Item> {
@@ -88,6 +125,19 @@ impl<V: PartialEq + Hash> IntoIterator for Hashtable<V> {
 		HashtableIterator {
 			hashtable: self,
 			cur,
+			index: 0,
+		}
+	}
+}
+
+impl<'a, V: PartialEq + Hash> IntoIterator for &'a Hashtable<V> {
+	type Item = Ptr<Node<V>>; // Adjust to match the actual item type you need
+	type IntoIter = HashtableRefIterator<'a, V>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		HashtableRefIterator {
+			hashtable: self,
+			cur: self.arr[0],
 			index: 0,
 		}
 	}

@@ -49,7 +49,7 @@ if [ "$all" = "1" ]; then
 	cd ..
 	if [ "$usemrustc" = "1" ]; then
 		echo "${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust.o -C panic=abort";
-                ${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust -C panic=abort \
+                ${mrustc} -O --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust -C panic=abort \
                         || exit 1;
         else
 		echo "rustc +nightly -C panic=abort -C opt-level=3 --emit=obj --crate-type=lib -o .obj/rust.o rust/mod.rs";

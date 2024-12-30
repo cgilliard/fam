@@ -2,6 +2,7 @@ use core::mem::size_of;
 use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut};
 use core::slice::from_raw_parts;
 use prelude::*;
+use std::util::strcmp;
 use sys::*;
 
 const REG_READ_FLAG: i32 = 0x1;
@@ -42,12 +43,17 @@ impl Default for WsConfig {
 
 pub struct WsMessage<'a> {
 	msg: &'a [u8],
+	path: String,
 }
 
 impl WsMessage<'_> {
-	pub fn get(&self) -> &[u8] {
+	pub fn get_msg(&self) -> &[u8] {
 		let len = self.msg.len();
 		unsafe { from_raw_parts(self.msg.as_ptr(), len) }
+	}
+
+	pub fn get_path(&self) -> String {
+		self.path.clone().unwrap()
 	}
 }
 
@@ -61,12 +67,12 @@ pub struct WsServer {
 	stop: Rc<u64>,
 	jhs: Rc<Vec<JoinHandle>>,
 	lock: LockBox,
-	handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
+	handlers: Rc<Hashtable<Handler>>,
 }
 
 enum ConnectionState {
 	NeedHandshake,
-	HandshakeComplete,
+	HandshakeComplete(String),
 }
 
 #[allow(dead_code)]
@@ -117,6 +123,23 @@ impl Hash for Handle {
 	}
 }
 
+struct Handler {
+	path: String,
+	handler: Option<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>,
+}
+
+impl PartialEq for Handler {
+	fn eq(&self, other: &Handler) -> bool {
+		strcmp(self.path.to_str(), other.path.to_str()) == 0
+	}
+}
+
+impl Hash for Handler {
+	fn hash(&self) -> usize {
+		murmur3_32_of_slice(self.path.to_str().as_bytes(), get_murmur_seed()) as usize
+	}
+}
+
 #[allow(dead_code)]
 struct WsContext {
 	connections: Hashtable<Connection>,
@@ -131,7 +154,7 @@ struct WsContext {
 	fhandle: Handle,
 	wakeup: [u8; 8],
 	jhs: Rc<Vec<JoinHandle>>,
-	handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
+	handlers: Rc<Hashtable<Handler>>,
 }
 
 impl WsContext {
@@ -144,7 +167,7 @@ impl WsContext {
 		mut wakeup: [u8; 8],
 		stop: Rc<u64>,
 		jhs: Rc<Vec<JoinHandle>>,
-		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
+		handlers: Rc<Hashtable<Handler>>,
 	) -> Result<Self, Error> {
 		let mut mplex = [0u8; 4];
 
@@ -156,6 +179,7 @@ impl WsContext {
 			Ok(handles) => handles,
 			Err(e) => return Err(e),
 		};
+
 		if safe_socket_multiplex_init(&mut mplex as *mut u8) < 0 {
 			return Err(ErrorKind::CreateFileDescriptor.into());
 		}
@@ -202,7 +226,7 @@ impl WsContext {
 			stop,
 			jhs,
 			mplex,
-			handler,
+			handlers,
 		})
 	}
 }
@@ -228,6 +252,15 @@ impl WsServer {
 			Err(e) => return Err(e),
 		};
 
+		let hash = match Hashtable::new(1024) {
+			Ok(hash) => hash,
+			Err(e) => return Err(e),
+		};
+		let handlers = match Rc::new(hash) {
+			Ok(handlers) => handlers,
+			Err(e) => return Err(e),
+		};
+
 		Ok(Self {
 			config,
 			port,
@@ -236,7 +269,7 @@ impl WsServer {
 			stop,
 			jhs,
 			lock,
-			handler: None,
+			handlers,
 		})
 	}
 
@@ -246,9 +279,15 @@ impl WsServer {
 
 	pub fn register_handler(
 		&mut self,
-		mut handler: Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>,
+		path: &str,
+		handler: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>,
 	) -> Result<(), Error> {
-		self.handler = Some(handler);
+		let handler = Handler {
+			path: String::new(path).unwrap(),
+			handler: Some(handler),
+		};
+		let ptr = Ptr::alloc(Node::new(handler)).unwrap();
+		self.handlers.insert(ptr);
 		Ok(())
 	}
 
@@ -273,8 +312,8 @@ impl WsServer {
 			Err(e) => return Err(e),
 		};
 
-		let handler = match self.handler.clone() {
-			Ok(handler) => handler,
+		let handlers = match self.handlers.clone() {
+			Ok(handlers) => handlers,
 			Err(e) => return Err(e),
 		};
 
@@ -288,7 +327,7 @@ impl WsServer {
 			stop,
 			jhs,
 			lock,
-			handler,
+			handlers,
 		) {
 			Ok(_) => {}
 			Err(e) => return Err(e),
@@ -310,8 +349,17 @@ impl WsServer {
 			}
 		}
 
+		let rc = self.handlers.get_mut().unwrap();
+
 		safe_socket_close(self.handle);
 		safe_release(self.handle);
+
+		for x in &*rc {
+			unsafe {
+				drop_in_place(x.raw());
+			}
+			x.release();
+		}
 
 		Ok(())
 	}
@@ -335,7 +383,7 @@ impl WsServer {
 		stop: Rc<u64>,
 		jhs: Rc<Vec<JoinHandle>>,
 		lock: LockBox,
-		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
+		handlers: Rc<Hashtable<Handler>>,
 	) -> Result<(), Error> {
 		let itt = match Rc::new(0) {
 			Ok(itt) => itt,
@@ -347,12 +395,13 @@ impl WsServer {
 		};
 
 		for tid in 0..config.threads {
-			let handler = match handler.clone() {
-				Ok(handler) => handler,
-				Err(e) => return Err(e),
-			};
 			let jhs = match jhs.clone() {
 				Ok(jhs) => jhs,
+				Err(e) => return Err(e),
+			};
+
+			let handlers = match handlers.clone() {
+				Ok(handlers) => handlers,
 				Err(e) => return Err(e),
 			};
 			let ctx = match itt.clone() {
@@ -360,7 +409,7 @@ impl WsServer {
 					Ok(id) => match stop.clone() {
 						Ok(stop) => {
 							match WsContext::new(
-								itt, id, tid as u64, config, handle, wakeup, stop, jhs, handler,
+								itt, id, tid as u64, config, handle, wakeup, stop, jhs, handlers,
 							) {
 								Ok(ctx) => ctx,
 								Err(e) => return Err(e),
@@ -417,7 +466,7 @@ impl WsServer {
 		}
 
 		handle.inner.read.resize(len as usize + rlen).unwrap();
-		Self::proc_messages(&mut handle, ehandle, ctx.handler.clone().unwrap());
+		Self::proc_messages(&mut handle, ehandle, ctx.handlers.clone().unwrap());
 		if len < 0 {
 			0
 		} else {
@@ -466,11 +515,12 @@ impl WsServer {
 		safe_socket_shutdown(ehandle);
 	}
 
-	fn proc_frames(
-		handle: &mut Handle,
-		ehandle: *mut u8,
-		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
-	) {
+	fn proc_frames(handle: &mut Handle, ehandle: *mut u8, handlers: Rc<Hashtable<Handler>>) {
+		let path = match &handle.inner.state {
+			ConnectionState::HandshakeComplete(s) => s.clone().unwrap(),
+			_ => String::new("unknown").unwrap(),
+		};
+
 		let len = handle.inner.read.len();
 
 		// min length to try to process
@@ -541,24 +591,22 @@ impl WsServer {
 		}
 		let payload = &rvec[offset..payload_len + offset];
 
-		/*
-		use core::str::from_utf8_unchecked;
-		println!(
-			"payload[{}]='{}',offset={},len={},payload_len={},op={}",
-			payload_len,
-			unsafe { from_utf8_unchecked(payload) },
-			offset,
-			len,
-			payload_len,
-			op
-		);
-				*/
-
-		let wsmsg = WsMessage { msg: payload };
+		println!("path={}", path);
+		let wsmsg = WsMessage {
+			msg: payload,
+			path: path.clone().unwrap(),
+		};
 		let wshandle = WsHandle {};
-		let res = match handler {
-			Some(mut handler) => (*handler)(wsmsg, wshandle),
-			_ => Ok(()),
+
+		let res = match handlers.find(&Handler {
+			path,
+			handler: None,
+		}) {
+			Some(mut handler) => match &mut handler.handler {
+				Some(ref mut callback) => callback(wsmsg, wshandle),
+				None => Ok(()),
+			},
+			None => Ok(()),
 		};
 
 		if payload_len + offset == len {
@@ -569,11 +617,7 @@ impl WsServer {
 		}
 	}
 
-	fn proc_messages(
-		handle: &mut Handle,
-		ehandle: *mut u8,
-		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
-	) {
+	fn proc_messages(handle: &mut Handle, ehandle: *mut u8, handlers: Rc<Hashtable<Handler>>) {
 		match handle.inner.state {
 			ConnectionState::NeedHandshake => {
 				let len = handle.inner.read.len();
@@ -581,7 +625,10 @@ impl WsServer {
 				let mut uri_end = 0;
 				if len >= 5 && &rvec[0..5] == GET_PREFIX {
 					for i in 5..len {
-						if rvec[i] == b' ' || rvec[i] == b'\r' || rvec[i] == b'\n' {
+						if rvec[i] == b' '
+							|| rvec[i] == b'?' || rvec[i] == b'\r'
+							|| rvec[i] == b'\n'
+						{
 							uri_end = i;
 							break;
 						}
@@ -590,6 +637,10 @@ impl WsServer {
 						Self::bad_request(ehandle);
 						return;
 					}
+
+					let uri = &rvec[4..uri_end];
+					use core::str::from_utf8_unchecked;
+					let uri = unsafe { String::new(from_utf8_unchecked(uri)).unwrap() };
 
 					let mut sec_key: &[u8] = &[];
 
@@ -602,7 +653,7 @@ impl WsServer {
 							let accept_key = Self::handle_websocket_handshake(sec_key);
 							Self::switch_protocol(ehandle, &accept_key);
 							handle.inner.read.clear();
-							handle.inner.state = ConnectionState::HandshakeComplete;
+							handle.inner.state = ConnectionState::HandshakeComplete(uri);
 							break;
 						} else if rvec[i] == b'\n'
 							&& len > i + 1 + SEC_KEY_PREFIX.len()
@@ -621,7 +672,7 @@ impl WsServer {
 					return;
 				}
 			}
-			_ => Self::proc_frames(handle, ehandle, handler),
+			_ => Self::proc_frames(handle, ehandle, handlers),
 		}
 	}
 
@@ -707,7 +758,6 @@ impl WsServer {
 				}
 				if stop {
 					for element in ctx.handles {
-						safe_socket_close(ctx.handle);
 						unsafe {
 							drop_in_place(element.raw());
 						}
@@ -744,13 +794,23 @@ mod test {
 			};
 			let mut ws = WsServer::new(config).unwrap();
 			let b: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>> =
-				Box::new(move |msg: WsMessage, handle: WsHandle| {
+				Box::new(move |msg: WsMessage, _handle: WsHandle| {
 					let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
-					println!("in handler. Msg={}", x);
+					println!("in handler[{}]. Msg={}", msg.path, x);
 					Ok(())
 				})
 				.unwrap();
-			ws.register_handler(Rc::new(b).unwrap());
+			let _ = ws.register_handler("/abc", b);
+
+			let b: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>> =
+				Box::new(move |msg: WsMessage, _handle: WsHandle| {
+					let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
+					println!("in handler2[{}]. Msg={}", msg.path, x);
+					Ok(())
+				})
+				.unwrap();
+			let _ = ws.register_handler("/def", b);
+
 			ws.start().unwrap();
 			let handle = safe_alloc(safe_socket_handle_size());
 			let addr = [127u8, 0u8, 0u8, 1u8];
@@ -786,4 +846,40 @@ mod test {
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
+
+	/*
+	fn test_syntax() {
+		let config = WsConfig {
+			port: 0,
+			..Default::default()
+		};
+		let mut ws = match WsServer::new(config) {
+			Ok(ws) => ws,
+			Err(e) => exit!("WsServer error: {}", e),
+		};
+
+		websocket!(ws, "/abc", {
+			if req.text() == "test" {
+				send!(ws, "this is a test");
+			} else {
+				sendb!(ws, b"this is a binary test");
+			}
+		});
+
+		websocket!(ws, "/def", {
+			if req.text() == "test" {
+				send!(resp, "this is another test");
+			} else {
+				sendb!(resp, b"this is another binary test");
+			}
+		});
+
+		match ws.start() {
+			Ok(_) => {}
+			Err(e) => exit!("WsServer failed to start due to: {}", e),
+		}
+
+		park();
+	}
+		*/
 }
