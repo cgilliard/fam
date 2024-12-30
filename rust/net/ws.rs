@@ -529,7 +529,9 @@ impl WsServer {
 			];
 
 			for i in 0..payload_len {
-				rvec[offset + i] ^= masking_key[i % 4];
+				if i % 4 < masking_key.len() && offset + i < rvec.len() {
+					rvec[offset + i] ^= masking_key[i % 4];
+				}
 			}
 		}
 
@@ -551,7 +553,9 @@ impl WsServer {
 
 		let mut msg = Vec::new();
 		for i in 0..payload_len {
-			msg.push(payload[i]);
+			if i < payload.len() {
+				msg.push(payload[i]);
+			}
 		}
 		let wsmsg = WsMessage { msg };
 		let wshandle = WsHandle {};
