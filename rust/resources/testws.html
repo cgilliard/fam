@@ -4,16 +4,15 @@
 	    const socket = new WebSocket('ws://localhost:9999/def?ok');
 
             // When the WebSocket connection is open, send the message "hello world"
-	    /*
+	    
             socket.onopen = function() {
                 console.log('Connected to WebSocket server');
                 socket.send('hello world');
-            };
-	    */
-	    setInterval(function() {
+	    	setInterval(function() {
                     socket.send('hello world');
                     console.log('Sent: hello world');
                 }, 5000); 
+	    }
 
             // Log any messages received from the server
             socket.onmessage = function(event) {
