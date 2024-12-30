@@ -40,11 +40,11 @@ impl Default for WsConfig {
 	}
 }
 
-pub struct WsMessage {
-	msg: Vec<u8>,
+pub struct WsMessage<'a> {
+	msg: &'a [u8],
 }
 
-impl WsMessage {
+impl WsMessage<'_> {
 	pub fn get(&self) -> &[u8] {
 		&self.msg[0..self.msg.len()]
 	}
@@ -540,6 +540,7 @@ impl WsServer {
 		}
 		let payload = &rvec[offset..payload_len + offset];
 
+		/*
 		use core::str::from_utf8_unchecked;
 		println!(
 			"payload[{}]='{}',offset={},len={},payload_len={},op={}",
@@ -550,14 +551,9 @@ impl WsServer {
 			payload_len,
 			op
 		);
+				*/
 
-		let mut msg = Vec::new();
-		for i in 0..payload_len {
-			if i < payload.len() {
-				msg.push(payload[i]);
-			}
-		}
-		let wsmsg = WsMessage { msg };
+		let wsmsg = WsMessage { msg: payload };
 		let wshandle = WsHandle {};
 		let res = match handler {
 			Some(mut handler) => (*handler)(wsmsg, wshandle),
@@ -748,9 +744,8 @@ mod test {
 			let mut ws = WsServer::new(config).unwrap();
 			let b: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>> =
 				Box::new(move |msg: WsMessage, handle: WsHandle| {
-					println!("in handler. Msg={}", unsafe {
-						from_utf8_unchecked(&msg.msg[0..msg.msg.len()])
-					});
+					let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
+					println!("in handler. Msg={}", x);
 					Ok(())
 				})
 				.unwrap();
