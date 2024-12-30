@@ -46,7 +46,8 @@ pub struct WsMessage<'a> {
 
 impl WsMessage<'_> {
 	pub fn get(&self) -> &[u8] {
-		&self.msg[0..self.msg.len()]
+		let len = self.msg.len();
+		unsafe { from_raw_parts(self.msg.as_ptr(), len) }
 	}
 }
 
