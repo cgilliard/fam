@@ -86,6 +86,8 @@ jobs:
           ./fam
       - name: macos build (mrustc)
         run: |
+          export CXX=/opt/homebrew/bin/g++-13
+          export CC=/opt/homebrew/bin/gcc-13
           wget https://github.com/cgilliard/famc/releases/download/0.1.0/macos_output.tar.gz
           gzip -dc macos_output.tar.gz | tar xvf -
           ./fam clean

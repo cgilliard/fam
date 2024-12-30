@@ -149,7 +149,13 @@ int socket_accept(SocketHandle *s, SocketHandle *accepted) {
 }
 long long socket_send(SocketHandle *s, const char *buf,
 		      unsigned long long len) {
-	return write(s->fd, buf, len);
+	long long ret = write(s->fd, buf, len);
+	if (ret < 0) {
+		if (errno == EAGAIN) {
+			return ERROR_EAGAIN;
+		}
+	}
+	return ret;
 }
 long long socket_recv(SocketHandle *s, char *buf, unsigned long long capacity) {
 	int ret = read(s->fd, buf, capacity);
@@ -157,8 +163,6 @@ long long socket_recv(SocketHandle *s, char *buf, unsigned long long capacity) {
 		if (errno == EAGAIN) {
 			return ERROR_EAGAIN;
 		}
-		printf("err=%i\n", errno);
-		perror("read");
 	}
 	return ret;
 }

@@ -41,6 +41,12 @@ impl Default for WsConfig {
 	}
 }
 
+enum WriteResult {
+	Success,
+	Error,
+	Partial(usize),
+}
+
 pub struct WsMessage<'a> {
 	msg: &'a [u8],
 	path: String,
@@ -505,8 +511,31 @@ impl WsServer {
 		}
 	}
 
-	fn switch_protocol(ehandle: *mut u8, accept_key: &[u8; 28]) {
-		safe_socket_send(ehandle, SWITCH_PROTOCOL.as_ptr(), SWITCH_PROTOCOL.len());
+	fn write_data(ehandle: *mut u8, data: *const u8, len: usize) -> WriteResult {
+		let res = safe_socket_send(ehandle, data, len);
+		if res == len as i64 {
+			WriteResult::Success
+		} else if res >= 0 {
+			WriteResult::Partial(res as usize)
+		} else if res == EAGAIN.into() {
+			WriteResult::Partial(0)
+		} else {
+			WriteResult::Error
+		}
+	}
+
+	fn switch_protocol(handle: &mut Handle, ehandle: *mut u8, accept_key: &[u8; 28]) {
+		match Self::write_data(ehandle, SWITCH_PROTOCOL.as_ptr(), SWITCH_PROTOCOL.len()) {
+			WriteResult::Success => {}
+			WriteResult::Error => {
+				safe_socket_shutdown(ehandle);
+				return;
+			}
+			WriteResult::Partial(n) => {
+				// TODO: append data to write buffer
+			}
+		}
+		//safe_socket_send(ehandle, SWITCH_PROTOCOL.as_ptr(), SWITCH_PROTOCOL.len());
 		safe_socket_send(ehandle, accept_key.as_ptr(), accept_key.len());
 		safe_socket_send(ehandle, "\r\n\r\n".as_ptr(), 4);
 	}
@@ -651,7 +680,7 @@ impl WsServer {
 							&& rvec[i - 3] == b'\r'
 						{
 							let accept_key = Self::handle_websocket_handshake(sec_key);
-							Self::switch_protocol(ehandle, &accept_key);
+							Self::switch_protocol(handle, ehandle, &accept_key);
 							handle.inner.read.clear();
 							handle.inner.state = ConnectionState::HandshakeComplete(uri);
 							break;

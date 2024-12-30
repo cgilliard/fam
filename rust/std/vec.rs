@@ -276,6 +276,30 @@ impl<T> Vec<T> {
 		}
 	}
 
+	pub fn append_ptr(&mut self, ptr: *const u8, elems: usize) -> Result<(), Error> {
+		if ptr.is_null() {
+			return Err(ErrorKind::IllegalArgument.into());
+		}
+
+		let size = size_of::<T>();
+		let needed = size * (self.elements + elems);
+		if needed > self.capacity {
+			if !self.resize_impl(needed) {
+				return Err(ErrorKind::Alloc.into());
+			}
+		}
+
+		let dest_ptr = self.value.raw() as *mut u8;
+		unsafe {
+			let dest_ptr = dest_ptr.add(size * self.elements) as *mut u8;
+			copy_nonoverlapping(self.value.raw() as *mut u8, dest_ptr, size * elems);
+		}
+
+		self.elements += elems;
+
+		Ok(())
+	}
+
 	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
 		let size = size_of::<T>();
 		let len = v.len();
