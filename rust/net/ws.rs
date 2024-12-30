@@ -40,7 +40,15 @@ impl Default for WsConfig {
 	}
 }
 
-pub struct WsMessage {}
+pub struct WsMessage {
+	msg: Vec<u8>,
+}
+
+impl WsMessage {
+	pub fn get(&self) -> &[u8] {
+		&self.msg[0..self.msg.len()]
+	}
+}
 
 pub struct WsHandle {}
 
@@ -52,6 +60,7 @@ pub struct WsServer {
 	stop: Rc<u64>,
 	jhs: Rc<Vec<JoinHandle>>,
 	lock: LockBox,
+	handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
 }
 
 enum ConnectionState {
@@ -121,6 +130,7 @@ struct WsContext {
 	fhandle: Handle,
 	wakeup: [u8; 8],
 	jhs: Rc<Vec<JoinHandle>>,
+	handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
 }
 
 impl WsContext {
@@ -133,6 +143,7 @@ impl WsContext {
 		mut wakeup: [u8; 8],
 		stop: Rc<u64>,
 		jhs: Rc<Vec<JoinHandle>>,
+		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
 	) -> Result<Self, Error> {
 		let mut mplex = [0u8; 4];
 
@@ -190,6 +201,7 @@ impl WsContext {
 			stop,
 			jhs,
 			mplex,
+			handler,
 		})
 	}
 }
@@ -223,6 +235,7 @@ impl WsServer {
 			stop,
 			jhs,
 			lock,
+			handler: None,
 		})
 	}
 
@@ -232,8 +245,9 @@ impl WsServer {
 
 	pub fn register_handler(
 		&mut self,
-		_handler: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>,
+		mut handler: Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>,
 	) -> Result<(), Error> {
+		self.handler = Some(handler);
 		Ok(())
 	}
 
@@ -258,10 +272,23 @@ impl WsServer {
 			Err(e) => return Err(e),
 		};
 
+		let handler = match self.handler.clone() {
+			Ok(handler) => handler,
+			Err(e) => return Err(e),
+		};
+
 		let wakeup_ptr = &mut self.wakeup as *mut u8;
 		safe_pipe(wakeup_ptr);
 
-		match Self::start_threads(&self.config, self.handle, self.wakeup, stop, jhs, lock) {
+		match Self::start_threads(
+			&self.config,
+			self.handle,
+			self.wakeup,
+			stop,
+			jhs,
+			lock,
+			handler,
+		) {
 			Ok(_) => {}
 			Err(e) => return Err(e),
 		}
@@ -307,6 +334,7 @@ impl WsServer {
 		stop: Rc<u64>,
 		jhs: Rc<Vec<JoinHandle>>,
 		lock: LockBox,
+		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
 	) -> Result<(), Error> {
 		let itt = match Rc::new(0) {
 			Ok(itt) => itt,
@@ -318,6 +346,10 @@ impl WsServer {
 		};
 
 		for tid in 0..config.threads {
+			let handler = match handler.clone() {
+				Ok(handler) => handler,
+				Err(e) => return Err(e),
+			};
 			let jhs = match jhs.clone() {
 				Ok(jhs) => jhs,
 				Err(e) => return Err(e),
@@ -327,7 +359,7 @@ impl WsServer {
 					Ok(id) => match stop.clone() {
 						Ok(stop) => {
 							match WsContext::new(
-								itt, id, tid as u64, config, handle, wakeup, stop, jhs,
+								itt, id, tid as u64, config, handle, wakeup, stop, jhs, handler,
 							) {
 								Ok(ctx) => ctx,
 								Err(e) => return Err(e),
@@ -384,7 +416,7 @@ impl WsServer {
 		}
 
 		handle.inner.read.resize(len as usize + rlen).unwrap();
-		Self::proc_messages(&mut handle, ehandle);
+		Self::proc_messages(&mut handle, ehandle, ctx.handler.clone().unwrap());
 		if len < 0 {
 			0
 		} else {
@@ -433,7 +465,11 @@ impl WsServer {
 		safe_socket_shutdown(ehandle);
 	}
 
-	fn proc_frames(handle: &mut Handle, ehandle: *mut u8) {
+	fn proc_frames(
+		handle: &mut Handle,
+		ehandle: *mut u8,
+		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
+	) {
 		let len = handle.inner.read.len();
 
 		// min length to try to process
@@ -502,8 +538,7 @@ impl WsServer {
 		}
 		let payload = &rvec[offset..payload_len + offset];
 
-		/*
-				use core::str::from_utf8_unchecked;
+		use core::str::from_utf8_unchecked;
 		println!(
 			"payload[{}]='{}',offset={},len={},payload_len={},op={}",
 			payload_len,
@@ -513,7 +548,17 @@ impl WsServer {
 			payload_len,
 			op
 		);
-				*/
+
+		let mut msg = Vec::new();
+		for i in 0..payload_len {
+			msg.push(payload[i]);
+		}
+		let wsmsg = WsMessage { msg };
+		let wshandle = WsHandle {};
+		let res = match handler {
+			Some(mut handler) => (*handler)(wsmsg, wshandle),
+			_ => Ok(()),
+		};
 
 		if payload_len + offset == len {
 			handle.inner.read.clear();
@@ -523,7 +568,11 @@ impl WsServer {
 		}
 	}
 
-	fn proc_messages(handle: &mut Handle, ehandle: *mut u8) {
+	fn proc_messages(
+		handle: &mut Handle,
+		ehandle: *mut u8,
+		handler: Option<Rc<Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>>>>,
+	) {
 		match handle.inner.state {
 			ConnectionState::NeedHandshake => {
 				let len = handle.inner.read.len();
@@ -571,7 +620,7 @@ impl WsServer {
 					return;
 				}
 			}
-			_ => Self::proc_frames(handle, ehandle),
+			_ => Self::proc_frames(handle, ehandle, handler),
 		}
 	}
 
@@ -693,6 +742,15 @@ mod test {
 				..Default::default()
 			};
 			let mut ws = WsServer::new(config).unwrap();
+			let b: Box<dyn FnMut(WsMessage, WsHandle) -> Result<(), Error>> =
+				Box::new(move |msg: WsMessage, handle: WsHandle| {
+					println!("in handler. Msg={}", unsafe {
+						from_utf8_unchecked(&msg.msg[0..msg.msg.len()])
+					});
+					Ok(())
+				})
+				.unwrap();
+			ws.register_handler(Rc::new(b).unwrap());
 			ws.start().unwrap();
 			let handle = safe_alloc(safe_socket_handle_size());
 			let addr = [127u8, 0u8, 0u8, 1u8];

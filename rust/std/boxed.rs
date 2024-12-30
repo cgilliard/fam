@@ -24,7 +24,7 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
-impl<T: Clone> Clone for Box<T> {
+impl<T: ?Sized + Clone> Clone for Box<T> {
 	fn clone(&self) -> Result<Self, Error> {
 		match self.as_ref().clone() {
 			Ok(value) => Box::new(value),
