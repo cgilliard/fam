@@ -78,7 +78,7 @@ macro_rules! exit {
                         use std::util::u128_to_str;
                         use sys::{safe_exit, safe_write};
 
-                        safe_write(2, "Panic: ".as_ptr(), 7);
+                        print!("Panic[@{}:{}]: ", file!(), line!());
                         println!($fmt, $($t),*);
                         #[cfg(not(mrustc))]
                         {

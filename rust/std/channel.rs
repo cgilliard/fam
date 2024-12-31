@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
-use core::mem::{size_of, ManuallyDrop, MaybeUninit};
+use core::mem::{forget, size_of, zeroed, ManuallyDrop};
 use core::ops::Drop;
+use core::ptr;
 use core::ptr::null_mut;
 use prelude::*;
 use sys::{
@@ -56,10 +57,12 @@ impl<T> Drop for ChannelInner<T> {
 
 impl<T> ChannelInner<T> {
 	pub fn recv(&self) -> Result<T, Error> {
-		let mut msg = MaybeUninit::<Message<T>>::uninit();
-		let msg_ptr = msg.as_mut_ptr();
+		let mut msg_storage: Message<T> = unsafe { zeroed() };
+		let msg_ptr = &mut msg_storage as *mut Message<T>;
 		safe_channel_recv(self.handle.raw(), msg_ptr as *mut u8);
-		unsafe { Ok(msg.assume_init().value) }
+		let result = unsafe { ptr::read(&msg_storage.value) };
+		forget(msg_storage);
+		Ok(result)
 	}
 
 	pub fn send(&self, value: T) -> Result<(), Error> {

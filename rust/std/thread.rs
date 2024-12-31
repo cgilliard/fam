@@ -104,12 +104,12 @@ where
 #[cfg(test)]
 mod test {
 	use super::*;
-	use sys::getalloccount;
+	use sys::safe_getalloccount;
 	use sys::sleep_millis;
 
 	#[test]
 	fn test_threads() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let lock = lock!();
 			let mut x = 1;
@@ -136,12 +136,12 @@ mod test {
 
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_thread_join() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let lock = lock!();
 			let mut x = 1;
@@ -163,6 +163,6 @@ mod test {
 			assert!(jh.join().is_ok());
 			assert_eq!(*rc, 2);
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 }
