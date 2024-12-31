@@ -60,5 +60,5 @@ if [ "$all" = "1" ]; then
         ${cc} ${ccflags} -o bin/fam .obj/*.o
 fi
 if [ "$clean" = "1" ]; then
-	rm -rf .obj/*.o libtest.a bin/*
+	rm -rf .obj/* libtest.a bin/*
 fi
