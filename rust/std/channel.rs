@@ -71,8 +71,11 @@ impl<T> ChannelInner<T> {
 		});
 
 		let msg_ptr = &msg as *const ManuallyDrop<Message<T>> as *const u8;
-		safe_channel_send(self.handle.raw(), msg_ptr);
-		Ok(())
+		if safe_channel_send(self.handle.raw(), msg_ptr) < 0 {
+			Err(err!(CapacityExceeded))
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -114,11 +117,11 @@ impl<T> Channel<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use sys::getalloccount;
+	use sys::safe_getalloccount;
 
 	#[test]
 	fn test_channel_std() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new(1024).unwrap();
 			let lock = lock!();
@@ -150,22 +153,22 @@ mod test {
 			}
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_channel_clone() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel: Channel<u32> = Channel::new(1024).unwrap();
 			let _channel2 = channel.clone().unwrap();
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_channel_move_std() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new(1024).unwrap();
 			let channel_clone = channel.clone().unwrap();
@@ -200,12 +203,12 @@ mod test {
 			}
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_channel_result() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new(1024).unwrap();
 			let channel_clone = channel.clone().unwrap();
@@ -234,7 +237,7 @@ mod test {
 
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	struct DropTest {
@@ -255,7 +258,7 @@ mod test {
 
 	#[test]
 	fn test_send_zero_sized() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel1a = Channel::new(1024).unwrap();
 			let channel1b = channel1a.clone().unwrap();
@@ -274,12 +277,12 @@ mod test {
 
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(unsafe { getalloccount() }, initial);
+		assert_eq!(safe_getalloccount(), initial);
 	}
 
 	#[test]
 	fn test_channel_drop() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new(1024).unwrap();
 			let channel_clone = channel.clone().unwrap();
@@ -312,19 +315,30 @@ mod test {
 			assert!(jh.join().is_ok());
 			assert_eq!(unsafe { DROPCOUNT }, 1);
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 		assert_eq!(unsafe { DROPCOUNT }, 2);
 		assert_eq!(unsafe { DROPSUM }, 305);
 	}
 
 	#[test]
 	fn test_cleanup() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new(1024).unwrap();
 			channel.send(0).unwrap();
 			channel.send(0).unwrap();
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
+	}
+
+	#[test]
+	fn test_channel_cap_exceed() {
+		let initial = safe_getalloccount();
+		{
+			let channel = Channel::new(2).unwrap();
+			channel.send(0).unwrap();
+			assert!(channel.send(0).is_err());
+		}
+		assert_eq!(initial, safe_getalloccount());
 	}
 }
