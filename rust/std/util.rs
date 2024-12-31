@@ -13,6 +13,23 @@ pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	}
 }
 
+pub fn to_be_bytes_u64(value: u64) -> [u8; 8] {
+	[
+		(value >> 56) as u8,
+		(value >> 48) as u8,
+		(value >> 40) as u8,
+		(value >> 32) as u8,
+		(value >> 24) as u8,
+		(value >> 16) as u8,
+		(value >> 8) as u8,
+		value as u8,
+	]
+}
+
+pub fn to_be_bytes_u16(value: u16) -> [u8; 2] {
+	[(value >> 8) as u8, value as u8]
+}
+
 pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usize {
 	let buf_len = buf.len();
 	let mut i = buf_len - 1;

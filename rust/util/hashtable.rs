@@ -192,22 +192,24 @@ impl<V: PartialEq + Hash> Hashtable<V> {
 	}
 
 	pub fn remove(&mut self, value: &V) -> Option<Ptr<Node<V>>> {
-		let index = value.hash() % self.arr.len();
-		let mut ptr = self.arr[index];
+		if self.arr.len() > 0 {
+			let index = value.hash() % self.arr.len();
+			let mut ptr = self.arr[index];
 
-		if !ptr.is_null() && (*ptr).value == *value {
-			self.arr[index] = (*ptr).next;
-			return Some(Ptr::new(ptr.raw()));
-		}
-		let mut prev = self.arr[index];
-
-		while !ptr.is_null() {
-			if (*ptr).value == *value {
-				(*prev).next = (*ptr).next;
+			if !ptr.is_null() && (*ptr).value == *value {
+				self.arr[index] = (*ptr).next;
 				return Some(Ptr::new(ptr.raw()));
 			}
-			prev = ptr;
-			ptr = (*ptr).next;
+			let mut prev = self.arr[index];
+
+			while !ptr.is_null() {
+				if (*ptr).value == *value {
+					(*prev).next = (*ptr).next;
+					return Some(Ptr::new(ptr.raw()));
+				}
+				prev = ptr;
+				ptr = (*ptr).next;
+			}
 		}
 		None
 	}
