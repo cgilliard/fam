@@ -144,6 +144,7 @@ impl<T> Runtime<T> {
 					}
 				}
 				let _ = rimpl.stop_channel.recv();
+				self.rimpl = None;
 				Ok(())
 			}
 			None => Err(err!(NotInitialized)),
@@ -329,6 +330,8 @@ mod test {
 		assert!(x1.is_complete());
 		assert!(x2.is_complete());
 		assert_eq!(*rc_confirm, 2);
+		assert!(r.stop().is_ok());
+		assert!(r.stop().is_err());
 	}
 
 	#[test]
