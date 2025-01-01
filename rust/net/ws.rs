@@ -226,6 +226,7 @@ impl Hash for WsHandle {
 pub struct GlobalState {
 	server: [u8; 4],
 	jhs: UnsafeCell<Vec<JoinHandle>>,
+	mplexes: Vec<[u8; 4]>,
 	handlers: Hashtable<Handler>,
 	wakeup: [u8; 4],
 	stop: u64,
@@ -300,10 +301,12 @@ impl WsServer {
 		let stop = 0;
 		let server = [0u8; 4];
 		let wakeup = [0u8; 4];
+		let mplexes = Vec::new();
 
 		let global_state = match Rc::new(GlobalState {
 			config,
 			itt,
+			mplexes,
 			handlers,
 			jhs,
 			port,
@@ -317,6 +320,34 @@ impl WsServer {
 		};
 
 		Ok(WsServer { global_state })
+	}
+
+	pub fn add_client(&mut self, host: [u8; 4], port: u16) -> Result<WsResponse, Error> {
+		let mut handle = [0u8; 4];
+		if safe_socket_connect(&mut handle as *mut u8, &host as *const u8, port.into()) < 0 {
+			return Err(err!(SocketConnect));
+		}
+
+		let next = rem_usize(
+			aadd!(&mut self.global_state.itt, 1) as usize,
+			self.global_state.config.threads,
+		);
+		let mut mplex = self.global_state.mplexes[next];
+		safe_socket_multiplex_register(
+			&mut mplex as *mut u8,
+			&mut handle as *mut u8,
+			REG_READ_FLAG,
+		);
+
+		let wshandle = match WsHandle::new(handle, mplex) {
+			Ok(wshandle) => wshandle,
+			Err(e) => {
+				safe_socket_close(&handle as *const u8);
+				return Err(e);
+			}
+		};
+
+		Ok(WsResponse { wshandle })
 	}
 
 	pub fn port(&self) -> u16 {
@@ -403,7 +434,7 @@ impl WsServer {
 		safe_socket_shutdown(&mut handle.inner.wh.handle as *const u8);
 	}
 
-	pub fn handle_websocket_handshake(sec_key: &[u8]) -> [u8; 28] {
+	fn handle_websocket_handshake(sec_key: &[u8]) -> [u8; 28] {
 		let magic_string = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		let mut sha1_result: [u8; 20] = [0; 20];
 		let mut combined: [u8; 60] = [0; 60];
@@ -605,7 +636,6 @@ impl WsServer {
 	}
 
 	fn proc_messages(handle: &mut WsHandle, state: Rc<GlobalState>) {
-		println!("proc messages");
 		match handle.inner.wh.state {
 			ConnectionState::NeedHandshake => Self::proc_hs(handle),
 			_ => Self::proc_hs_complete(handle, state),
@@ -757,7 +787,7 @@ impl WsServer {
 
 	fn start_threads(global_state: Rc<GlobalState>) -> Result<(), Error> {
 		for tid in 0..global_state.config.threads {
-			let global_state = match global_state.clone() {
+			let mut global_state = match global_state.clone() {
 				Ok(global_state) => global_state,
 				Err(e) => return Err(e),
 			};
@@ -770,6 +800,11 @@ impl WsServer {
 				Ok(ctx) => ctx,
 				Err(e) => return Err(e),
 			};
+
+			match global_state.mplexes.push(ctx.mplex) {
+				Ok(_) => {}
+				Err(e) => return Err(e),
+			}
 
 			let s = spawnj(move || match Self::thread_loop(ctx) {
 				Ok(_) => {}
@@ -813,7 +848,6 @@ mod test {
 			..Default::default()
 		};
 		let mut ws = WsServer::new(config).unwrap();
-		ws.start().unwrap();
 		let b: Box<dyn FnMut(WsMessage, WsResponse) -> Result<(), Error>> =
 			Box::new(move |msg: WsMessage, mut resp: WsResponse| {
 				let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
@@ -833,6 +867,10 @@ mod test {
 			})
 			.unwrap();
 		let _ = ws.register_handler("/def", b);
+
+		ws.start().unwrap();
+		let port = ws.port();
+		ws.add_client([0u8; 4], port);
 
 		let handle = safe_alloc(safe_socket_handle_size()) as *mut u8;
 		let addr = [127u8, 0u8, 0u8, 1u8];

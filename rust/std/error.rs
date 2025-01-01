@@ -35,6 +35,7 @@ define_enum_with_strings!(ErrorKind {
 	ChannelInit,
 	CreateFileDescriptor,
 	MultiplexRegister,
+	SocketConnect,
 	IO,
 	Todo,
 });

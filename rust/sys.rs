@@ -50,7 +50,7 @@ extern "C" {
 	pub fn socket_recv(handle: *const u8, buf: *mut u8, capacity: usize) -> i64;
 
 	pub fn socket_multiplex_init(handle: *mut u8) -> i32;
-	pub fn socket_multiplex_register(handle: *const u8, socket: *mut u8, flags: i32) -> i32;
+	pub fn socket_multiplex_register(handle: *const u8, socket: *const u8, flags: i32) -> i32;
 	pub fn socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32;
 	pub fn socket_event_handle(handle: *mut u8, event: *const u8);
 	pub fn socket_event_is_read(event: *const u8) -> bool;
@@ -108,7 +108,7 @@ pub fn safe_socket_recv(handle: *const u8, buf: *mut u8, capacity: usize) -> i64
 pub fn safe_socket_multiplex_init(handle: *mut u8) -> i32 {
 	unsafe { socket_multiplex_init(handle) }
 }
-pub fn safe_socket_multiplex_register(handle: *const u8, socket: *mut u8, flags: i32) -> i32 {
+pub fn safe_socket_multiplex_register(handle: *const u8, socket: *const u8, flags: i32) -> i32 {
 	unsafe { socket_multiplex_register(handle, socket, flags) }
 }
 pub fn safe_socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32 {
