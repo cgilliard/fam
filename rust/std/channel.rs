@@ -48,9 +48,8 @@ impl<T> ChannelInner<T> {
 		let mut nbox = Box::from_raw(ptr);
 		nbox.leak();
 		let v = unsafe { ptr::read(nbox.as_ptr().raw()) };
-		let ret = v.value;
 		safe_release(recv as *mut u8);
-		ret
+		v.value
 	}
 
 	pub fn send(&self, value: T) -> Result<(), Error> {

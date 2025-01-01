@@ -220,7 +220,6 @@ pub fn safe_ptr_add(p: *mut u8, v: i64) {
 	unsafe { ptr_add(p, v) }
 }
 
-#[allow(dead_code)]
 pub fn safe_getalloccount() -> i64 {
 	unsafe { getalloccount() }
 }
