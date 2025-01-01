@@ -3,8 +3,8 @@ use core::ops::Drop;
 use core::ptr;
 use prelude::*;
 use sys::{
-	safe_alloc, safe_channel_destroy, safe_channel_handle_size, safe_channel_init,
-	safe_channel_pending, safe_channel_recv, safe_channel_send, safe_release,
+	safe_channel_destroy, safe_channel_handle_size, safe_channel_init, safe_channel_pending,
+	safe_channel_recv, safe_channel_send, safe_release,
 };
 
 #[repr(C)]
@@ -14,7 +14,7 @@ struct ChannelMessage<T> {
 }
 
 struct ChannelInner<T> {
-	handle: *mut u8,
+	handle: [u8; 128],
 	_marker: PhantomData<T>,
 }
 
@@ -33,17 +33,18 @@ impl<T> Clone for Channel<T> {
 
 impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
-		while safe_channel_pending(self.handle) {
+		while safe_channel_pending(&self.handle as *const u8) {
 			let _recv = self.recv();
 		}
-		safe_channel_destroy(self.handle);
-		safe_release(self.handle);
+		let handle = &self.handle;
+		safe_channel_destroy(handle as *const u8);
 	}
 }
 
 impl<T> ChannelInner<T> {
 	pub fn recv(&self) -> T {
-		let recv = safe_channel_recv(self.handle) as *mut ChannelMessage<T>;
+		let handle = &self.handle;
+		let recv = safe_channel_recv(handle as *const u8) as *mut ChannelMessage<T>;
 		let ptr = Ptr::new(recv);
 		let mut nbox = Box::from_raw(ptr);
 		nbox.leak();
@@ -60,7 +61,8 @@ impl<T> ChannelInner<T> {
 		match Box::new(msg) {
 			Ok(mut b) => {
 				b.leak();
-				if safe_channel_send(self.handle, b.as_ptr().raw() as *mut u8) < 0 {
+				let handle = &self.handle;
+				if safe_channel_send(handle as *const u8, b.as_ptr().raw() as *mut u8) < 0 {
 					Err(err!(ChannelSend))
 				} else {
 					Ok(())
@@ -73,11 +75,11 @@ impl<T> ChannelInner<T> {
 
 impl<T> Channel<T> {
 	pub fn new() -> Result<Channel<T>, Error> {
-		let handle = safe_alloc(safe_channel_handle_size()) as *mut u8;
-		if handle.is_null() {
-			return Err(err!(Alloc));
+		if safe_channel_handle_size() > 128 {
+			exit!("safe_channel_handle_size() > 128");
 		}
-		let ret = match Rc::new(ChannelInner {
+		let handle = [0u8; 128];
+		let mut ret = match Rc::new(ChannelInner {
 			handle,
 			_marker: PhantomData,
 		}) {
@@ -85,7 +87,8 @@ impl<T> Channel<T> {
 			Err(e) => return Err(e),
 		};
 
-		if safe_channel_init(ret.inner.handle) < 0 {
+		let handle = &mut ret.inner.handle;
+		if safe_channel_init(handle as *mut u8) < 0 {
 			Err(err!(ChannelInit))
 		} else {
 			Ok(ret)
