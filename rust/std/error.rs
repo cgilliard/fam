@@ -31,7 +31,7 @@ define_enum_with_strings!(ErrorKind {
 	ThreadJoin,
 	ThreadDetach,
 	NotInitialized,
-	ChannelRecv,
+	ChannelSend,
 	ChannelInit,
 	CreateFileDescriptor,
 	MultiplexRegister,

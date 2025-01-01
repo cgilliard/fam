@@ -42,7 +42,7 @@ struct State {
 
 enum Message<T> {
 	Task((Task<T>, Channel<T>, Rc<bool>)),
-	Halt(()),
+	Halt,
 }
 
 struct RuntimeImpl<T> {
@@ -94,7 +94,7 @@ impl<T> Drop for Runtime<T> {
 }
 
 impl<T> Handle<T> {
-	pub fn block_on(&self) -> Result<T, Error> {
+	pub fn block_on(&self) -> T {
 		self.channel.recv()
 	}
 
@@ -138,7 +138,7 @@ impl<T> Runtime<T> {
 				loop {
 					let _v = rimpl.lock.read();
 					if rimpl.state.total_workers > 0 {
-						let _ = rimpl.channel.send(Message::Halt(()));
+						let _ = rimpl.channel.send(Message::Halt);
 					} else {
 						break;
 					}
@@ -244,12 +244,7 @@ impl<T> Runtime<T> {
 				}
 			}
 
-			let task = match channel.recv() {
-				Ok(msg) => msg,
-				Err(_e) => {
-					return;
-				}
-			};
+			let task = channel.recv();
 
 			{
 				let _l = lock.write();
@@ -278,7 +273,7 @@ impl<T> Runtime<T> {
 						}
 					}
 				}
-				Message::Halt(_) => {}
+				Message::Halt => {}
 			}
 		});
 		Ok(())
@@ -305,7 +300,7 @@ mod test {
 
 		let x1 = r
 			.execute(move || -> Result<i32, Error> {
-				let x = receiver.recv().unwrap();
+				let x = receiver.recv();
 				assert_eq!(x, 60);
 				let _v = lock.write();
 				*rc += 1;
@@ -315,7 +310,7 @@ mod test {
 
 		let x2 = r
 			.execute(move || -> Result<i32, Error> {
-				let x = receiver2.recv().unwrap();
+				let x = receiver2.recv();
 				assert_eq!(x, 70);
 				let _v = lock_clone.write();
 				*rc_clone += 1;
@@ -329,8 +324,8 @@ mod test {
 		sender.send(60).unwrap();
 		sender2.send(70).unwrap();
 
-		assert_eq!(x1.block_on().unwrap().unwrap(), 41);
-		assert_eq!(x2.block_on().unwrap().unwrap(), 5);
+		assert_eq!(x1.block_on().unwrap(), 41);
+		assert_eq!(x2.block_on().unwrap(), 5);
 		assert!(x1.is_complete());
 		assert!(x2.is_complete());
 		assert_eq!(*rc_confirm, 2);
@@ -354,7 +349,7 @@ mod test {
 
 				let x1 = r
 					.execute(move || -> Result<i32, Error> {
-						let x = receiver.recv().unwrap();
+						let x = receiver.recv();
 						assert_eq!(x, 60);
 						let _v = lock.write();
 						*rc += 1;
@@ -364,7 +359,7 @@ mod test {
 
 				let x2 = r
 					.execute(move || -> Result<i32, Error> {
-						let x = receiver2.recv().unwrap();
+						let x = receiver2.recv();
 						assert_eq!(x, 70);
 						let _v = lock_clone.write();
 						*rc_clone += 1;
@@ -378,8 +373,8 @@ mod test {
 				sender.send(60).unwrap();
 				sender2.send(70).unwrap();
 
-				assert_eq!(x1.block_on().unwrap().unwrap(), 41);
-				assert_eq!(x2.block_on().unwrap().unwrap(), 5);
+				assert_eq!(x1.block_on().unwrap(), 41);
+				assert_eq!(x2.block_on().unwrap(), 5);
 				assert!(x1.is_complete());
 				assert!(x2.is_complete());
 				assert_eq!(*rc_confirm, 2);
@@ -407,9 +402,9 @@ mod test {
 
 			let x1 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva1.recv().unwrap(), 1);
+					assert_eq!(recva1.recv(), 1);
 					sendb1.send(1).unwrap();
-					assert_eq!(recvc1.recv().unwrap(), 1);
+					assert_eq!(recvc1.recv(), 1);
 					Ok(1)
 				})
 				.unwrap();
@@ -420,9 +415,9 @@ mod test {
 
 			let x2 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva2.recv().unwrap(), 2);
+					assert_eq!(recva2.recv(), 2);
 					sendb2.send(2).unwrap();
-					assert_eq!(recvc2.recv().unwrap(), 2);
+					assert_eq!(recvc2.recv(), 2);
 					Ok(2)
 				})
 				.unwrap();
@@ -430,8 +425,8 @@ mod test {
 			senda1.send(1).unwrap();
 			senda2.send(2).unwrap();
 
-			assert_eq!(recvb1.recv().unwrap(), 1);
-			assert_eq!(recvb2.recv().unwrap(), 2);
+			assert_eq!(recvb1.recv(), 1);
+			assert_eq!(recvb2.recv(), 2);
 
 			// we know there should be three threads spawned at this point because at least one
 			// waiting worker is maintained.
@@ -440,8 +435,8 @@ mod test {
 			sendc1.send(1).unwrap();
 			sendc2.send(2).unwrap();
 
-			assert_eq!(x1.block_on().unwrap().unwrap(), 1);
-			assert_eq!(x2.block_on().unwrap().unwrap(), 2);
+			assert_eq!(x1.block_on().unwrap(), 1);
+			assert_eq!(x2.block_on().unwrap(), 2);
 
 			while r.cur_threads() != 2 {}
 
@@ -455,9 +450,9 @@ mod test {
 
 			let x1 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva1.recv().unwrap(), 1);
+					assert_eq!(recva1.recv(), 1);
 					sendb1.send(1).unwrap();
-					assert_eq!(recvc1.recv().unwrap(), 1);
+					assert_eq!(recvc1.recv(), 1);
 					Ok(1)
 				})
 				.unwrap();
@@ -468,9 +463,9 @@ mod test {
 
 			let x2 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva2.recv().unwrap(), 2);
+					assert_eq!(recva2.recv(), 2);
 					sendb2.send(2).unwrap();
-					assert_eq!(recvc2.recv().unwrap(), 2);
+					assert_eq!(recvc2.recv(), 2);
 					Ok(2)
 				})
 				.unwrap();
@@ -481,9 +476,9 @@ mod test {
 
 			let x3 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva3.recv().unwrap(), 3);
+					assert_eq!(recva3.recv(), 3);
 					sendb3.send(3).unwrap();
-					assert_eq!(recvc3.recv().unwrap(), 3);
+					assert_eq!(recvc3.recv(), 3);
 					Ok(3)
 				})
 				.unwrap();
@@ -494,9 +489,9 @@ mod test {
 
 			let x4 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva4.recv().unwrap(), 4);
+					assert_eq!(recva4.recv(), 4);
 					sendb4.send(4).unwrap();
-					assert_eq!(recvc4.recv().unwrap(), 4);
+					assert_eq!(recvc4.recv(), 4);
 					Ok(4)
 				})
 				.unwrap();
@@ -507,9 +502,9 @@ mod test {
 
 			let x5 = r
 				.execute(move || -> Result<i32, Error> {
-					assert_eq!(recva5.recv().unwrap(), 5);
+					assert_eq!(recva5.recv(), 5);
 					sendb5.send(5).unwrap();
-					assert_eq!(recvc5.recv().unwrap(), 5);
+					assert_eq!(recvc5.recv(), 5);
 					Ok(5)
 				})
 				.unwrap();
@@ -519,10 +514,10 @@ mod test {
 			senda3.send(3).unwrap();
 			senda4.send(4).unwrap();
 
-			assert_eq!(recvb1.recv().unwrap(), 1);
-			assert_eq!(recvb2.recv().unwrap(), 2);
-			assert_eq!(recvb3.recv().unwrap(), 3);
-			assert_eq!(recvb4.recv().unwrap(), 4);
+			assert_eq!(recvb1.recv(), 1);
+			assert_eq!(recvb2.recv(), 2);
+			assert_eq!(recvb3.recv(), 3);
+			assert_eq!(recvb4.recv(), 4);
 
 			// we are now at our max threads (4) there would have been a 5th, but we hit the
 			// max.
@@ -537,18 +532,18 @@ mod test {
 			sendc5.send(5).unwrap();
 
 			// thread 5 can now complete
-			assert_eq!(recvb5.recv().unwrap(), 5);
+			assert_eq!(recvb5.recv(), 5);
 
 			while r.cur_threads() != 2 {}
 
 			// After things settle down we should return to our min thread level of 2
 			assert_eq!(r.cur_threads(), 2);
 
-			assert_eq!(x1.block_on().unwrap().unwrap(), 1);
-			assert_eq!(x2.block_on().unwrap().unwrap(), 2);
-			assert_eq!(x3.block_on().unwrap().unwrap(), 3);
-			assert_eq!(x4.block_on().unwrap().unwrap(), 4);
-			assert_eq!(x5.block_on().unwrap().unwrap(), 5);
+			assert_eq!(x1.block_on().unwrap(), 1);
+			assert_eq!(x2.block_on().unwrap(), 2);
+			assert_eq!(x3.block_on().unwrap(), 3);
+			assert_eq!(x4.block_on().unwrap(), 4);
+			assert_eq!(x5.block_on().unwrap(), 5);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}

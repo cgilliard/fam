@@ -1,11 +1,5 @@
 #![allow(dead_code)]
 
-#[repr(C)]
-pub struct Message {
-	pub(crate) _next: *mut Message,
-	pub payload: *mut u8,
-}
-
 extern "C" {
 	pub fn _exit(code: i32);
 	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
@@ -66,6 +60,25 @@ extern "C" {
 
 	pub fn rand_bytes(data: *mut u8, len: usize);
 
+}
+
+pub fn safe_channel_init(channel: *const u8) -> i32 {
+	unsafe { channel_init(channel) }
+}
+pub fn safe_channel_send(channel: *const u8, ptr: *const u8) -> i32 {
+	unsafe { channel_send(channel, ptr) }
+}
+pub fn safe_channel_recv(channel: *const u8) -> *mut u8 {
+	unsafe { channel_recv(channel) }
+}
+pub fn safe_channel_handle_size() -> usize {
+	unsafe { channel_handle_size() }
+}
+pub fn safe_channel_destroy(channel: *const u8) -> i32 {
+	unsafe { channel_destroy(channel) }
+}
+pub fn safe_channel_pending(channel: *const u8) -> bool {
+	unsafe { channel_pending(channel) }
 }
 
 pub fn safe_rand_bytes(data: *mut u8, len: usize) {
