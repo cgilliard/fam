@@ -155,15 +155,14 @@ impl<T> Runtime<T> {
 	where
 		F: FnMut() -> T + 'static,
 	{
-		let task = match Box::new(task) {
-			Ok(task) => task,
-			Err(e) => return Err(e),
-		};
 		let rimpl = match &self.rimpl {
 			Some(rimpl) => rimpl,
 			None => return Err(err!(NotInitialized)),
 		};
-
+		let task = match Box::new(task) {
+			Ok(task) => task,
+			Err(e) => return Err(e),
+		};
 		let channel = match Channel::new() {
 			Ok(channel) => channel,
 			Err(e) => return Err(e),
@@ -215,8 +214,11 @@ impl<T> Runtime<T> {
 	}
 
 	fn thread(&mut self) -> Result<(), Error> {
-		// SAFETY: must not be None because we return error in last step if so.
-		let rimpl = self.rimpl.as_mut().unwrap();
+		let rimpl = match &self.rimpl {
+			Some(rimpl) => rimpl,
+			None => return Err(err!(NotInitialized)),
+		};
+
 		let channel = match rimpl.channel.clone() {
 			Ok(channel) => channel,
 			Err(e) => return Err(e),
