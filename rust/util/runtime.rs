@@ -66,11 +66,11 @@ impl<T> RuntimeImpl<T> {
 			Ok(state) => state,
 			Err(e) => return Err(e),
 		};
-		let stop_channel = match Channel::new(total_workers) {
+		let stop_channel = match Channel::new() {
 			Ok(stop_channel) => stop_channel,
 			Err(e) => return Err(e),
 		};
-		match Channel::new(total_workers) {
+		match Channel::new() {
 			Ok(channel) => Ok(Self {
 				stop_channel,
 				channel,
@@ -163,7 +163,7 @@ impl<T> Runtime<T> {
 			None => return Err(err!(NotInitialized)),
 		};
 
-		let channel = match Channel::new(self.config.max_threads) {
+		let channel = match Channel::new() {
 			Ok(channel) => channel,
 			Err(e) => return Err(e),
 		};
@@ -287,7 +287,6 @@ impl<T> Runtime<T> {
 
 #[cfg(test)]
 mod test {
-	/*
 	use super::*;
 	use sys::getalloccount;
 
@@ -298,12 +297,10 @@ mod test {
 
 		let v = 1;
 
-		let (sender, receiver) = channel!(10).unwrap();
-		let lock = lock_box!().unwrap();
-		let lock_clone = lock.clone().unwrap();
-		let (sender2, receiver2) = channel!(10).unwrap();
-		let mut rc = Rc::new(0).unwrap();
-		let mut rc_clone = rc.clone().unwrap();
+		let (sender, receiver) = channel!().unwrap();
+		let (lock, lock_clone) = lock_pair!().unwrap();
+		let (sender2, receiver2) = channel!().unwrap();
+		let (mut rc, mut rc_clone) = rc!(0).unwrap();
 		let rc_confirm = rc.clone().unwrap();
 
 		let x1 = r
@@ -349,12 +346,10 @@ mod test {
 
 				let v = 1;
 
-				let (sender, receiver) = channel!(10).unwrap();
-				let lock = lock_box!().unwrap();
-				let lock_clone = lock.clone().unwrap();
-				let (sender2, receiver2) = channel!(10).unwrap();
-				let mut rc = Rc::new(0).unwrap();
-				let mut rc_clone = rc.clone().unwrap();
+				let (sender, receiver) = channel!().unwrap();
+				let (lock, lock_clone) = lock_pair!().unwrap();
+				let (sender2, receiver2) = channel!().unwrap();
+				let (mut rc, mut rc_clone) = rc!(0).unwrap();
 				let rc_confirm = rc.clone().unwrap();
 
 				let x1 = r
@@ -406,9 +401,9 @@ mod test {
 
 			while r.idle_threads() != 2 {}
 
-			let (senda1, recva1) = channel!(10).unwrap();
-			let (sendb1, recvb1) = channel!(10).unwrap();
-			let (sendc1, recvc1) = channel!(10).unwrap();
+			let (senda1, recva1) = channel!().unwrap();
+			let (sendb1, recvb1) = channel!().unwrap();
+			let (sendc1, recvc1) = channel!().unwrap();
 
 			let x1 = r
 				.execute(move || -> Result<i32, Error> {
@@ -419,9 +414,9 @@ mod test {
 				})
 				.unwrap();
 
-			let (senda2, recva2) = channel!(10).unwrap();
-			let (sendb2, recvb2) = channel!(10).unwrap();
-			let (sendc2, recvc2) = channel!(10).unwrap();
+			let (senda2, recva2) = channel!().unwrap();
+			let (sendb2, recvb2) = channel!().unwrap();
+			let (sendc2, recvc2) = channel!().unwrap();
 
 			let x2 = r
 				.execute(move || -> Result<i32, Error> {
@@ -454,9 +449,9 @@ mod test {
 			assert_eq!(r.cur_threads(), 2);
 
 			// now start up 5 threads (we'll hit our limit of 4)
-			let (senda1, recva1) = channel!(10).unwrap();
-			let (sendb1, recvb1) = channel!(10).unwrap();
-			let (sendc1, recvc1) = channel!(10).unwrap();
+			let (senda1, recva1) = channel!().unwrap();
+			let (sendb1, recvb1) = channel!().unwrap();
+			let (sendc1, recvc1) = channel!().unwrap();
 
 			let x1 = r
 				.execute(move || -> Result<i32, Error> {
@@ -467,9 +462,9 @@ mod test {
 				})
 				.unwrap();
 
-			let (senda2, recva2) = channel!(10).unwrap();
-			let (sendb2, recvb2) = channel!(10).unwrap();
-			let (sendc2, recvc2) = channel!(10).unwrap();
+			let (senda2, recva2) = channel!().unwrap();
+			let (sendb2, recvb2) = channel!().unwrap();
+			let (sendc2, recvc2) = channel!().unwrap();
 
 			let x2 = r
 				.execute(move || -> Result<i32, Error> {
@@ -480,9 +475,9 @@ mod test {
 				})
 				.unwrap();
 
-			let (senda3, recva3) = channel!(10).unwrap();
-			let (sendb3, recvb3) = channel!(10).unwrap();
-			let (sendc3, recvc3) = channel!(10).unwrap();
+			let (senda3, recva3) = channel!().unwrap();
+			let (sendb3, recvb3) = channel!().unwrap();
+			let (sendc3, recvc3) = channel!().unwrap();
 
 			let x3 = r
 				.execute(move || -> Result<i32, Error> {
@@ -493,9 +488,9 @@ mod test {
 				})
 				.unwrap();
 
-			let (senda4, recva4) = channel!(10).unwrap();
-			let (sendb4, recvb4) = channel!(10).unwrap();
-			let (sendc4, recvc4) = channel!(10).unwrap();
+			let (senda4, recva4) = channel!().unwrap();
+			let (sendb4, recvb4) = channel!().unwrap();
+			let (sendc4, recvc4) = channel!().unwrap();
 
 			let x4 = r
 				.execute(move || -> Result<i32, Error> {
@@ -506,9 +501,9 @@ mod test {
 				})
 				.unwrap();
 
-			let (senda5, recva5) = channel!(10).unwrap();
-			let (sendb5, recvb5) = channel!(10).unwrap();
-			let (sendc5, recvc5) = channel!(10).unwrap();
+			let (senda5, recva5) = channel!().unwrap();
+			let (sendb5, recvb5) = channel!().unwrap();
+			let (sendc5, recvc5) = channel!().unwrap();
 
 			let x5 = r
 				.execute(move || -> Result<i32, Error> {
@@ -557,5 +552,4 @@ mod test {
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 	}
-		*/
 }

@@ -853,7 +853,7 @@ mod test {
 		let mut ws = WsServer::new(config).unwrap();
 		let b: Box<dyn FnMut(WsMessage, WsResponse) -> Result<(), Error>> =
 			Box::new(move |msg: WsMessage, mut resp: WsResponse| {
-				let v = lock.write();
+				let _v = lock.write();
 				let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
 				println!("in handler[{}]. Msg={}", msg.path, x);
 				resp.send("got it!");
@@ -864,7 +864,7 @@ mod test {
 
 		let b: Box<dyn FnMut(WsMessage, WsResponse) -> Result<(), Error>> =
 			Box::new(move |msg: WsMessage, mut resp: WsResponse| {
-				let v = lock2.write();
+				let _v = lock2.write();
 				let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
 				println!("in handler2[{}]. Msg={}", msg.path, x);
 				resp.send("got it!");

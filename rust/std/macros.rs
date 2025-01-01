@@ -1,7 +1,33 @@
 #[macro_export]
+macro_rules! rc {
+	($v:expr) => {{
+		match Rc::new($v) {
+			Ok(v) => match v.clone() {
+				Ok(v_clone) => Ok((v, v_clone)),
+				Err(e) => Err(e),
+			},
+			Err(e) => Err(e),
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! lock_pair {
+	() => {{
+		match lock_box!() {
+			Ok(lock1) => match lock1.clone() {
+				Ok(lock2) => Ok((lock1, lock2)),
+				Err(e) => Err(e),
+			},
+			Err(e) => Err(e),
+		}
+	}};
+}
+
+#[macro_export]
 macro_rules! channel {
-	($capacity:expr) => {{
-		let channel = Channel::new($capacity);
+	() => {{
+		let channel = Channel::new();
 		match channel {
 			Ok(sender) => match sender.clone() {
 				Ok(receiver) => Ok((sender, receiver)),

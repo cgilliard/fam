@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 #[repr(C)]
-pub struct MessageHeader {
-	pub(crate) _reserved: *mut u8,
+pub struct Message {
+	pub(crate) _next: *mut Message,
+	pub payload: *mut u8,
 }
 
 extern "C" {
@@ -32,11 +33,12 @@ extern "C" {
 	pub fn thread_detach(handle: *const u8) -> i32;
 	pub fn thread_handle_size() -> usize;
 
-	pub fn channel_init(channel: *const u8, msg_size: u64, capacity: u64) -> i32;
+	pub fn channel_init(channel: *const u8) -> i32;
 	pub fn channel_send(channel: *const u8, ptr: *const u8) -> i32;
-	pub fn channel_recv(channel: *const u8, msg: *mut u8) -> *mut u8;
+	pub fn channel_recv(channel: *const u8) -> *mut u8;
 	pub fn channel_handle_size() -> usize;
-	pub fn channel_destroy(channel: *const u8);
+	pub fn channel_destroy(channel: *const u8) -> i32;
+	pub fn channel_pending(channel: *const u8) -> bool;
 
 	pub fn socket_handle_size() -> usize;
 	pub fn socket_event_size() -> usize;
@@ -125,25 +127,6 @@ pub fn safe_socket_event_is_write(event: *const u8) -> bool {
 }
 pub fn safe_socket_handle_eq(handle1: *const u8, handle2: *const u8) -> bool {
 	unsafe { socket_handle_eq(handle1, handle2) }
-}
-
-pub fn safe_channel_init(channel: *const u8, msg_size: u64, capacity: u64) -> i32 {
-	unsafe { channel_init(channel, msg_size, capacity) }
-}
-
-pub fn safe_channel_send(channel: *const u8, ptr: *const u8) -> i32 {
-	unsafe { channel_send(channel, ptr) }
-}
-pub fn safe_channel_recv(channel: *const u8, msg: *mut u8) -> *mut u8 {
-	unsafe { channel_recv(channel, msg) }
-}
-pub fn safe_channel_handle_size() -> usize {
-	unsafe { channel_handle_size() }
-}
-pub fn safe_channel_destroy(channel: *const u8) {
-	unsafe {
-		channel_destroy(channel);
-	}
 }
 
 pub fn safe_thread_create(start_routine: extern "C" fn(*mut u8), arg: *mut u8) -> i32 {
