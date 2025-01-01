@@ -9,20 +9,6 @@ use sys::{
 	safe_channel_recv, safe_channel_send, safe_release, MessageHeader,
 };
 
-#[macro_export]
-macro_rules! channel {
-	() => {{
-		let channel = Channel::new();
-		match channel {
-			Ok(sender) => match sender.clone() {
-				Ok(receiver) => Ok((sender, receiver)),
-				Err(e) => Err(e),
-			},
-			Err(e) => Err(e),
-		}
-	}};
-}
-
 struct Message<T> {
 	_header: MessageHeader,
 	value: T,
@@ -85,7 +71,7 @@ impl<T> ChannelInner<T> {
 impl<T> Channel<T> {
 	pub fn new(capacity: u64) -> Result<Channel<T>, Error> {
 		let size = size_of::<T>();
-		let handle = safe_alloc(safe_channel_handle_size() + size * capacity as usize);
+		let handle = safe_alloc(safe_channel_handle_size() + size * (1 + capacity) as usize);
 		let handle = if handle.is_null() {
 			return Err(err!(Alloc));
 		} else {
@@ -100,7 +86,7 @@ impl<T> Channel<T> {
 			Err(e) => return Err(e),
 		};
 
-		let res = safe_channel_init(ret.inner.handle.raw(), size as u64, capacity);
+		let res = safe_channel_init(ret.inner.handle.raw(), size as u64, 1 + capacity);
 		if res != 0 {
 			return Err(err!(ChannelInit));
 		}
@@ -338,7 +324,7 @@ mod test {
 	fn test_channel_cap_exceed() {
 		let initial = safe_getalloccount();
 		{
-			let channel = Channel::new(2).unwrap();
+			let channel = Channel::new(1).unwrap();
 			channel.send(0).unwrap();
 			assert!(channel.send(0).is_err());
 		}

@@ -847,9 +847,13 @@ mod test {
 			port: 9999,
 			..Default::default()
 		};
+
+		let lock = lock_box!().unwrap();
+		let lock2 = lock.clone().unwrap();
 		let mut ws = WsServer::new(config).unwrap();
 		let b: Box<dyn FnMut(WsMessage, WsResponse) -> Result<(), Error>> =
 			Box::new(move |msg: WsMessage, mut resp: WsResponse| {
+				let v = lock.write();
 				let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
 				println!("in handler[{}]. Msg={}", msg.path, x);
 				resp.send("got it!");
@@ -860,6 +864,7 @@ mod test {
 
 		let b: Box<dyn FnMut(WsMessage, WsResponse) -> Result<(), Error>> =
 			Box::new(move |msg: WsMessage, mut resp: WsResponse| {
+				let v = lock2.write();
 				let x = unsafe { from_utf8_unchecked(&msg.msg[0..msg.msg.len()]) };
 				println!("in handler2[{}]. Msg={}", msg.path, x);
 				resp.send("got it!");
@@ -870,7 +875,7 @@ mod test {
 
 		ws.start().unwrap();
 		let port = ws.port();
-		ws.add_client([0u8; 4], port);
+		ws.add_client([0u8; 4], port).unwrap();
 
 		let handle = safe_alloc(safe_socket_handle_size()) as *mut u8;
 		let addr = [127u8, 0u8, 0u8, 1u8];

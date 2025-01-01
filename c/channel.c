@@ -68,7 +68,6 @@ Message *channel_recv(Channel *handle, Message *msg) {
 		perror("pthread_mutex_lock");
 		_exit(1);
 	}
-
 	Message *ret = NULL;
 
 	while (handle->head == handle->tail) {

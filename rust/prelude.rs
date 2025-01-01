@@ -1,5 +1,6 @@
 // Internal
 pub use std::boxed::Box;
+pub use std::channel::Channel;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::format::Formatter;
@@ -17,6 +18,7 @@ pub use std::util::*;
 pub use std::vec::Vec;
 pub use util::hashtable::*;
 pub use util::rbtree::*;
+pub use util::task::*;
 
 // External
 pub use core::cmp::PartialEq;

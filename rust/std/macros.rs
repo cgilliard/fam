@@ -1,4 +1,18 @@
 #[macro_export]
+macro_rules! channel {
+	($capacity:expr) => {{
+		let channel = Channel::new($capacity);
+		match channel {
+			Ok(sender) => match sender.clone() {
+				Ok(receiver) => Ok((sender, receiver)),
+				Err(e) => Err(e),
+			},
+			Err(e) => Err(e),
+		}
+	}};
+}
+
+#[macro_export]
 macro_rules! writeb {
         ($f:expr, $fmt:expr) => {{
             writeb!($f, "{}", $fmt)
