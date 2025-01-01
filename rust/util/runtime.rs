@@ -6,8 +6,8 @@ use prelude::*;
 type Task<T> = Box<dyn FnMut() -> T>;
 
 pub struct RuntimeConfig {
-	min_threads: u64,
-	max_threads: u64,
+	pub min_threads: u64,
+	pub max_threads: u64,
 }
 
 impl Clone for RuntimeConfig {
@@ -95,6 +95,8 @@ impl<T> RuntimeImpl<T> {
 			Ok(lock) => lock,
 			Err(e) => return Err(e),
 		};
+
+		let stop_channel = self.stop_channel.clone().unwrap();
 		let _ = spawnj(move || loop {
 			{
 				let _l = lock.write();
@@ -103,7 +105,7 @@ impl<T> RuntimeImpl<T> {
 					state.total_workers -= 1;
 					state.waiting_workers -= 1;
 					if state.halt && state.total_workers == 0 {
-						let _ = self.stop_channel.send(());
+						let _ = stop_channel.send(());
 					}
 					return;
 				}
@@ -121,7 +123,6 @@ impl<T> RuntimeImpl<T> {
 						Ok(_) => {}
 						Err(_e) => {
 							state.total_workers -= 1;
-							println!("err!");
 						}
 					}
 				}
@@ -200,27 +201,23 @@ impl<T> Runtime<T> {
 	}
 
 	pub fn stop(&mut self) -> Result<(), Error> {
-		match &mut self.rimpl {
+		let ret = match &mut self.rimpl {
 			Some(rimpl) => {
 				{
 					let _v = rimpl.lock.write();
 					rimpl.state.halt = true;
 				}
 
-				loop {
-					let _v = rimpl.lock.read();
-					if rimpl.state.total_workers > 0 {
-						let _ = rimpl.channel.send(Message::Halt);
-					} else {
-						break;
-					}
+				for i in 0..self.config.max_threads {
+					let _ = rimpl.channel.send(Message::Halt);
 				}
 				let _ = rimpl.stop_channel.recv();
 				self.rimpl = None;
 				Ok(())
 			}
 			None => Err(err!(NotInitialized)),
-		}
+		};
+		ret
 	}
 
 	pub fn execute<F>(&mut self, task: F) -> Result<Handle<T>, Error>

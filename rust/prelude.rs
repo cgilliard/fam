@@ -18,9 +18,10 @@ pub use std::util::*;
 pub use std::vec::Vec;
 pub use util::hashtable::*;
 pub use util::rbtree::*;
-pub use util::task::*;
+pub use util::runtime::*;
 
 // External
 pub use core::cmp::PartialEq;
 pub use core::convert::{From, Into, TryFrom, TryInto};
+pub use core::default::Default;
 pub use core::ops::{Drop, FnMut};
