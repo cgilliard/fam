@@ -80,6 +80,69 @@ impl<T> RuntimeImpl<T> {
 			Err(e) => Err(e),
 		}
 	}
+
+	fn thread(&mut self, min_threads: u64, max_threads: u64) -> Result<(), Error> {
+		let channel = match self.channel.clone() {
+			Ok(channel) => channel,
+			Err(e) => return Err(e),
+		};
+
+		let mut state: Rc<State> = match self.state.clone() {
+			Ok(state) => state,
+			Err(e) => return Err(e),
+		};
+		let lock = match self.lock.clone() {
+			Ok(lock) => lock,
+			Err(e) => return Err(e),
+		};
+		let _ = spawnj(move || loop {
+			{
+				let _l = lock.write();
+				state.waiting_workers += 1;
+				if state.waiting_workers > min_threads || state.halt {
+					state.total_workers -= 1;
+					state.waiting_workers -= 1;
+					if state.halt && state.total_workers == 0 {
+						let _ = self.stop_channel.send(());
+					}
+					return;
+				}
+			}
+
+			let task = channel.recv();
+
+			{
+				let _l = lock.write();
+				state.waiting_workers -= 1;
+
+				if state.waiting_workers == 0 && state.total_workers < max_threads {
+					state.total_workers += 1;
+					match self.thread(min_threads, max_threads) {
+						Ok(_) => {}
+						Err(_e) => {
+							state.total_workers -= 1;
+							println!("err!");
+						}
+					}
+				}
+			}
+
+			match task {
+				Message::Task(mut t) => {
+					let ret = t.0();
+					*t.2 = true;
+					match t.1.send(ret) {
+						Ok(_) => {}
+						Err(_e) => {
+							println!("err!");
+						}
+					}
+				}
+				Message::Halt => {}
+			}
+		});
+		Ok(())
+	}
 }
 
 pub struct Runtime<T> {
@@ -121,8 +184,17 @@ impl<T> Runtime<T> {
 			Err(e) => return Err(e),
 		};
 		self.rimpl = Some(rimpl);
+
 		for _i in 0..self.config.min_threads {
-			let _ = self.thread();
+			match self
+				.rimpl
+				.as_mut()
+				.unwrap()
+				.thread(self.config.min_threads, self.config.max_threads)
+			{
+				Ok(_) => {}
+				Err(e) => return Err(e),
+			}
 		}
 		Ok(())
 	}
@@ -211,75 +283,6 @@ impl<T> Runtime<T> {
 			}
 			None => 0,
 		}
-	}
-
-	fn thread(&mut self) -> Result<(), Error> {
-		let rimpl = match &self.rimpl {
-			Some(rimpl) => rimpl,
-			None => return Err(err!(NotInitialized)),
-		};
-
-		let channel = match rimpl.channel.clone() {
-			Ok(channel) => channel,
-			Err(e) => return Err(e),
-		};
-
-		let mut state: Rc<State> = match rimpl.state.clone() {
-			Ok(state) => state,
-			Err(e) => return Err(e),
-		};
-		let lock = match rimpl.lock.clone() {
-			Ok(lock) => lock,
-			Err(e) => return Err(e),
-		};
-		let _ = spawnj(move || loop {
-			{
-				let _l = lock.write();
-				state.waiting_workers += 1;
-				if state.waiting_workers > self.config.min_threads || state.halt {
-					state.total_workers -= 1;
-					state.waiting_workers -= 1;
-					if state.halt && state.total_workers == 0 {
-						let rimpl = self.rimpl.as_mut().unwrap();
-						let _ = rimpl.stop_channel.send(());
-					}
-					return;
-				}
-			}
-
-			let task = channel.recv();
-
-			{
-				let _l = lock.write();
-				state.waiting_workers -= 1;
-
-				if state.waiting_workers == 0 && state.total_workers < self.config.max_threads {
-					state.total_workers += 1;
-					match self.thread() {
-						Ok(_) => {}
-						Err(_e) => {
-							state.total_workers -= 1;
-							println!("err!");
-						}
-					}
-				}
-			}
-
-			match task {
-				Message::Task(mut t) => {
-					let ret = t.0();
-					*t.2 = true;
-					match t.1.send(ret) {
-						Ok(_) => {}
-						Err(_e) => {
-							println!("err!");
-						}
-					}
-				}
-				Message::Halt => {}
-			}
-		});
-		Ok(())
 	}
 }
 
