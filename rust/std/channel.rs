@@ -1,21 +1,21 @@
 use core::marker::PhantomData;
-use core::mem::size_of;
 use core::ops::Drop;
 use core::ptr;
 use prelude::*;
 use sys::{
-	alloc, channel_destroy, channel_handle_size, channel_init, channel_pending, channel_recv,
-	channel_send, release,
+	safe_channel_destroy, safe_channel_handle_size, safe_channel_init, safe_channel_pending,
+	safe_channel_recv, safe_channel_send, safe_release,
 };
 
 #[repr(C)]
-pub struct Message {
-	pub(crate) _next: *mut Message,
-	pub payload: *mut u8,
+struct ChannelMessage<T> {
+	_reserved: u128,
+	_reserved2: u128,
+	value: T,
 }
 
 struct ChannelInner<T> {
-	handle: *mut u8,
+	handle: [u8; 128],
 	_marker: PhantomData<T>,
 }
 
@@ -34,72 +34,74 @@ impl<T> Clone for Channel<T> {
 
 impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
-		unsafe {
-			while channel_pending(self.handle) {
-				let _recv = self.recv();
-			}
-			channel_destroy(self.handle);
-			release(self.handle);
+		while safe_channel_pending(&self.handle as *const u8) {
+			let _recv = self.recv();
 		}
+		let handle = &self.handle;
+		safe_channel_destroy(handle as *const u8);
 	}
 }
 
 impl<T> ChannelInner<T> {
-	pub fn recv(&self) -> Result<T, Error> {
-		unsafe {
-			let recv = channel_recv(self.handle) as *mut Message;
-			let payload = (*recv).payload as *mut T;
-			let mut nbox = Box::from_raw(Ptr::new(payload));
-			nbox.leak();
-			let v = ptr::read(nbox.as_ptr().raw());
-			if !payload.is_null() {
-				release(payload as *mut u8);
+	pub fn recv(&self) -> T {
+		let handle = &self.handle;
+		let recv = safe_channel_recv(handle as *const u8) as *mut ChannelMessage<T>;
+		let ptr = Ptr::new(recv);
+		let mut nbox = Box::from_raw(ptr);
+		nbox.leak();
+		let v = unsafe { ptr::read(nbox.as_ptr().raw()) };
+		safe_release(recv as *mut u8);
+		v.value
+	}
+
+	pub fn send(&self, value: T) -> Result<(), Error> {
+		let msg = ChannelMessage {
+			_reserved: 0,
+			_reserved2: 0,
+			value,
+		};
+		match Box::new(msg) {
+			Ok(mut b) => {
+				b.leak();
+				let handle = &self.handle;
+				if safe_channel_send(handle as *const u8, b.as_ptr().raw() as *mut u8) < 0 {
+					Err(err!(ChannelSend))
+				} else {
+					Ok(())
+				}
 			}
-			if !recv.is_null() {
-				release(recv as *mut u8);
-			}
-			Ok(v)
+			Err(e) => Err(e),
 		}
 	}
 }
 
 impl<T> Channel<T> {
 	pub fn new() -> Result<Channel<T>, Error> {
-		if unsafe { channel_handle_size() } > 128 {
-			exit!("channel_handle_size() > 128");
+		if safe_channel_handle_size() > 128 {
+			exit!("safe_channel_handle_size() > 128");
 		}
-		unsafe {
-			let handle = alloc(channel_handle_size()) as *mut u8;
-			let ret = match Rc::new(ChannelInner {
-				handle,
-				_marker: PhantomData,
-			}) {
-				Ok(inner) => Self { inner },
-				Err(e) => return Err(e),
-			};
+		let handle = [0u8; 128];
+		let mut ret = match Rc::new(ChannelInner {
+			handle,
+			_marker: PhantomData,
+		}) {
+			Ok(inner) => Self { inner },
+			Err(e) => return Err(e),
+		};
 
-			channel_init(ret.inner.handle);
-
+		let handle = &mut ret.inner.handle;
+		if safe_channel_init(handle as *mut u8) < 0 {
+			Err(err!(ChannelInit))
+		} else {
 			Ok(ret)
 		}
 	}
 
 	pub fn send(&self, t: T) -> Result<(), Error> {
-		unsafe {
-			let msg = alloc(size_of::<Message>()) as *mut Message;
-			match Box::new(t) {
-				Ok(mut b) => {
-					(*msg).payload = b.as_ptr().raw() as *mut u8;
-					b.leak();
-					channel_send(self.inner.handle, msg as *mut u8);
-					Ok(())
-				}
-				Err(e) => Err(e),
-			}
-		}
+		self.inner.send(t)
 	}
 
-	pub fn recv(&self) -> Result<T, Error> {
+	pub fn recv(&self) -> T {
 		self.inner.recv()
 	}
 }
@@ -107,18 +109,18 @@ impl<T> Channel<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use sys::getalloccount;
+	use sys::safe_getalloccount;
 
 	#[test]
 	fn test_channel_std() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new().unwrap();
 			let lock = lock!();
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 			let mut jh = spawnj(|| {
-				let v = channel.recv().unwrap();
+				let v = channel.recv();
 				assert_eq!(v, 101);
 				let _v = lock.write(); // memory fence only
 				assert_eq!(*rc_clone, 1);
@@ -144,22 +146,22 @@ mod test {
 			}
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_channel_clone() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel: Channel<u32> = Channel::new().unwrap();
 			let _channel2 = channel.clone().unwrap();
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_channel_move_std() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new().unwrap();
 			let channel_clone = channel.clone().unwrap();
@@ -168,7 +170,7 @@ mod test {
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 			let mut jh = spawnj(move || {
-				let v = { channel_clone.recv().unwrap() };
+				let v = channel_clone.recv();
 				assert_eq!(v, 101);
 				let _v = lock_clone.write();
 				assert_eq!(*rc_clone, 1);
@@ -194,12 +196,12 @@ mod test {
 			}
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	#[test]
 	fn test_channel_result() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new().unwrap();
 			let channel_clone = channel.clone().unwrap();
@@ -212,7 +214,7 @@ mod test {
 
 			let mut jh = spawnj(move || {
 				{
-					let input = channel_clone.recv().unwrap();
+					let input = channel_clone.recv();
 					let _v = lock_clone.write();
 					*rc_clone = input + 100;
 				}
@@ -221,14 +223,14 @@ mod test {
 			.unwrap();
 
 			channel.send(301).unwrap();
-			let result = channel2.recv().unwrap();
+			let result = channel2.recv();
 
 			assert_eq!(result, ());
 			assert_eq!(*rc, 401);
 
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 	}
 
 	struct DropTest {
@@ -249,7 +251,7 @@ mod test {
 
 	#[test]
 	fn test_channel_drop() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new().unwrap();
 			let channel_clone = channel.clone().unwrap();
@@ -262,7 +264,7 @@ mod test {
 
 			let mut jh = spawnj(move || {
 				{
-					let input: DropTest = channel_clone.recv().unwrap();
+					let input: DropTest = channel_clone.recv();
 					let _v = lock_clone.write();
 					*rc_clone = input.x + 100;
 					assert_eq!(unsafe { DROPCOUNT }, 0);
@@ -273,26 +275,46 @@ mod test {
 			.unwrap();
 
 			channel.send(DropTest { x: 301 }).unwrap();
-			let result = channel2.recv().unwrap();
+			let result = channel2.recv();
 
 			assert_eq!(result.x, 4);
 			assert_eq!(*rc, 401);
 			assert!(jh.join().is_ok());
 			assert_eq!(unsafe { DROPCOUNT }, 1);
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
 		assert_eq!(unsafe { DROPCOUNT }, 2);
 		assert_eq!(unsafe { DROPSUM }, 305);
 	}
 
 	#[test]
 	fn test_cleanup() {
-		let initial = unsafe { getalloccount() };
+		let initial = safe_getalloccount();
 		{
 			let channel = Channel::new().unwrap();
 			channel.send(0).unwrap();
 			channel.send(0).unwrap();
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert_eq!(initial, safe_getalloccount());
+	}
+
+	#[test]
+	fn test_multisend_chan() {
+		let initial = safe_getalloccount();
+		{
+			let channel = Channel::new().unwrap();
+			let recv = channel.clone().unwrap();
+			channel.send(0).unwrap();
+			channel.send(1).unwrap();
+			channel.send(2).unwrap();
+			channel.send(3).unwrap();
+			channel.send(4).unwrap();
+			channel.send(5).unwrap();
+
+			assert_eq!(recv.recv(), 0);
+			assert_eq!(recv.recv(), 1);
+			assert_eq!(recv.recv(), 2);
+		}
+		assert_eq!(initial, safe_getalloccount());
 	}
 }
