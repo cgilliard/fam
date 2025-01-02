@@ -5,11 +5,4 @@
 #![feature(core_intrinsics)]
 #![no_implicit_prelude]
 
-#[macro_use]
-pub mod std;
-
-pub mod net;
-pub mod prelude;
 mod real_main;
-mod sys;
-pub mod util;
