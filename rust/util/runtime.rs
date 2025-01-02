@@ -137,6 +137,7 @@ impl<T> Runtime<T> {
 		})
 	}
 
+	#[inline(never)]
 	pub fn cur_threads(&self) -> u64 {
 		{
 			let _l = self.lock.read();
@@ -144,6 +145,7 @@ impl<T> Runtime<T> {
 		}
 	}
 
+	#[inline(never)]
 	pub fn idle_threads(&self) -> u64 {
 		{
 			let _l = self.lock.read();
@@ -259,8 +261,8 @@ mod test {
 	#[test]
 	fn test_runtime2() {
 		let config = RuntimeConfig {
-			min_threads: 5,
-			max_threads: 5,
+			min_threads: 2,
+			max_threads: 3,
 		};
 		let mut x: Runtime<()> = Runtime::new(config).unwrap();
 		assert!(x.start().is_ok());
@@ -286,8 +288,8 @@ mod test {
 		recv1.recv().unwrap();
 		recv2.recv().unwrap();
 
-		//	assert_eq!(x.cur_threads(), 3);
-		//	assert_eq!(x.idle_threads(), 1);
+		//assert_eq!(x.cur_threads(), 3);
+		//assert_eq!(x.idle_threads(), 1);
 
 		assert!(senda1.send(()).is_ok());
 		assert!(senda2.send(()).is_ok());
@@ -295,9 +297,8 @@ mod test {
 		assert_eq!(h1.block_on(), ());
 		assert_eq!(h2.block_on(), ());
 
-		crate::sys::safe_sleep_millis(100);
-		//	assert_eq!(x.cur_threads(), 2);
-		//	assert_eq!(x.idle_threads(), 2);
+		assert_eq!(x.cur_threads(), 2);
+		assert_eq!(x.idle_threads(), 2);
 
 		assert!(x.stop().is_ok());
 	}
