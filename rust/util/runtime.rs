@@ -20,7 +20,7 @@ struct State {
 
 enum Message<T> {
 	Task((Task<T>, Channel<T>, Rc<bool>)),
-	Halt(i32),
+	Halt,
 }
 
 pub struct Runtime<T> {
@@ -100,7 +100,7 @@ impl<T> Runtime<T> {
 			}
 			self.state.halt = true;
 			for _i in 0..self.config.max_threads {
-				match self.channel.send(Message::Halt(1)) {
+				match self.channel.send(Message::Halt) {
 					Ok(_) => {}
 					Err(e) => return Err(e),
 				}
@@ -196,7 +196,7 @@ impl<T> Runtime<T> {
 							}
 						}
 					}
-					Message::Halt(_x) => {}
+					Message::Halt => {}
 				}
 			}
 			let _l = lock.read();
@@ -283,6 +283,8 @@ mod test {
 		recv1.recv();
 		recv2.recv();
 
+		while x.idle_threads() != 1 {}
+		assert_eq!(x.idle_threads(), 1);
 		assert_eq!(x.cur_threads(), 3);
 
 		assert!(senda1.send(()).is_ok());
