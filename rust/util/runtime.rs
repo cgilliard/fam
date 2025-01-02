@@ -12,7 +12,6 @@ pub struct Handle<T> {
 	is_complete: Rc<bool>,
 }
 
-#[repr(C)]
 struct State {
 	total_workers: u64,
 	waiting_workers: u64,
@@ -143,13 +142,11 @@ impl<T> Runtime<T> {
 		self.state.total_workers
 	}
 
-	#[inline(never)]
 	fn idle_threads(&self) -> u64 {
 		let _l = self.lock.read();
 		self.state.waiting_workers
 	}
 
-	#[inline(never)]
 	fn thread(&mut self, min: u64, max: u64) -> Result<(), Error> {
 		let channel = self.channel.clone().unwrap();
 		let mut state = self.state.clone().unwrap();
@@ -297,5 +294,169 @@ mod test {
 		assert_eq!(x.idle_threads(), 2);
 
 		assert!(x.stop().is_ok());
+	}
+	#[test]
+	fn test_thread_pool_size() {
+		let initial = crate::sys::safe_getalloccount();
+		{
+			let mut r = Runtime::new(RuntimeConfig {
+				min_threads: 2,
+				max_threads: 4,
+			})
+			.unwrap();
+			r.start().unwrap();
+
+			while r.idle_threads() != 2 {}
+
+			let (senda1, recva1) = channel!().unwrap();
+			let (sendb1, recvb1) = channel!().unwrap();
+			let (sendc1, recvc1) = channel!().unwrap();
+
+			let x1 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva1.recv().unwrap(), 1);
+					sendb1.send(1).unwrap();
+					assert_eq!(recvc1.recv().unwrap(), 1);
+					Ok(1)
+				})
+				.unwrap();
+
+			let (senda2, recva2) = channel!().unwrap();
+			let (sendb2, recvb2) = channel!().unwrap();
+			let (sendc2, recvc2) = channel!().unwrap();
+
+			let x2 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva2.recv().unwrap(), 2);
+					sendb2.send(2).unwrap();
+					assert_eq!(recvc2.recv().unwrap(), 2);
+					Ok(2)
+				})
+				.unwrap();
+
+			senda1.send(1).unwrap();
+			senda2.send(2).unwrap();
+
+			assert_eq!(recvb1.recv().unwrap(), 1);
+			assert_eq!(recvb2.recv().unwrap(), 2);
+
+			// we know there should be three threads spawned at this point because at least one
+			// waiting worker is maintained.
+			assert_eq!(r.cur_threads(), 3);
+
+			sendc1.send(1).unwrap();
+			sendc2.send(2).unwrap();
+
+			assert_eq!(x1.block_on().unwrap(), 1);
+			assert_eq!(x2.block_on().unwrap(), 2);
+
+			while r.cur_threads() != 2 {}
+
+			// The other two threads have exited so we should be back down to our min
+			assert_eq!(r.cur_threads(), 2);
+
+			// now start up 5 threads (we'll hit our limit of 4)
+			let (senda1, recva1) = channel!().unwrap();
+			let (sendb1, recvb1) = channel!().unwrap();
+			let (sendc1, recvc1) = channel!().unwrap();
+
+			let x1 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva1.recv().unwrap(), 1);
+					sendb1.send(1).unwrap();
+					assert_eq!(recvc1.recv().unwrap(), 1);
+					Ok(1)
+				})
+				.unwrap();
+
+			let (senda2, recva2) = channel!().unwrap();
+			let (sendb2, recvb2) = channel!().unwrap();
+			let (sendc2, recvc2) = channel!().unwrap();
+
+			let x2 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva2.recv().unwrap(), 2);
+					sendb2.send(2).unwrap();
+					assert_eq!(recvc2.recv().unwrap(), 2);
+					Ok(2)
+				})
+				.unwrap();
+
+			let (senda3, recva3) = channel!().unwrap();
+			let (sendb3, recvb3) = channel!().unwrap();
+			let (sendc3, recvc3) = channel!().unwrap();
+
+			let x3 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva3.recv().unwrap(), 3);
+					sendb3.send(3).unwrap();
+					assert_eq!(recvc3.recv().unwrap(), 3);
+					Ok(3)
+				})
+				.unwrap();
+
+			let (senda4, recva4) = channel!().unwrap();
+			let (sendb4, recvb4) = channel!().unwrap();
+			let (sendc4, recvc4) = channel!().unwrap();
+
+			let x4 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva4.recv().unwrap(), 4);
+					sendb4.send(4).unwrap();
+					assert_eq!(recvc4.recv().unwrap(), 4);
+					Ok(4)
+				})
+				.unwrap();
+
+			let (senda5, recva5) = channel!().unwrap();
+			let (sendb5, recvb5) = channel!().unwrap();
+			let (sendc5, recvc5) = channel!().unwrap();
+
+			let x5 = r
+				.execute(move || -> Result<i32, Error> {
+					assert_eq!(recva5.recv().unwrap(), 5);
+					sendb5.send(5).unwrap();
+					assert_eq!(recvc5.recv().unwrap(), 5);
+					Ok(5)
+				})
+				.unwrap();
+
+			senda1.send(1).unwrap();
+			senda2.send(2).unwrap();
+			senda3.send(3).unwrap();
+			senda4.send(4).unwrap();
+
+			assert_eq!(recvb1.recv().unwrap(), 1);
+			assert_eq!(recvb2.recv().unwrap(), 2);
+			assert_eq!(recvb3.recv().unwrap(), 3);
+			assert_eq!(recvb4.recv().unwrap(), 4);
+
+			// we are now at our max threads (4) there would have been a 5th, but we hit the
+			// max.
+			assert_eq!(r.cur_threads(), 4);
+
+			// send messages to release all threads
+			senda5.send(5).unwrap();
+			sendc1.send(1).unwrap();
+			sendc2.send(2).unwrap();
+			sendc3.send(3).unwrap();
+			sendc4.send(4).unwrap();
+			sendc5.send(5).unwrap();
+
+			// thread 5 can now complete
+			assert_eq!(recvb5.recv().unwrap(), 5);
+
+			while r.cur_threads() != 2 {}
+
+			// After things settle down we should return to our min thread level of 2
+			assert_eq!(r.cur_threads(), 2);
+
+			assert_eq!(x1.block_on().unwrap(), 1);
+			assert_eq!(x2.block_on().unwrap(), 2);
+			assert_eq!(x3.block_on().unwrap(), 3);
+			assert_eq!(x4.block_on().unwrap(), 4);
+			assert_eq!(x5.block_on().unwrap(), 5);
+		}
+		assert_eq!(initial, crate::sys::safe_getalloccount());
 	}
 }
