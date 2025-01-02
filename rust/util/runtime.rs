@@ -12,9 +12,10 @@ pub struct Handle<T> {
 	is_complete: Rc<bool>,
 }
 
+#[repr(C)]
 struct State {
-	waiting_workers: u64,
 	total_workers: u64,
+	waiting_workers: u64,
 	halt: bool,
 }
 
@@ -137,20 +138,15 @@ impl<T> Runtime<T> {
 		})
 	}
 
-	#[inline(never)]
-	pub fn cur_threads(&self) -> u64 {
-		{
-			let _l = self.lock.read();
-			self.state.total_workers
-		}
+	fn cur_threads(&self) -> u64 {
+		let _l = self.lock.read();
+		self.state.total_workers
 	}
 
 	#[inline(never)]
-	pub fn idle_threads(&self) -> u64 {
-		{
-			let _l = self.lock.read();
-			self.state.waiting_workers
-		}
+	fn idle_threads(&self) -> u64 {
+		let _l = self.lock.read();
+		self.state.waiting_workers
 	}
 
 	#[inline(never)]
@@ -288,8 +284,7 @@ mod test {
 		recv1.recv().unwrap();
 		recv2.recv().unwrap();
 
-		//assert_eq!(x.cur_threads(), 3);
-		//assert_eq!(x.idle_threads(), 1);
+		assert_eq!(x.cur_threads(), 3);
 
 		assert!(senda1.send(()).is_ok());
 		assert!(senda2.send(()).is_ok());
@@ -297,6 +292,7 @@ mod test {
 		assert_eq!(h1.block_on(), ());
 		assert_eq!(h2.block_on(), ());
 
+		while x.cur_threads() != 2 {}
 		assert_eq!(x.cur_threads(), 2);
 		assert_eq!(x.idle_threads(), 2);
 
