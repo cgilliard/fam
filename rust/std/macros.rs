@@ -25,20 +25,6 @@ macro_rules! lock_pair {
 }
 
 #[macro_export]
-macro_rules! channel {
-	() => {{
-		let channel = Channel::new();
-		match channel {
-			Ok(sender) => match sender.clone() {
-				Ok(receiver) => Ok((sender, receiver)),
-				Err(e) => Err(e),
-			},
-			Err(e) => Err(e),
-		}
-	}};
-}
-
-#[macro_export]
 macro_rules! writeb {
         ($f:expr, $fmt:expr) => {{
             writeb!($f, "{}", $fmt)

@@ -2,6 +2,7 @@
 pub mod macros;
 
 pub mod boxed;
+pub mod channel;
 pub mod clone;
 pub mod error;
 pub mod format;
