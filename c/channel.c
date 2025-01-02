@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <pthread.h>
 
 void _exit(int);
@@ -38,13 +39,17 @@ int channel_send(Channel *handle, Message *msg) {
 		handle->head = msg;
 	handle->tail = msg;
 
-	if (pthread_mutex_unlock(&handle->lock)) {
-		perror("pthread_mutex_unlock");
-		_exit(-1);
-	}
+	// Ensure queue consistency
+	assert(handle->head == NULL || handle->head != handle->tail ||
+	       handle->head->next == NULL);
 
 	if (pthread_cond_signal(&handle->cond)) {
 		perror("pthread_cond_signal");
+		_exit(-1);
+	}
+
+	if (pthread_mutex_unlock(&handle->lock)) {
+		perror("pthread_mutex_unlock");
 		_exit(-1);
 	}
 
@@ -56,7 +61,9 @@ Message *channel_recv(Channel *handle) {
 		_exit(1);
 	}
 
-	while (!handle->head) pthread_cond_wait(&handle->cond, &handle->lock);
+	while (!handle->head) {
+		pthread_cond_wait(&handle->cond, &handle->lock);
+	}
 
 	Message *ret = handle->head;
 	handle->head = handle->head->next;

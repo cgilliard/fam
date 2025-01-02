@@ -112,11 +112,11 @@ mod test {
 		let initial = safe_getalloccount();
 		{
 			let lock = lock!();
-			let mut x = 1;
+			let mut x = 1u32;
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone().unwrap();
 			let mut jh = spawnj(|| {
-				let _v = lock.read(); // memory fence only
+				let _v = lock.write();
 				x += 1;
 				assert_eq!(x, 2);
 				assert_eq!(*rc_clone, 1);
@@ -126,9 +126,36 @@ mod test {
 			.unwrap();
 
 			loop {
-				let _v = lock.read(); // memory fence only
+				let _v = lock.write();
 				if *rc != 1 {
 					assert_eq!(*rc, 2);
+					assert_eq!(x, 2);
+					break;
+				}
+			}
+
+			assert!(jh.join().is_ok());
+		}
+		assert_eq!(initial, safe_getalloccount());
+	}
+
+	#[test]
+	fn test_threads2() {
+		let initial = safe_getalloccount();
+		{
+			let lock = lock!();
+			let mut x = 1u32;
+			let mut jh = spawnj(|| {
+				let _v = lock.write();
+				crate::sys::safe_sleep_millis(50);
+				x += 1;
+				assert_eq!(x, 2);
+			})
+			.unwrap();
+
+			loop {
+				let _v = lock.write();
+				if x != 1 {
 					assert_eq!(x, 2);
 					break;
 				}
