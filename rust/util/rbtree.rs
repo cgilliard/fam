@@ -1,5 +1,6 @@
 use core::clone::Clone;
 use core::ops::FnMut;
+use core::ptr::null_mut;
 use prelude::*;
 
 pub struct RbNodePair<V: Ord> {
@@ -39,8 +40,6 @@ impl<V: Ord> Display for RbTreeNode<V> {
 		)
 	}
 }
-
-use core::ptr::null_mut;
 
 impl<V: Ord> RbTreeNode<V> {
 	pub fn new(value: V) -> Self {

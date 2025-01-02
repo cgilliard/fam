@@ -131,7 +131,7 @@ impl<V: PartialEq + Hash> IntoIterator for Hashtable<V> {
 }
 
 impl<'a, V: PartialEq + Hash> IntoIterator for &'a Hashtable<V> {
-	type Item = Ptr<Node<V>>; // Adjust to match the actual item type you need
+	type Item = Ptr<Node<V>>;
 	type IntoIter = HashtableRefIterator<'a, V>;
 
 	fn into_iter(self) -> Self::IntoIter {
