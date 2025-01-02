@@ -65,6 +65,7 @@ jobs:
           # cd ..
           #  ./fam clean
           #  ./fam --mrustc --with-mrustc=./famc_build/bin/mrustc --output=./famc_build/output
+          echo "disabled"
           fi
 
   macos:
@@ -107,4 +108,5 @@ jobs:
           #  cd ..
           #  ./fam clean
           #  ./fam --mrustc --with-mrustc=./famc_build/bin/mrustc --output=./famc_build/output
+          echo "disabled"
           fi
