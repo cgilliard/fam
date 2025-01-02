@@ -202,12 +202,10 @@ impl WsHandler {
 
 		for tid in 0..self.state.config.threads {
 			// SAFETY: unwrap ok on rc.clone
-			//let state = self.state.clone().unwrap();
-			/*
+			let state = self.state.clone().unwrap();
 			runtime.execute(move || {
 				println!("start thread {}: {}", tid, state.config.threads);
 			});
-						*/
 		}
 
 		self.state.runtime = Some(runtime);
@@ -216,11 +214,11 @@ impl WsHandler {
 	}
 
 	pub fn stop(&mut self) -> Result<(), Error> {
+		println!("stop");
 		match &mut self.state.runtime {
 			Some(ref mut rt) => rt.stop(),
 			None => Ok(()),
 		}
-		//	Err(err!(Todo))
 	}
 }
 
@@ -232,7 +230,12 @@ mod test {
 	fn test_ws1() {
 		let config = WsConfig::default();
 		let mut ws = WsHandler::new(config).unwrap();
-		//ws.start().unwrap();
-		//ws.stop().unwrap();
+		ws.start().unwrap();
+		println!("ws start complete");
+		crate::sys::safe_sleep_millis(100);
+		println!("start the stop proc");
+		ws.stop().unwrap();
+		println!("stop complete");
+		crate::sys::safe_sleep_millis(100);
 	}
 }

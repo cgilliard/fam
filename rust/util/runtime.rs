@@ -153,6 +153,7 @@ impl<T> Runtime<T> {
 		let channel = self.channel.clone().unwrap();
 		let mut state = self.state.clone().unwrap();
 		let lock = self.lock.clone().unwrap();
+		let stop_channel = self.stop_channel.clone().unwrap();
 		spawn(move || {
 			loop {
 				{
@@ -201,7 +202,7 @@ impl<T> Runtime<T> {
 			}
 			let _l = lock.read();
 			if state.total_workers == 0 {
-				match self.stop_channel.send(()) {
+				match stop_channel.send(()) {
 					Ok(_) => {}
 					Err(e) => {
 						println!("WARN: sending stop_channel generated error: {}", e);
@@ -283,11 +284,7 @@ mod test {
 		recv1.recv();
 		recv2.recv();
 
-		let mut v = x.idle_threads();
-		while v != 1 {
-			v = x.idle_threads();
-		}
-
+		while x.idle_threads() != 1 {}
 		assert_eq!(x.idle_threads(), 1);
 		assert_eq!(x.cur_threads(), 3);
 
@@ -303,6 +300,7 @@ mod test {
 
 		assert!(x.stop().is_ok());
 	}
+
 	#[test]
 	fn test_thread_pool_size() {
 		let initial = crate::sys::safe_getalloccount();
