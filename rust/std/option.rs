@@ -1,6 +1,15 @@
 use prelude::*;
 
+#[cfg(test)]
+#[must_use = "This `Option` must be used, or explicitly handled with `unwrap`, `is_some`, or similar."]
 #[derive(PartialEq, Debug)]
+pub enum Option<T> {
+	None,
+	Some(T),
+}
+#[cfg(not(test))]
+#[must_use = "This `Option` must be used, or explicitly handled with `unwrap`, `is_some`, or similar."]
+#[derive(PartialEq)]
 pub enum Option<T> {
 	None,
 	Some(T),

@@ -1,6 +1,5 @@
 // Internal
 pub use std::boxed::Box;
-pub use std::channel::Channel;
 pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::format::Formatter;
@@ -11,8 +10,6 @@ pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::result::{Result, Result::Err, Result::Ok};
 pub use std::string::String;
-pub use std::thread::JoinHandle;
-pub use std::thread::{spawn, spawnj};
 pub use std::traits::*;
 pub use std::util::*;
 pub use std::vec::Vec;

@@ -2,12 +2,12 @@ use core::ops::FnOnce;
 use core::ptr;
 use prelude::*;
 use sys::{
-	safe_alloc, safe_release, safe_thread_create, safe_thread_create_joinable, safe_thread_detach,
+	safe_release, safe_thread_create, safe_thread_create_joinable, safe_thread_detach,
 	safe_thread_handle_size, safe_thread_join,
 };
 
 pub struct JoinHandle {
-	handle: *const u8,
+	handle: [u8; 8],
 	need_detach: bool,
 }
 
@@ -16,9 +16,6 @@ impl Drop for JoinHandle {
 		if self.need_detach {
 			let _x = self.detach();
 		}
-		if !self.handle.is_null() {
-			safe_release(self.handle as *mut u8);
-		}
 	}
 }
 
@@ -26,7 +23,7 @@ impl JoinHandle {
 	pub fn join(&mut self) -> Result<(), Error> {
 		if !self.need_detach {
 			Err(err!(ThreadJoin))
-		} else if safe_thread_join(self.handle) != 0 {
+		} else if safe_thread_join(&self.handle as *const u8) != 0 {
 			Err(err!(ThreadJoin))
 		} else {
 			self.need_detach = false;
@@ -35,7 +32,7 @@ impl JoinHandle {
 	}
 
 	pub fn detach(&mut self) -> Result<(), Error> {
-		if !self.need_detach || safe_thread_detach(self.handle) != 0 {
+		if !self.need_detach || safe_thread_detach(&self.handle as *const u8) != 0 {
 			Err(err!(ThreadDetach))
 		} else {
 			self.need_detach = false;
@@ -79,15 +76,20 @@ pub fn spawnj<F>(f: F) -> Result<JoinHandle, Error>
 where
 	F: FnOnce(),
 {
-	let handle = safe_alloc(safe_thread_handle_size());
+	if safe_thread_handle_size() > 8 {
+		exit!(
+			"safe_thread_handle_size() > 8 ({})",
+			safe_thread_handle_size()
+		);
+	}
 	let jh = JoinHandle {
-		handle,
+		handle: [0u8; 8],
 		need_detach: true,
 	};
 	match Box::new(f) {
 		Ok(mut b) => {
 			if safe_thread_create_joinable(
-				jh.handle,
+				&jh.handle as *const u8,
 				start_thread::<F>,
 				b.as_ptr().raw() as *mut u8,
 			) != 0
@@ -138,7 +140,6 @@ mod test {
 		}
 		assert_eq!(initial, safe_getalloccount());
 	}
-
 	#[test]
 	fn test_threads2() {
 		let initial = safe_getalloccount();
