@@ -283,7 +283,11 @@ mod test {
 		recv1.recv();
 		recv2.recv();
 
-		while x.idle_threads() != 1 {}
+		let mut v = x.idle_threads();
+		while v != 1 {
+			v = x.idle_threads();
+		}
+
 		assert_eq!(x.idle_threads(), 1);
 		assert_eq!(x.cur_threads(), 3);
 
