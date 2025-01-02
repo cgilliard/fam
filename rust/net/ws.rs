@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use prelude::*;
 
 struct Handler {
@@ -200,11 +203,14 @@ impl WsHandler {
 			Err(e) => return Err(e),
 		}
 
+		let lock = lock_box!().unwrap();
 		for tid in 0..self.state.config.threads {
 			// SAFETY: unwrap ok on rc.clone
 			let state = self.state.clone().unwrap();
-			runtime.execute(move || {
-				println!("start thread {}: {}", tid, state.config.threads);
+			let lock = lock.clone().unwrap();
+			let _ = runtime.execute(move || {
+				let lock = lock.write();
+				//println!("start thread {}: {}", tid, state.config.threads);
 			});
 		}
 
@@ -214,7 +220,6 @@ impl WsHandler {
 	}
 
 	pub fn stop(&mut self) -> Result<(), Error> {
-		println!("stop");
 		match &mut self.state.runtime {
 			Some(ref mut rt) => rt.stop(),
 			None => Ok(()),
@@ -228,14 +233,14 @@ mod test {
 
 	#[test]
 	fn test_ws1() {
-		let config = WsConfig::default();
-		let mut ws = WsHandler::new(config).unwrap();
-		ws.start().unwrap();
-		println!("ws start complete");
-		crate::sys::safe_sleep_millis(100);
-		println!("start the stop proc");
-		ws.stop().unwrap();
-		println!("stop complete");
-		crate::sys::safe_sleep_millis(100);
+		let initial = crate::sys::safe_getalloccount();
+		{
+			let config = WsConfig::default();
+			let mut ws = WsHandler::new(config).unwrap();
+			ws.start().unwrap();
+			ws.stop().unwrap();
+			crate::sys::safe_sleep_millis(100);
+		}
+		assert_eq!(initial, crate::sys::safe_getalloccount());
 	}
 }
