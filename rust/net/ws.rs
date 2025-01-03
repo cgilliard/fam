@@ -279,7 +279,6 @@ impl WsHandler {
 			self.state.halt = true;
 		}
 
-		println!("send evt");
 		unsafe {
 			if safe_socket_send((&self.state.wakeup as *const u8).add(4), &b'0', 1) < 0 {
 				return Err(err!(WsStop));
