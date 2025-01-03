@@ -7,10 +7,9 @@ const REG_WRITE_FLAG: i32 = 0x2;
 
 use prelude::*;
 use sys::{
-	safe_alloc, safe_pipe, safe_release, safe_socket_clear_pipe, safe_socket_close,
-	safe_socket_event_handle, safe_socket_event_size, safe_socket_handle_eq, safe_socket_listen,
-	safe_socket_multiplex_init, safe_socket_multiplex_register, safe_socket_multiplex_wait,
-	safe_socket_send,
+	safe_alloc, safe_pipe, safe_release, safe_socket_close, safe_socket_event_handle,
+	safe_socket_event_size, safe_socket_handle_eq, safe_socket_listen, safe_socket_multiplex_init,
+	safe_socket_multiplex_register, safe_socket_multiplex_wait, safe_socket_send,
 };
 
 struct Handler {
@@ -342,10 +341,6 @@ impl WsHandler {
 				ctx.events,
 				ctx.state.config.max_events,
 			);
-			{
-				let _l = ctx.state.lock.write();
-				println!("count[{}]={}", ctx.tid, count);
-			}
 			for i in 0..count {
 				let evt = unsafe {
 					ctx.events
@@ -353,7 +348,6 @@ impl WsHandler {
 				};
 				safe_socket_event_handle(ehandle, evt);
 				if safe_socket_handle_eq(ehandle, wakeup) {
-					safe_socket_clear_pipe(ehandle);
 					let _l = ctx.state.lock.read();
 					if ctx.state.halt {
 						stop = true;
