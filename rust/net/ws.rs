@@ -106,6 +106,7 @@ struct State {
 	itt: u64,
 	lock: LockBox,
 	halt: bool,
+	threads_started: u64,
 }
 
 pub struct WsContext {
@@ -170,6 +171,7 @@ impl State {
 				itt: 0,
 				lock,
 				halt: false,
+				threads_started: 0,
 			}),
 			Err(e) => Err(e),
 		}
@@ -301,12 +303,13 @@ impl WsHandler {
 	}
 
 	pub fn stop(&mut self) -> Result<(), Error> {
+		// just in case all threads have not started spin here until that happens
+		while aload!(&self.state.threads_started) != self.state.config.threads {}
 		let lock = self.state.lock.clone().unwrap();
 		{
 			let _l = lock.write();
 			self.state.halt = true;
 		}
-
 		match self.wakeup_threads() {
 			Ok(_) => {}
 			Err(e) => return Err(e),
@@ -334,8 +337,13 @@ impl WsHandler {
 		let ehandle: *mut u8 = &mut ehandle as *mut u8;
 		let wakeup = &ctx.state.wakeup as *const u8;
 		let mut stop = false;
+		let mut first = true;
 
 		while !stop {
+			if first {
+				first = false;
+				aadd!(&mut ctx.state.threads_started, 1);
+			}
 			let count = safe_socket_multiplex_wait(
 				&mut ctx.mplex as *mut u8,
 				ctx.events,
