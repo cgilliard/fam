@@ -298,6 +298,7 @@ mod test {
 				})
 				.unwrap();
 
+			assert!(!handle1.is_complete());
 			send1.send(8).unwrap();
 
 			assert_eq!(handle1.block_on(), 7);

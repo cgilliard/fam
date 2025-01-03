@@ -315,7 +315,17 @@ impl WsHandler {
 			Err(e) => return Err(e),
 		}
 		match &mut self.state.runtime {
-			Some(ref mut rt) => rt.stop(),
+			Some(ref mut rt) => {
+				let ret = rt.stop();
+				// close pipes
+				if ret.is_ok() {
+					safe_socket_close(&self.state.wakeup as *const u8);
+					unsafe {
+						safe_socket_close((&self.state.wakeup as *const u8).add(4));
+					}
+				}
+				ret
+			}
 			None => Ok(()),
 		}
 	}
