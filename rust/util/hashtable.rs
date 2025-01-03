@@ -7,7 +7,7 @@ use prelude::*;
 
 pub struct Node<V: PartialEq> {
 	next: Ptr<Node<V>>,
-	value: V,
+	pub value: V,
 }
 
 impl<V: PartialEq> PartialEq for Node<V> {

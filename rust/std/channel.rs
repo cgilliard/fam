@@ -92,19 +92,19 @@ impl<T> ChannelInner<T> {
 
 impl<T> Clone for Sender<T> {
 	fn clone(&self) -> Result<Self, Error> {
-		match self.inner.clone() {
-			Ok(inner) => Ok(Self { inner }),
-			Err(e) => Err(e),
-		}
+		// SAFETY: clone always succeeds on rc
+		Ok(Self {
+			inner: self.inner.clone().unwrap(),
+		})
 	}
 }
 
 impl<T> Clone for Receiver<T> {
 	fn clone(&self) -> Result<Self, Error> {
-		match self.inner.clone() {
-			Ok(inner) => Ok(Self { inner }),
-			Err(e) => Err(e),
-		}
+		// SAFETY: clone always succeeds on rc
+		Ok(Self {
+			inner: self.inner.clone().unwrap(),
+		})
 	}
 }
 

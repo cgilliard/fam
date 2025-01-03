@@ -107,10 +107,10 @@ impl Lock {
 
 impl Clone for LockBox {
 	fn clone(&self) -> Result<Self, Error> {
-		match self.inner.clone() {
-			Ok(inner) => Ok(Self { inner }),
-			Err(e) => Err(e),
-		}
+		// SAFETY: clone always succeeds on rc
+		Ok(LockBox {
+			inner: self.inner.clone().unwrap(),
+		})
 	}
 }
 
