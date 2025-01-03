@@ -44,6 +44,7 @@ extern "C" {
 	pub fn socket_accept(handle: *const u8, nhandle: *mut u8) -> i32;
 	pub fn socket_send(handle: *const u8, buf: *const u8, len: usize) -> i64;
 	pub fn socket_recv(handle: *const u8, buf: *mut u8, capacity: usize) -> i64;
+	pub fn socket_clear_pipe(handle: *const u8) -> i32;
 
 	pub fn socket_multiplex_init(handle: *mut u8) -> i32;
 	pub fn socket_multiplex_register(handle: *const u8, socket: *const u8, flags: i32) -> i32;
@@ -53,7 +54,7 @@ extern "C" {
 	pub fn socket_event_is_write(event: *const u8) -> bool;
 	pub fn socket_handle_eq(handle1: *const u8, handle2: *const u8) -> bool;
 
-	pub fn pipe(pair: *mut u8) -> i32;
+	pub fn open_pipe(pair: *mut u8) -> i32;
 	pub fn Base64decode(output: *mut u8, input: *mut u8);
 	pub fn Base64encode(input: *const u8, output: *mut u8, len: usize);
 	pub fn SHA1(data: *const u8, size: usize, hash: *mut u8);
@@ -86,7 +87,7 @@ pub fn safe_rand_bytes(data: *mut u8, len: usize) {
 }
 
 pub fn safe_pipe(pair: *mut u8) -> i32 {
-	unsafe { pipe(pair) }
+	unsafe { open_pipe(pair) }
 }
 
 pub fn safe_socket_handle_size() -> usize {
@@ -222,4 +223,8 @@ pub fn safe_ptr_add(p: *mut u8, v: i64) {
 
 pub fn safe_getalloccount() -> i64 {
 	unsafe { getalloccount() }
+}
+
+pub fn safe_socket_clear_pipe(handle: *const u8) -> i32 {
+	unsafe { socket_clear_pipe(handle) }
 }

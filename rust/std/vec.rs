@@ -69,6 +69,37 @@ impl<T> IntoIterator for Vec<T> {
 	}
 }
 
+pub struct VecRefIterator<'a, T> {
+	vec: &'a Vec<T>,
+	index: usize,
+}
+
+impl<'a, T> Iterator for VecRefIterator<'a, T> {
+	type Item = &'a T;
+
+	fn next(&mut self) -> CoreOption<Self::Item> {
+		if self.index < self.vec.len() {
+			let item = &self.vec[self.index];
+			self.index += 1;
+			CoreOption::Some(item)
+		} else {
+			CoreOption::None
+		}
+	}
+}
+
+impl<'a, T> IntoIterator for &'a Vec<T> {
+	type Item = &'a T;
+	type IntoIter = VecRefIterator<'a, T>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		VecRefIterator {
+			vec: self,
+			index: 0,
+		}
+	}
+}
+
 impl<T> Drop for Vec<T> {
 	fn drop(&mut self) {
 		if needs_drop::<T>() {

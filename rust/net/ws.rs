@@ -7,9 +7,10 @@ const REG_WRITE_FLAG: i32 = 0x2;
 
 use prelude::*;
 use sys::{
-	safe_alloc, safe_pipe, safe_release, safe_socket_close, safe_socket_event_handle,
-	safe_socket_event_size, safe_socket_handle_eq, safe_socket_multiplex_init,
-	safe_socket_multiplex_register, safe_socket_multiplex_wait, safe_socket_send,
+	safe_alloc, safe_pipe, safe_release, safe_socket_clear_pipe, safe_socket_close,
+	safe_socket_event_handle, safe_socket_event_size, safe_socket_handle_eq, safe_socket_listen,
+	safe_socket_multiplex_init, safe_socket_multiplex_register, safe_socket_multiplex_wait,
+	safe_socket_send,
 };
 
 struct Handler {
@@ -192,8 +193,31 @@ impl WsHandler {
 		Err(err!(Todo))
 	}
 
-	pub fn add_server(&mut self, config: WsServerConfig) -> Result<(), Error> {
-		Err(err!(Todo))
+	pub fn add_server(&mut self, config: WsServerConfig) -> Result<u16, Error> {
+		let mut server = [0u8; 4];
+		let server_ptr = &mut server as *mut u8;
+		let port = safe_socket_listen(
+			server_ptr,
+			config.addr.as_ptr(),
+			config.port,
+			config.backlog,
+		);
+		if port < 0 {
+			return Err(err!(Bind));
+		}
+
+		for mplex in &self.state.mplexes {
+			if safe_socket_multiplex_register(
+				mplex as *const u8,
+				&server as *const u8,
+				REG_READ_FLAG,
+			) < 0
+			{
+				safe_socket_close(server_ptr);
+				return Err(err!(MultiplexRegister));
+			}
+		}
+		Ok(port as u16)
 	}
 
 	pub fn register_handler(
@@ -229,7 +253,7 @@ impl WsHandler {
 
 		for tid in 0..self.state.config.threads {
 			// SAFETY: unwrap ok on rc.clone
-			let state = self.state.clone().unwrap();
+			let mut state = self.state.clone().unwrap();
 			let connections = match Hashtable::new(1024) {
 				Ok(connections) => connections,
 				Err(e) => return Err(e),
@@ -238,6 +262,11 @@ impl WsHandler {
 
 			if safe_socket_multiplex_init(&mut mplex as *mut u8) < 0 {
 				return Err(err!(CreateFileDescriptor));
+			}
+
+			match state.mplexes.push(mplex) {
+				Ok(_) => {}
+				Err(e) => return Err(e),
 			}
 
 			if safe_socket_multiplex_register(
@@ -279,15 +308,26 @@ impl WsHandler {
 			self.state.halt = true;
 		}
 
-		unsafe {
-			if safe_socket_send((&self.state.wakeup as *const u8).add(4), &b'0', 1) < 0 {
-				return Err(err!(WsStop));
-			}
+		match self.wakeup_threads() {
+			Ok(_) => {}
+			Err(e) => return Err(e),
 		}
 		match &mut self.state.runtime {
 			Some(ref mut rt) => rt.stop(),
 			None => Ok(()),
 		}
+	}
+
+	fn wakeup_threads(&self) -> Result<(), Error> {
+		if safe_socket_send(
+			unsafe { (&self.state.wakeup as *const u8).add(4) },
+			&b'0',
+			1,
+		) < 0
+		{
+			return Err(err!(WsStop));
+		}
+		Ok(())
 	}
 
 	fn event_loop(ctx: &mut WsContext) -> Result<(), Error> {
@@ -302,6 +342,10 @@ impl WsHandler {
 				ctx.events,
 				ctx.state.config.max_events,
 			);
+			{
+				let _l = ctx.state.lock.write();
+				println!("count[{}]={}", ctx.tid, count);
+			}
 			for i in 0..count {
 				let evt = unsafe {
 					ctx.events
@@ -309,6 +353,7 @@ impl WsHandler {
 				};
 				safe_socket_event_handle(ehandle, evt);
 				if safe_socket_handle_eq(ehandle, wakeup) {
+					safe_socket_clear_pipe(ehandle);
 					let _l = ctx.state.lock.read();
 					if ctx.state.halt {
 						stop = true;
@@ -337,14 +382,12 @@ mod test {
 			let config = WsConfig::default();
 			let mut ws = WsHandler::new(config).unwrap();
 			ws.start().unwrap();
-			/*
 			ws.add_server(WsServerConfig {
 				addr: [127, 0, 0, 1],
 				port: 9999,
 				backlog: 10,
 			})
 			.unwrap();
-						*/
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());

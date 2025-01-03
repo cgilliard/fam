@@ -36,6 +36,7 @@ define_enum_with_strings!(ErrorKind {
 	SocketConnect,
 	Pipe,
 	IO,
+	Bind,
 	Todo,
 });
 

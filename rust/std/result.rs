@@ -7,11 +7,14 @@ pub enum Result<T, E> {
 	Err(E),
 }
 
-impl<T, E> Result<T, E> {
+impl<T, E> Result<T, E>
+where
+	E: Display,
+{
 	pub fn unwrap(self) -> T {
 		match self {
 			Result::Ok(t) => t,
-			Result::Err(_e) => exit!("unwrap on error!"),
+			Result::Err(e) => exit!("unwrap on error: {}", e),
 		}
 	}
 

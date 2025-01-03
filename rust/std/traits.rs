@@ -44,3 +44,28 @@ impl Hash for i32 {
 		murmur3_32_of_slice(slice, get_murmur_seed()) as usize
 	}
 }
+
+impl<T> Display for &[T]
+where
+	T: Display,
+{
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		match writeb!(*f, "[") {
+			Ok(_) => {}
+			Err(e) => return Err(e),
+		}
+		for i in 0..self.len() {
+			match writeb!(*f, "{}", self[i]) {
+				Ok(_) => {}
+				Err(e) => return Err(e),
+			}
+			if i < self.len() - 1 {
+				match writeb!(*f, ",") {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				}
+			}
+		}
+		writeb!(*f, "]")
+	}
+}

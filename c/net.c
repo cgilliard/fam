@@ -74,14 +74,41 @@ int socket_connect(SocketHandle *s, unsigned char addr[4], int port) {
 	return 0;
 }
 
-int socket_shutdown(SocketHandle *s) {
-	shutdown(s->fd, SHUT_RDWR);
-	return 0;
+int socket_clear_pipe(SocketHandle *s) {
+	int capacity = 512;
+	char buf[capacity];
+	while (1) {
+		int ret = read(s->fd, buf, capacity);
+		if (ret <= 0) {
+			if (errno == EAGAIN) {
+				return ERROR_EAGAIN;
+			} else {
+				return -1;
+			}
+		}
+	}
 }
-int socket_close(SocketHandle *s) {
-	close(s->fd);
-	return 0;
+
+int open_pipe(int *handles) {
+	int ret = pipe((int *)handles);
+	if (ret == 0) {
+		int flags = fcntl(handles[0], F_GETFL, 0);
+		if (flags == -1) {
+			perror("fcntl");
+			return -1;
+		}
+
+		flags |= O_NONBLOCK;
+		if (fcntl(handles[0], F_SETFL, flags) == -1) {
+			perror("fcntl");
+			return -1;
+		}
+	}
+	return ret;
 }
+
+int socket_shutdown(SocketHandle *s) { return shutdown(s->fd, SHUT_RDWR); }
+int socket_close(SocketHandle *s) { return close(s->fd); }
 int socket_listen(SocketHandle *s, unsigned char addr[4], int port,
 		  int backlog) {
 	int opt = 1;

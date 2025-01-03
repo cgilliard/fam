@@ -72,6 +72,7 @@ macro_rules! writeb {
                 Err(e) => err = e,
             }
 
+
             if err.kind == ErrorKind::Unknown {
                 Ok(())
             } else {
