@@ -47,11 +47,17 @@ extern "C" {
 	pub fn socket_clear_pipe(handle: *const u8) -> i32;
 
 	pub fn socket_multiplex_init(handle: *mut u8) -> i32;
-	pub fn socket_multiplex_register(handle: *const u8, socket: *const u8, flags: i32) -> i32;
+	pub fn socket_multiplex_register(
+		handle: *const u8,
+		socket: *const u8,
+		flags: i32,
+		ptr: *const u8,
+	) -> i32;
 	pub fn socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32;
 	pub fn socket_event_handle(handle: *mut u8, event: *const u8);
 	pub fn socket_event_is_read(event: *const u8) -> bool;
 	pub fn socket_event_is_write(event: *const u8) -> bool;
+	pub fn socket_event_ptr(event: *const u8) -> *const u8;
 	pub fn socket_handle_eq(handle1: *const u8, handle2: *const u8) -> bool;
 
 	pub fn open_pipe(pair: *mut u8) -> i32;
@@ -124,8 +130,13 @@ pub fn safe_socket_recv(handle: *const u8, buf: *mut u8, capacity: usize) -> i64
 pub fn safe_socket_multiplex_init(handle: *mut u8) -> i32 {
 	unsafe { socket_multiplex_init(handle) }
 }
-pub fn safe_socket_multiplex_register(handle: *const u8, socket: *const u8, flags: i32) -> i32 {
-	unsafe { socket_multiplex_register(handle, socket, flags) }
+pub fn safe_socket_multiplex_register(
+	handle: *const u8,
+	socket: *const u8,
+	flags: i32,
+	ptr: *const u8,
+) -> i32 {
+	unsafe { socket_multiplex_register(handle, socket, flags, ptr) }
 }
 pub fn safe_socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32 {
 	unsafe { socket_multiplex_wait(handle, events, max_events) }
@@ -138,6 +149,9 @@ pub fn safe_socket_event_is_read(event: *const u8) -> bool {
 }
 pub fn safe_socket_event_is_write(event: *const u8) -> bool {
 	unsafe { socket_event_is_write(event) }
+}
+pub fn safe_socket_event_ptr(event: *const u8) -> *const u8 {
+	unsafe { socket_event_ptr(event) }
 }
 pub fn safe_socket_handle_eq(handle1: *const u8, handle2: *const u8) -> bool {
 	unsafe { socket_handle_eq(handle1, handle2) }

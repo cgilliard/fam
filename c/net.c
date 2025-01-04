@@ -211,20 +211,20 @@ int socket_multiplex_init(MultiplexHandle *multiplex) {
 }
 #ifdef __APPLE__
 int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
-			      int flags) {
+			      int flags, void *ptr) {
 	struct kevent change_event[2];
 
 	int event_count = 0;
 
 	if (flags & MULTIPLEX_REGISTER_TYPE_FLAG_READ) {
 		EV_SET(&change_event[event_count], s->fd, EVFILT_READ,
-		       EV_ADD | EV_ENABLE | EV_CLEAR, 0, 0, NULL);
+		       EV_ADD | EV_ENABLE | EV_CLEAR, 0, 0, ptr);
 		event_count++;
 	}
 
 	if (flags & MULTIPLEX_REGISTER_TYPE_FLAG_WRITE) {
 		EV_SET(&change_event[event_count], s->fd, EVFILT_WRITE,
-		       EV_ADD | EV_ENABLE | EV_CLEAR, 0, 0, NULL);
+		       EV_ADD | EV_ENABLE | EV_CLEAR, 0, 0, ptr);
 		event_count++;
 	}
 
@@ -237,7 +237,7 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 #endif	// __APPLE__
 #ifdef __linux__
 int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
-			      int flags) {
+			      int flags, void *ptr) {
 	struct epoll_event ev;
 	int event_flags = 0;
 
@@ -250,7 +250,10 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 	}
 
 	ev.events = event_flags;
-	ev.data.fd = s->fd;
+	if (ptr == NULL)
+		ev.data.fd = s->fd;
+	else
+		ev.data.ptr = ptr;
 
 	if (epoll_ctl(multiplex->fd, EPOLL_CTL_ADD, s->fd, &ev) < 0) {
 		if (errno == EEXIST) {
@@ -262,7 +265,7 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 			return ERROR_REGISTER;
 	}
 
-	return 0;  // Success
+	return 0;
 }
 #endif	// __linux__
 
@@ -279,6 +282,18 @@ int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
 }
 
 int socket_fd(SocketHandle *s) { return s->fd; }
+
+void *socket_event_ptr(void *event) {
+#ifdef __APPLE__
+	struct kevent *kv = (struct kevent *)event;
+	return kv->udata;
+#elif defined(__linux__)
+	struct epoll_event *epoll_ev = (struct epoll_event *)event;
+	return epoll_ev->data.ptr;
+#else
+	return NULL;
+#endif
+}
 
 void socket_event_handle(SocketHandle *s, void *event) {
 #ifdef __APPLE__
