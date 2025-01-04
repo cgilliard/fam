@@ -37,6 +37,7 @@ extern "C" {
 	pub fn socket_handle_size() -> usize;
 	pub fn socket_event_size() -> usize;
 	pub fn socket_multiplex_handle_size() -> usize;
+	pub fn socket_fd(handle: *const u8) -> i32;
 	pub fn socket_connect(handle: *mut u8, addr: *const u8, port: i32) -> i32;
 	pub fn socket_shutdown(handle: *const u8) -> i32;
 	pub fn socket_close(handle: *const u8) -> i32;
@@ -241,4 +242,41 @@ pub fn safe_getalloccount() -> i64 {
 
 pub fn safe_socket_clear_pipe(handle: *const u8) -> i32 {
 	unsafe { socket_clear_pipe(handle) }
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	#[test]
+	fn test_events() {
+		let initial = crate::sys::safe_getalloccount();
+		let x = safe_alloc(100);
+		let multi = safe_alloc(1000) as *mut u8;
+		let events = safe_alloc(1000) as *mut u8;
+		safe_socket_multiplex_init(multi);
+
+		let mut handle = [0u8; 4];
+		let myvar = 7;
+		let port = safe_socket_listen(&mut handle as *mut u8, [127, 0, 0, 1].as_ptr(), 0, 1);
+		safe_socket_multiplex_register(
+			multi,
+			&handle as *const u8,
+			1,
+			&myvar as *const i32 as *const u8,
+		);
+
+		let mut conn = [0u8; 4];
+		safe_socket_connect(&mut conn as *mut u8, [127, 0, 0, 1].as_ptr(), port);
+
+		let count = safe_socket_multiplex_wait(multi, events, 1);
+		assert_eq!(count, 1);
+		let ptr = safe_socket_event_ptr(events);
+		assert_eq!(unsafe { *ptr }, 7);
+
+		safe_release(x);
+		safe_release(multi);
+		safe_release(events);
+
+		assert_eq!(initial, crate::sys::safe_getalloccount());
+	}
 }

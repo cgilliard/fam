@@ -504,6 +504,11 @@ impl WsHandler {
 					}
 				} else {
 					let ptr = safe_socket_event_ptr(ehandle);
+
+					println!("ptr={},fd={}", ptr as usize, unsafe {
+						crate::sys::socket_fd(ehandle)
+					});
+
 					let mut connection = Box::from_raw(Ptr::new(ptr as *mut Connection));
 					connection.leak();
 					Self::proc_connection(ctx, connection, ehandle);
@@ -543,6 +548,7 @@ mod test {
 				backlog: 10,
 			})
 			.unwrap();
+			//park();
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
