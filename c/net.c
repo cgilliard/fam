@@ -253,7 +253,7 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 	if (ptr == NULL)
 		ev.data.fd = s->fd;
 	else
-		ev.data.ptr = (uintptr_t)ptr;
+		ev.data.ptr = ptr;
 
 	if (epoll_ctl(multiplex->fd, EPOLL_CTL_ADD, s->fd, &ev) < 0) {
 		if (errno == EEXIST) {
