@@ -5,7 +5,7 @@ use core::mem::{needs_drop, replace, size_of, zeroed};
 use core::ops::{Drop, Index, IndexMut, Range};
 use core::option::Option as CoreOption;
 use core::ptr;
-use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut, write_bytes};
+use core::ptr::{copy, copy_nonoverlapping, drop_in_place, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use sys::{safe_alloc, safe_release, safe_resize};
@@ -194,6 +194,17 @@ impl<T> Vec<T> {
 
 	pub fn set_min(&mut self, n: usize) {
 		self.min = n;
+	}
+
+	pub fn shift(&mut self, n: usize) -> Result<(), Error> {
+		if n > self.elements {
+			return Err(err!(OutOfBounds));
+		}
+		self.elements -= n;
+		unsafe {
+			copy(self.value.raw().add(n), self.value.raw(), self.elements);
+		}
+		Ok(())
 	}
 
 	pub fn push(&mut self, v: T) -> Result<(), Error> {

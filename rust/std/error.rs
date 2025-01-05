@@ -31,6 +31,7 @@ define_enum_with_strings!(ErrorKind {
 	ChannelSend,
 	ChannelInit,
 	CreateFileDescriptor,
+	ConnectionClosed,
 	WsStop,
 	MultiplexRegister,
 	SocketConnect,
