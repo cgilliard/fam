@@ -1,7 +1,4 @@
-#![allow(dead_code)]
-
 use core::ptr::{copy_nonoverlapping, null_mut};
-use core::str::from_utf8_unchecked;
 use prelude::*;
 use sys::*;
 
@@ -1095,6 +1092,7 @@ impl WsHandler {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::str::from_utf8_unchecked;
 
 	#[test]
 	fn test_ws1() {
