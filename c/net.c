@@ -71,6 +71,16 @@ int socket_connect(SocketHandle *s, unsigned char addr[4], int port) {
 		return ERROR_CONNECT;
 	}
 
+	int flags = fcntl(s->fd, F_GETFL, 0);
+	if (flags < 0) {
+		close(s->fd);
+		return ERROR_FCNTL;
+	}
+	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+		close(s->fd);
+		return ERROR_FCNTL;
+	}
+
 	return 0;
 }
 

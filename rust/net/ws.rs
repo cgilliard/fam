@@ -13,6 +13,9 @@ const SWITCH_PROTOCOL: &str = "HTTP/1.1 101 Switching Protocols\r\n\
 Upgrade: websocket\r\n\
 Connection: Upgrade\r\n\
 Sec-WebSocket-Accept: ";
+const SWITCHING_PROTOCOL_PREFIX: &str = "HTTP/1.1 101 Switching Protocols\r\n";
+const CONNECT_MESSAGE_PREFIX: &str = "GET / HTTP/1.1\r\n\
+Sec-WebSocket-Key: ";
 
 const GET_PREFIX: &[u8] = "GET /".as_bytes();
 const SEC_KEY_PREFIX: &[u8] = "Sec-WebSocket-Key: ".as_bytes();
@@ -37,6 +40,7 @@ enum ConnectionState {
 	Closed,
 }
 
+#[derive(PartialEq)]
 enum ConnectionType {
 	Server,
 	ServerConnection,
@@ -185,6 +189,14 @@ impl WsRequest<'_> {
 
 pub struct WsResponse {
 	conn: Connection,
+}
+
+impl Clone for WsResponse {
+	fn clone(&self) -> Result<Self, Error> {
+		Ok(Self {
+			conn: self.conn.clone().unwrap(),
+		})
+	}
 }
 
 impl WsResponse {
@@ -362,8 +374,84 @@ impl WsHandler {
 		})
 	}
 
-	pub fn add_client(&mut self, _config: WsClientConfig) -> Result<WsResponse, Error> {
-		Err(err!(Todo))
+	pub fn add_client(&mut self, config: WsClientConfig) -> Result<WsResponse, Error> {
+		let mut client = [0u8; 4];
+		let client_ptr = &mut client as *mut u8;
+		if safe_socket_connect(client_ptr, config.addr.as_ptr(), config.port as i32) < 0 {
+			return Err(err!(Connect));
+		}
+
+		let itt = (aadd!(&mut self.state.itt, 1) % 4) as usize;
+		let mplex = self.state.wstate[itt].mplex;
+		let conn = match Connection::new(ConnectionType::ClientConnection, client, mplex) {
+			Ok(conn) => conn,
+			Err(e) => {
+				safe_socket_close(client_ptr);
+				return Err(e);
+			}
+		};
+
+		let boxed_conn = match Box::new(conn.clone().unwrap()) {
+			Ok(conn) => conn,
+			Err(e) => {
+				safe_socket_close(client_ptr);
+				return Err(e);
+			}
+		};
+
+		// note: we simplify here and return an error if the full message is not sent.
+		// these are short and should generally succeed. Re-try logic can be used by
+		// caller.
+		if safe_socket_send(
+			client_ptr,
+			CONNECT_MESSAGE_PREFIX.as_ptr(),
+			CONNECT_MESSAGE_PREFIX.len(),
+		) < CONNECT_MESSAGE_PREFIX.len() as i64
+		{
+			safe_socket_close(client_ptr);
+			return Err(err!(IO));
+		}
+
+		let mut accept_key: [u8; 24] = [0; 24];
+		let mut rand_bytes: [u8; 16] = [0; 16];
+		// TODO: switch to secure psrng
+		safe_rand_bytes(&mut rand_bytes as *mut u8, rand_bytes.len());
+		unsafe {
+			Base64encode(
+				accept_key.as_mut_ptr(),
+				rand_bytes.as_mut_ptr(),
+				rand_bytes.len(),
+			);
+		}
+
+		if safe_socket_send(client_ptr, accept_key.as_ptr(), accept_key.len())
+			< accept_key.len() as i64
+		{
+			safe_socket_close(client_ptr);
+			return Err(err!(IO));
+		}
+		if safe_socket_send(client_ptr, "\r\n\r\n".as_ptr(), 4) < 4 {
+			safe_socket_close(client_ptr);
+			return Err(err!(IO));
+		}
+
+		match self.state.wstate[itt].send.send(boxed_conn) {
+			Ok(_) => {}
+			Err(e) => return Err(e),
+		}
+		if safe_socket_send(
+			unsafe { (&self.state.wstate[itt].wakeup as *const u8).add(4) },
+			&b'0',
+			1,
+		) < 1
+		{
+			safe_socket_close(client_ptr);
+			return Err(err!(WsStop));
+		}
+
+		self.state.wstate[itt].comp_recv.recv();
+
+		Ok(WsResponse { conn })
 	}
 
 	pub fn add_server(&mut self, config: WsServerConfig) -> Result<u16, Error> {
@@ -393,7 +481,7 @@ impl WsHandler {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
-			if safe_socket_send(unsafe { (&wstate.wakeup as *const u8).add(4) }, &b'0', 1) < 0 {
+			if safe_socket_send(unsafe { (&wstate.wakeup as *const u8).add(4) }, &b'0', 1) < 1 {
 				return Err(err!(WsStop));
 			}
 
@@ -493,7 +581,7 @@ impl WsHandler {
 
 	fn wakeup_threads(&self) -> Result<(), Error> {
 		for wstate in &self.state.wstate {
-			if safe_socket_send(unsafe { (&wstate.wakeup as *const u8).add(4) }, &b'0', 1) < 0 {
+			if safe_socket_send(unsafe { (&wstate.wakeup as *const u8).add(4) }, &b'0', 1) < 1 {
 				return Err(err!(WsStop));
 			}
 		}
@@ -559,7 +647,35 @@ impl WsHandler {
 		}
 	}
 
+	fn proc_hs_client(handle: &mut Box<Connection>) {
+		let mut handle_clone = handle.clone().unwrap();
+		let rvec = &handle.inner.rbuf;
+		for i in 3..rvec.len() {
+			if rvec[i] == b'\n'
+				&& rvec[i - 1] == b'\r'
+				&& rvec[i - 2] == b'\n'
+				&& rvec[i - 3] == b'\r'
+			{
+				// end of response just check if this is a 101
+				if i >= SWITCHING_PROTOCOL_PREFIX.len()
+					&& &rvec[0..SWITCHING_PROTOCOL_PREFIX.len()]
+						== SWITCHING_PROTOCOL_PREFIX.as_bytes()
+				{
+					let uri = String::empty();
+					handle_clone.inner.cstate = ConnectionState::HandshakeComplete(uri);
+					if rvec.len() == i + 1 {
+						handle_clone.inner.rbuf.clear();
+					} else {
+						let _ = handle_clone.inner.rbuf.shift(i + 1);
+					}
+					break;
+				}
+			}
+		}
+	}
+
 	fn proc_hs(handle: &mut Box<Connection>) {
+		let mut handle_clone = handle.clone().unwrap();
 		let len = handle.inner.rbuf.len();
 		let rvec = &handle.inner.rbuf;
 		let mut uri_end = 0;
@@ -605,8 +721,14 @@ impl WsHandler {
 					} else {
 						let accept_key = Self::handle_websocket_handshake(sec_key);
 						Self::switch_protocol(handle, &accept_key);
-						handle.inner.rbuf.clear();
 						handle.inner.cstate = ConnectionState::HandshakeComplete(uri);
+
+						let rbuflen = handle_clone.inner.rbuf.len();
+						if rbuflen == i + 1 {
+							handle_clone.inner.rbuf.clear();
+						} else {
+							let _ = handle_clone.inner.rbuf.shift(i + 1);
+						}
 					}
 					break;
 				} else if rvec[i] == b'\n'
@@ -717,6 +839,7 @@ impl WsHandler {
 			},
 			None => {}
 		}
+
 		if payload_len + offset == len {
 			handle.inner.rbuf.clear();
 		} else {
@@ -734,9 +857,22 @@ impl WsHandler {
 	}
 
 	fn proc_messages(handle: &mut Box<Connection>, ctx: &mut WsContext) {
-		match handle.inner.cstate {
-			ConnectionState::NeedHandshake => Self::proc_hs(handle),
-			_ => Self::proc_hs_complete(handle, ctx),
+		loop {
+			let slen = handle.inner.rbuf.len();
+			match handle.inner.cstate {
+				ConnectionState::NeedHandshake => {
+					if handle.inner.ctype == ConnectionType::ClientConnection {
+						Self::proc_hs_client(handle)
+					} else {
+						Self::proc_hs(handle)
+					}
+				}
+				_ => Self::proc_hs_complete(handle, ctx),
+			}
+			let elen = handle.inner.rbuf.len();
+			if elen == 0 || elen == slen {
+				break;
+			}
 		}
 	}
 
@@ -883,7 +1019,12 @@ impl WsHandler {
 			}
 			_ => {
 				if safe_socket_event_is_read(evt) {
-					while Self::proc_read(ctx, &mut conn, ehandle) != 0 {}
+					loop {
+						let v = Self::proc_read(ctx, &mut conn, ehandle);
+						if v == 0 {
+							break;
+						}
+					}
 				} else {
 					while Self::proc_write(&mut conn) != 0 {}
 				}
@@ -975,13 +1116,21 @@ mod test {
 				..WsConfig::default()
 			};
 			let mut ws = WsHandler::new(config).unwrap();
+			let lock = lock_box!().unwrap();
+			let mut conf = Rc::new(false).unwrap();
+			let lock_clone = lock.clone().unwrap();
+			let conf_clone = conf.clone().unwrap();
 			ws.start().unwrap();
+
 			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
 				Box::new(move |req: WsRequest, mut resp: WsResponse| {
-					println!("recv msg: {}", unsafe {
-						from_utf8_unchecked(&req.msg()[0..req.msg.msg.len()])
-					});
-					let _ = resp.send("got it!");
+					let s = unsafe { from_utf8_unchecked(&req.msg()[0..req.msg().len()]) };
+					if s == "this is a test" {
+						let _ = resp.send("got it!");
+					} else if s == "got it!" {
+						let _l = lock.write();
+						*conf = true;
+					}
 					Ok(())
 				})
 				.unwrap();
@@ -994,7 +1143,27 @@ mod test {
 			})
 			.unwrap();
 
-			//park();
+			let mut req = ws
+				.add_client(WsClientConfig {
+					addr: [127, 0, 0, 1],
+					port: 9999,
+				})
+				.unwrap();
+
+			assert!(req.send("this is a test").is_ok());
+
+			crate::sys::safe_sleep_millis(100);
+
+			loop {
+				{
+					let _l = lock_clone.read();
+					if *conf_clone {
+						break;
+					}
+				}
+				crate::sys::safe_sleep_millis(1);
+			}
+
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());

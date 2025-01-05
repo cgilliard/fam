@@ -36,6 +36,7 @@ define_enum_with_strings!(ErrorKind {
 	MultiplexRegister,
 	SocketConnect,
 	Pipe,
+	Connect,
 	IO,
 	Bind,
 	Todo,
