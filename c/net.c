@@ -29,6 +29,20 @@
 #define ERROR_GETSOCKNAME -10
 #define ERROR_EAGAIN -11
 
+long long __fd_count = 0;
+
+long long getfdcount() { return __fd_count; }
+
+int close_impl(int fd) {
+	int ret = close(fd);
+	if (ret == 0) {
+#ifdef TEST
+		__atomic_fetch_sub(&__fd_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
+	}
+	return ret;
+}
+
 typedef struct SocketHandle {
 	int fd;
 } SocketHandle;
@@ -57,6 +71,9 @@ _Bool socket_handle_eq(SocketHandle *h1, SocketHandle *h2) {
 int socket_connect(SocketHandle *s, unsigned char addr[4], int port) {
 	s->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (s->fd < 0) return ERROR_SOCKET;
+#ifdef TEST
+	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
 
 	struct sockaddr_in serv_addr;
 	memset(&serv_addr, 0, sizeof(serv_addr));
@@ -67,18 +84,18 @@ int socket_connect(SocketHandle *s, unsigned char addr[4], int port) {
 	if (connect(s->fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) <
 	    0) {
 		perror("connect");
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_CONNECT;
 	}
 
 	int flags = fcntl(s->fd, F_GETFL, 0);
 	if (flags < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_FCNTL;
 	}
 
 	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_FCNTL;
 	}
 
@@ -103,47 +120,74 @@ int socket_clear_pipe(SocketHandle *s) {
 int open_pipe(int *handles) {
 	int ret = pipe((int *)handles);
 	if (ret == 0) {
+#ifdef TEST
+		__atomic_fetch_add(&__fd_count, 2, __ATOMIC_SEQ_CST);
+#endif	// TEST
 		int flags = fcntl(handles[0], F_GETFL, 0);
 		if (flags == -1) {
 			perror("fcntl");
+			close_impl(handles[0]);
+			close_impl(handles[1]);
 			return -1;
 		}
 
 		flags |= O_NONBLOCK;
 		if (fcntl(handles[0], F_SETFL, flags) == -1) {
 			perror("fcntl");
+			close_impl(handles[0]);
+			close_impl(handles[1]);
+			return -1;
+		}
+
+		flags = fcntl(handles[1], F_GETFL, 0);
+		if (flags == -1) {
+			perror("fcntl");
+			close_impl(handles[0]);
+			close_impl(handles[1]);
+			return -1;
+		}
+
+		flags |= O_NONBLOCK;
+		if (fcntl(handles[1], F_SETFL, flags) == -1) {
+			perror("fcntl");
+			close_impl(handles[0]);
+			close_impl(handles[1]);
 			return -1;
 		}
 	}
+
 	return ret;
 }
 
 int socket_shutdown(SocketHandle *s) { return shutdown(s->fd, SHUT_RDWR); }
-int socket_close(SocketHandle *s) { return close(s->fd); }
+int socket_close(SocketHandle *s) { return close_impl(s->fd); }
 int socket_listen(SocketHandle *s, unsigned char addr[4], int port,
 		  int backlog) {
 	int opt = 1;
 	struct sockaddr_in address;
 
 	s->fd = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef TEST
+	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
 	if (s->fd < 0) return ERROR_SOCKET;
 	if (setsockopt(s->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_SETSOCKOPT;
 	}
 
 	if (setsockopt(s->fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt))) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_SETSOCKOPT;
 	}
 	int flags = fcntl(s->fd, F_GETFL, 0);
 	if (flags < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_FCNTL;
 	}
 
 	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_FCNTL;
 	}
 
@@ -152,18 +196,18 @@ int socket_listen(SocketHandle *s, unsigned char addr[4], int port,
 	address.sin_port = htons(port);
 
 	if (bind(s->fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_BIND;
 	}
 
 	if (listen(s->fd, backlog) < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_LISTEN;
 	}
 
 	socklen_t addr_len = sizeof(address);
 	if (getsockname(s->fd, (struct sockaddr *)&address, &addr_len) < 0) {
-		close(s->fd);
+		close_impl(s->fd);
 		return ERROR_GETSOCKNAME;
 	}
 	port = ntohs(address.sin_port);
@@ -182,10 +226,14 @@ int socket_accept(SocketHandle *s, SocketHandle *accepted) {
 		return ERROR_ACCEPT;
 	}
 
+#ifdef TEST
+	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
+
 	int flags = fcntl(accepted->fd, F_GETFL, 0);
 
 	if (fcntl(accepted->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-		close(accepted->fd);
+		close_impl(accepted->fd);
 		return ERROR_FCNTL;
 	}
 
@@ -220,6 +268,10 @@ int socket_multiplex_init(MultiplexHandle *multiplex) {
 	multiplex->fd = epoll_create1(0);
 #endif	// __linux__
 	if (multiplex->fd < 0) return ERROR_MULTIPLEX_INIT;
+
+#ifdef TEST
+	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
 	return 0;
 }
 #ifdef __APPLE__

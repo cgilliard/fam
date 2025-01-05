@@ -1081,8 +1081,17 @@ impl WsHandler {
 		while !cur.is_null() {
 			let v = cur;
 			cur = unsafe { (*cur).inner.next.raw() };
-			let _b = Box::from_raw(Ptr::new(v));
+			let b = Box::from_raw(Ptr::new(v));
+			if b.inner.ctype != ConnectionType::Server || ctx.tid == 0 {
+				safe_socket_close(&b.inner.handle as *const u8);
+			}
 		}
+
+		safe_socket_close(&ctx.state.wstate[ctx.tid].wakeup as *const u8);
+		unsafe {
+			safe_socket_close((&ctx.state.wstate[ctx.tid].wakeup as *const u8).add(4));
+		}
+		safe_socket_close(&ctx.state.wstate[ctx.tid].mplex as *const u8);
 
 		safe_release(ctx.events);
 		Ok(())
@@ -1097,6 +1106,7 @@ mod test {
 	#[test]
 	fn test_ws1() {
 		let initial = crate::sys::safe_getalloccount();
+		let initial_fds = crate::sys::safe_getfdcount();
 		{
 			let config = WsConfig {
 				threads: 4,
@@ -1153,5 +1163,6 @@ mod test {
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
+		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
 	}
 }

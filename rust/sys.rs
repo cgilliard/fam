@@ -9,6 +9,7 @@ extern "C" {
 	pub fn sleep_millis(millis: u64) -> i32;
 	pub fn ptr_add(p: *mut u8, v: i64);
 	pub fn getalloccount() -> i64;
+	pub fn getfdcount() -> i64;
 	pub fn atomic_store_u64(ptr: *mut u64, value: u64);
 	pub fn atomic_load_u64(ptr: *const u64) -> u64;
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
@@ -238,6 +239,10 @@ pub fn safe_ptr_add(p: *mut u8, v: i64) {
 
 pub fn safe_getalloccount() -> i64 {
 	unsafe { getalloccount() }
+}
+
+pub fn safe_getfdcount() -> i64 {
+	unsafe { getfdcount() }
 }
 
 pub fn safe_socket_clear_pipe(handle: *const u8) -> i32 {
