@@ -5,6 +5,7 @@ use core::str::from_utf8_unchecked;
 use prelude::*;
 use sys::*;
 
+const MAGIC_STRING: &[u8; 36] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const BAD_REQUEST: &str = "HTTP/1.1 400 Bad Request\r\n\
 Content-Type: text/plain\r\n\
 Connection: close\r\n\r\n";
@@ -575,6 +576,20 @@ impl WsHandler {
 			}
 
 			let uri = &rvec[4..uri_end];
+			for i in 0..uri.len() {
+				if !((uri[i] >= b'a' && uri[i] <= b'z')
+					|| (uri[i] >= b'A' && uri[i] <= b'Z')
+					|| (uri[i] >= b'0' && uri[i] <= b'9')
+					|| uri[i] == b'-'
+					|| uri[i] == b'.'
+					|| uri[i] == b'_'
+					|| uri[i] == b'~'
+					|| uri[i] == b'/')
+				{
+					Self::bad_request(handle);
+					return;
+				}
+			}
 			let uri = unsafe { String::new(from_utf8_unchecked(uri)).unwrap() };
 
 			let mut sec_key: &[u8] = &[];
@@ -585,7 +600,7 @@ impl WsHandler {
 					&& rvec[i - 2] == b'\n'
 					&& rvec[i - 3] == b'\r'
 				{
-					if sec_key == &[] {
+					if sec_key == &[] || sec_key.len() > 24 {
 						Self::bad_request(handle);
 					} else {
 						let accept_key = Self::handle_websocket_handshake(sec_key);
@@ -739,7 +754,11 @@ impl WsHandler {
 		let len = safe_socket_recv(ehandle, buf.as_mut_ptr(), 256);
 
 		if len == 0 || (len < 0 && len != EAGAIN as i64) {
-			handle.inner.cstate = ConnectionState::Closed;
+			{
+				let mut handle_inner = handle.inner.clone().unwrap();
+				let _l = handle.inner.lock.write();
+				handle_inner.cstate = ConnectionState::Closed;
+			}
 			safe_socket_close(ehandle);
 			if !handle.inner.prev.is_null() {
 				handle.inner.prev.inner.next = handle.inner.next;
@@ -776,7 +795,6 @@ impl WsHandler {
 	}
 
 	fn handle_websocket_handshake(sec_key: &[u8]) -> [u8; 28] {
-		let magic_string = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		let mut sha1_result: [u8; 20] = [0; 20];
 		let mut combined: [u8; 60] = [0; 60];
 
@@ -784,9 +802,9 @@ impl WsHandler {
 			copy_nonoverlapping(sec_key.as_ptr(), combined.as_mut_ptr(), sec_key.len());
 
 			copy_nonoverlapping(
-				magic_string.as_ptr(),
+				MAGIC_STRING.as_ptr(),
 				combined.as_mut_ptr().add(sec_key.len()),
-				magic_string.len(),
+				MAGIC_STRING.len(),
 			);
 			SHA1(combined.as_ptr(), combined.len(), sha1_result.as_mut_ptr());
 
@@ -822,6 +840,29 @@ impl WsHandler {
 		safe_socket_shutdown(&mut handle.inner.handle as *const u8);
 	}
 
+	fn proc_write(conn: &mut Box<Connection>) -> usize {
+		let ret = safe_socket_send(
+			&conn.inner.handle as *const u8,
+			conn.inner.wbuf[0..conn.inner.wbuf.len()].as_ptr(),
+			conn.inner.wbuf.len(),
+		);
+		if ret < 0 {
+			if ret != EAGAIN.into() {
+				safe_socket_shutdown(&conn.inner.handle as *const u8);
+			}
+			0
+		} else {
+			if ret > 0 {
+				// cannot be an error
+				let _ = conn.inner.wbuf.shift(ret as usize);
+				let nlen = conn.inner.wbuf.len();
+				// downward resize cannot be an error
+				let _ = conn.inner.wbuf.resize(nlen);
+			}
+			ret as usize
+		}
+	}
+
 	fn proc_connection(
 		ctx: &mut WsContext,
 		mut conn: Box<Connection>,
@@ -844,6 +885,7 @@ impl WsHandler {
 				if safe_socket_event_is_read(evt) {
 					while Self::proc_read(ctx, &mut conn, ehandle) != 0 {}
 				} else {
+					while Self::proc_write(&mut conn) != 0 {}
 				}
 			}
 		}
@@ -952,7 +994,7 @@ mod test {
 			})
 			.unwrap();
 
-			//	park();
+			//park();
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
