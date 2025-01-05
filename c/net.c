@@ -76,6 +76,7 @@ int socket_connect(SocketHandle *s, unsigned char addr[4], int port) {
 		close(s->fd);
 		return ERROR_FCNTL;
 	}
+
 	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
 		close(s->fd);
 		return ERROR_FCNTL;
@@ -140,6 +141,7 @@ int socket_listen(SocketHandle *s, unsigned char addr[4], int port,
 		close(s->fd);
 		return ERROR_FCNTL;
 	}
+
 	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
 		close(s->fd);
 		return ERROR_FCNTL;
@@ -180,9 +182,10 @@ int socket_accept(SocketHandle *s, SocketHandle *accepted) {
 		return ERROR_ACCEPT;
 	}
 
-	int flags = fcntl(s->fd, F_GETFL, 0);
-	if (fcntl(s->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-		close(s->fd);
+	int flags = fcntl(accepted->fd, F_GETFL, 0);
+
+	if (fcntl(accepted->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+		close(accepted->fd);
 		return ERROR_FCNTL;
 	}
 
