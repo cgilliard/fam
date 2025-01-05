@@ -1152,8 +1152,6 @@ mod test {
 
 			assert!(req.send("this is a test").is_ok());
 
-			crate::sys::safe_sleep_millis(100);
-
 			loop {
 				{
 					let _l = lock_clone.read();
