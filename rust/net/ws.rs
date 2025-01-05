@@ -1137,17 +1137,18 @@ mod test {
 				.unwrap();
 			let _ = ws.register_handler(b);
 
-			ws.add_server(WsServerConfig {
-				addr: [127, 0, 0, 1],
-				port: 9999,
-				backlog: 10,
-			})
-			.unwrap();
+			let port = ws
+				.add_server(WsServerConfig {
+					addr: [127, 0, 0, 1],
+					port: 0,
+					backlog: 10,
+				})
+				.unwrap();
 
 			let mut req = ws
 				.add_client(WsClientConfig {
 					addr: [127, 0, 0, 1],
-					port: 9999,
+					port,
 				})
 				.unwrap();
 
