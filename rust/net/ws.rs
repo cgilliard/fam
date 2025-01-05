@@ -36,7 +36,7 @@ pub struct WsMessage<'a> {
 #[derive(PartialEq)]
 enum ConnectionState {
 	NeedHandshake,
-	HandshakeComplete(String),
+	HandshakeComplete,
 	Closed,
 }
 
@@ -166,7 +166,6 @@ pub struct WsRequest<'a> {
 	msg: WsMessage<'a>,
 	fin: bool,
 	op: u8,
-	path: String,
 }
 
 impl WsRequest<'_> {
@@ -180,10 +179,6 @@ impl WsRequest<'_> {
 
 	pub fn op(&self) -> u8 {
 		self.op
-	}
-
-	pub fn path(&self) -> String {
-		self.path.clone().unwrap()
 	}
 }
 
@@ -661,8 +656,7 @@ impl WsHandler {
 					&& &rvec[0..SWITCHING_PROTOCOL_PREFIX.len()]
 						== SWITCHING_PROTOCOL_PREFIX.as_bytes()
 				{
-					let uri = String::empty();
-					handle_clone.inner.cstate = ConnectionState::HandshakeComplete(uri);
+					handle_clone.inner.cstate = ConnectionState::HandshakeComplete;
 					if rvec.len() == i + 1 {
 						handle_clone.inner.rbuf.clear();
 					} else {
@@ -706,7 +700,6 @@ impl WsHandler {
 					return;
 				}
 			}
-			let uri = unsafe { String::new(from_utf8_unchecked(uri)).unwrap() };
 
 			let mut sec_key: &[u8] = &[];
 
@@ -721,7 +714,7 @@ impl WsHandler {
 					} else {
 						let accept_key = Self::handle_websocket_handshake(sec_key);
 						Self::switch_protocol(handle, &accept_key);
-						handle.inner.cstate = ConnectionState::HandshakeComplete(uri);
+						handle.inner.cstate = ConnectionState::HandshakeComplete;
 
 						let rbuflen = handle_clone.inner.rbuf.len();
 						if rbuflen == i + 1 {
@@ -752,11 +745,6 @@ impl WsHandler {
 	fn proc_hs_complete(handle: &mut Box<Connection>, ctx: &mut WsContext) {
 		let conn = Connection {
 			inner: handle.inner.clone().unwrap(),
-		};
-
-		let path = match &handle.inner.cstate {
-			ConnectionState::HandshakeComplete(s) => s.clone().unwrap(),
-			_ => String::new("unknown").unwrap(),
 		};
 
 		let len = handle.inner.rbuf.len();
@@ -830,7 +818,7 @@ impl WsHandler {
 		let payload = &rvec[offset..payload_len + offset];
 
 		let msg = WsMessage { msg: payload };
-		let req = WsRequest { fin, op, msg, path };
+		let req = WsRequest { fin, op, msg };
 		let resp = WsResponse { conn };
 		match &mut ctx.state.handler {
 			Some(handler) => match handler(req, resp) {
