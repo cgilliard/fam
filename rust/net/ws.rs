@@ -71,11 +71,13 @@ impl Clone for Connection {
 
 impl Connection {
 	fn new(ctype: ConnectionType, handle: [u8; 4], mplex: [u8; 4]) -> Result<Self, Error> {
+		let mut rbuf = Vec::new();
+		rbuf.set_min(512);
 		match Rc::new(ConnectionInner {
 			next: Ptr::null(),
 			prev: Ptr::null(),
 			ctype,
-			rbuf: Vec::new(),
+			rbuf,
 			wbuf: Vec::new(),
 			handle,
 			mplex,
@@ -1174,91 +1176,97 @@ mod test {
 
 	#[test]
 	fn test_ws_perf() {
-		let config = WsConfig {
-			threads: 8,
-			..WsConfig::default()
-		};
-		let threads = 4;
-		let target = 1_000;
+		let initial = crate::sys::safe_getalloccount();
+		let initial_fds = crate::sys::safe_getfdcount();
+		{
+			let config = WsConfig {
+				threads: 8,
+				..WsConfig::default()
+			};
+			let threads = 4;
+			let target = 1_000;
 
-		let mut ws = WsHandler::new(config).unwrap();
-		ws.start().unwrap();
-		let mut count = Rc::new([0u64; 256]).unwrap();
-		let count_clone = count.clone().unwrap();
-		let mut sends = Vec::new();
-		let mut recvs = Vec::new();
-		for _i in 0..threads {
-			let (send, recv) = channel().unwrap();
-			let _ = sends.push(send);
-			let _ = recvs.push(recv);
-		}
+			let mut ws = WsHandler::new(config).unwrap();
+			ws.start().unwrap();
+			let mut count = Rc::new([0u64; 256]).unwrap();
+			let count_clone = count.clone().unwrap();
+			let mut sends = Vec::new();
+			let mut recvs = Vec::new();
+			for _i in 0..threads {
+				let (send, recv) = channel().unwrap();
+				let _ = sends.push(send);
+				let _ = recvs.push(recv);
+			}
 
-		let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
-			Box::new(move |req: WsRequest, _resp: WsResponse| {
-				let msg = req.msg();
-				let item = from_be_bytes_u64(&msg[1..9]);
+			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
+				Box::new(move |req: WsRequest, _resp: WsResponse| {
+					let msg = req.msg();
+					let item = from_be_bytes_u64(&msg[1..9]);
 
-				let index = msg[0];
-				assert_eq!((*count)[index as usize], item);
-				(*count)[index as usize] += 1;
-				if (*count)[index as usize] == target {
-					let _ = sends[index as usize].send(());
-				}
-
-				Ok(())
-			})
-			.unwrap();
-		let _ = ws.register_handler(b);
-
-		let port = ws
-			.add_server(WsServerConfig {
-				addr: [127, 0, 0, 1],
-				port: 0,
-				backlog: 10,
-			})
-			.unwrap();
-
-		let resp = ws
-			.add_client(WsClientConfig {
-				addr: [127, 0, 0, 1],
-				port,
-			})
-			.unwrap();
-
-		let config = RuntimeConfig {
-			min_threads: 4,
-			max_threads: 4,
-		};
-		let mut runtime = Runtime::<()>::new(config).unwrap();
-		assert!(runtime.start().is_ok());
-
-		let mut jhs = Vec::new();
-
-		for v in 0..threads {
-			let mut resp = resp.clone().unwrap();
-			let h = runtime
-				.execute(move || {
-					let mut bytes = [b'm'; 10];
-					let x = v;
-					bytes[0] = x;
-					for i in 0..target {
-						to_be_bytes_u64(i as u64, &mut bytes[1..9]);
-						assert!(resp.sendb(&bytes).is_ok());
+					let index = msg[0];
+					assert_eq!((*count)[index as usize], item);
+					(*count)[index as usize] += 1;
+					if (*count)[index as usize] == target {
+						let _ = sends[index as usize].send(());
 					}
+
+					Ok(())
 				})
 				.unwrap();
-			let _ = jhs.push(h);
-		}
+			let _ = ws.register_handler(b);
 
-		for i in 0..jhs.len() {
-			jhs[i].block_on();
-		}
+			let port = ws
+				.add_server(WsServerConfig {
+					addr: [127, 0, 0, 1],
+					port: 0,
+					backlog: 10,
+				})
+				.unwrap();
 
-		for i in 0..threads {
-			let _ = recvs[i as usize].recv();
-			assert_eq!((*count_clone)[i as usize], target);
-		}
+			let resp = ws
+				.add_client(WsClientConfig {
+					addr: [127, 0, 0, 1],
+					port,
+				})
+				.unwrap();
 
-		ws.stop().unwrap();
+			let config = RuntimeConfig {
+				min_threads: 4,
+				max_threads: 4,
+			};
+			let mut runtime = Runtime::<()>::new(config).unwrap();
+			assert!(runtime.start().is_ok());
+
+			let mut jhs = Vec::new();
+
+			for v in 0..threads {
+				let mut resp = resp.clone().unwrap();
+				let h = runtime
+					.execute(move || {
+						let mut bytes = [b'm'; 10];
+						let x = v;
+						bytes[0] = x;
+						for i in 0..target {
+							to_be_bytes_u64(i as u64, &mut bytes[1..9]);
+							assert!(resp.sendb(&bytes).is_ok());
+						}
+					})
+					.unwrap();
+				let _ = jhs.push(h);
+			}
+
+			for i in 0..jhs.len() {
+				jhs[i].block_on();
+			}
+
+			for i in 0..threads {
+				let _ = recvs[i as usize].recv();
+				assert_eq!((*count_clone)[i as usize], target);
+			}
+
+			ws.stop().unwrap();
+		}
+		assert_eq!(initial, crate::sys::safe_getalloccount());
+		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
 	}
 }
