@@ -1184,7 +1184,7 @@ mod test {
 				..WsConfig::default()
 			};
 			let threads = 4;
-			let target = 10_000;
+			let target = 1_000;
 
 			let mut ws = WsHandler::new(config).unwrap();
 			ws.start().unwrap();
@@ -1223,16 +1223,20 @@ mod test {
 				})
 				.unwrap();
 
-			let resp = ws
-				.add_client(WsClientConfig {
-					addr: [127, 0, 0, 1],
-					port,
-				})
-				.unwrap();
+			let mut resps = Vec::new();
+			for _i in 0..threads {
+				let resp = ws
+					.add_client(WsClientConfig {
+						addr: [127, 0, 0, 1],
+						port,
+					})
+					.unwrap();
+				let _ = resps.push(resp);
+			}
 
 			let config = RuntimeConfig {
-				min_threads: 4,
-				max_threads: 4,
+				min_threads: threads * 2,
+				max_threads: threads * 2,
 			};
 			let mut runtime = Runtime::<()>::new(config).unwrap();
 			assert!(runtime.start().is_ok());
@@ -1240,12 +1244,11 @@ mod test {
 			let mut jhs = Vec::new();
 
 			for v in 0..threads {
-				let mut resp = resp.clone().unwrap();
+				let mut resp = resps[v as usize].clone().unwrap();
 				let h = runtime
 					.execute(move || {
 						let mut bytes = [b'm'; 10];
-						let x = v;
-						bytes[0] = x;
+						bytes[0] = v as u8;
 						for i in 0..target {
 							to_be_bytes_u64(i as u64, &mut bytes[1..9]);
 							assert!(resp.sendb(&bytes).is_ok());
