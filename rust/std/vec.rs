@@ -311,7 +311,6 @@ impl<T> Vec<T> {
 		if ptr.is_null() {
 			return Err(err!(IllegalArgument));
 		}
-
 		let size = size_of::<T>();
 		let needed = size * (self.elements + elems);
 		if needed > self.capacity {
@@ -323,7 +322,7 @@ impl<T> Vec<T> {
 		let dest_ptr = self.value.raw() as *mut u8;
 		unsafe {
 			let dest_ptr = dest_ptr.add(size * self.elements) as *mut u8;
-			copy_nonoverlapping(self.value.raw() as *mut u8, dest_ptr, size * elems);
+			copy_nonoverlapping(ptr, dest_ptr, size * elems);
 		}
 
 		self.elements += elems;

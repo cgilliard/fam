@@ -24,6 +24,7 @@ const REG_WRITE_FLAG: i32 = 0x2;
 pub struct WsConfig {
 	threads: u64,
 	max_events: i32,
+	debug_pending: bool,
 }
 
 pub struct WsMessage<'a> {
@@ -54,6 +55,7 @@ struct ConnectionInner {
 	handle: [u8; 4],
 	mplex: [u8; 4],
 	lock: Lock,
+	debug_pending: bool,
 }
 
 struct Connection {
@@ -70,7 +72,12 @@ impl Clone for Connection {
 }
 
 impl Connection {
-	fn new(ctype: ConnectionType, handle: [u8; 4], mplex: [u8; 4]) -> Result<Self, Error> {
+	fn new(
+		ctype: ConnectionType,
+		handle: [u8; 4],
+		mplex: [u8; 4],
+		debug_pending: bool,
+	) -> Result<Self, Error> {
 		let mut rbuf = Vec::new();
 		rbuf.set_min(0);
 		match Rc::new(ConnectionInner {
@@ -83,6 +90,7 @@ impl Connection {
 			mplex,
 			lock: lock!(),
 			cstate: ConnectionState::NeedHandshake,
+			debug_pending,
 		}) {
 			Ok(inner) => Ok(Self { inner }),
 			Err(e) => Err(e),
@@ -91,11 +99,10 @@ impl Connection {
 
 	fn writeb(&self, msg: &[u8]) -> Result<(), Error> {
 		let mut inner = self.inner.clone().unwrap();
-		//let _l = self.inner.lock.write();
 		if self.inner.cstate == ConnectionState::Closed {
 			return Err(err!(ConnectionClosed));
 		}
-		let mut res = if inner.wbuf.len() == 0 {
+		let mut res = if inner.wbuf.len() == 0 && !self.inner.debug_pending {
 			safe_socket_send(&inner.handle as *const u8, msg.as_ptr(), msg.len())
 		} else {
 			0
@@ -120,13 +127,13 @@ impl Connection {
 					}
 				}
 			}
+
 			let mut boxed_conn = match Box::new(Connection {
 				inner: inner.clone().unwrap(),
 			}) {
 				Ok(c) => c,
 				Err(e) => return Err(e),
 			};
-			boxed_conn.leak();
 			if safe_socket_multiplex_register(
 				&mut inner.mplex as *mut u8,
 				&mut inner.handle as *mut u8,
@@ -135,6 +142,8 @@ impl Connection {
 			) < 0
 			{
 				safe_socket_shutdown(&self.inner.handle as *const u8);
+			} else {
+				boxed_conn.leak();
 			}
 		} else if res < 0 {
 			safe_socket_shutdown(&self.inner.handle as *const u8);
@@ -337,6 +346,7 @@ impl Default for WsConfig {
 		Self {
 			threads: 4,
 			max_events: 32,
+			debug_pending: false,
 		}
 	}
 }
@@ -381,7 +391,12 @@ impl WsHandler {
 
 		let itt = (aadd!(&mut self.state.itt, 1) % 4) as usize;
 		let mplex = self.state.wstate[itt].mplex;
-		let conn = match Connection::new(ConnectionType::ClientConnection, client, mplex) {
+		let conn = match Connection::new(
+			ConnectionType::ClientConnection,
+			client,
+			mplex,
+			self.state.config.debug_pending,
+		) {
 			Ok(conn) => conn,
 			Err(e) => {
 				safe_socket_close(client_ptr);
@@ -466,7 +481,12 @@ impl WsHandler {
 		}
 
 		for wstate in &self.state.wstate {
-			let connection = match Connection::new(ConnectionType::Server, server, [0u8; 4]) {
+			let connection = match Connection::new(
+				ConnectionType::Server,
+				server,
+				[0u8; 4],
+				self.state.config.debug_pending,
+			) {
 				Ok(connection) => connection,
 				Err(e) => return Err(e),
 			};
@@ -601,8 +621,12 @@ impl WsHandler {
 				}
 			}
 
-			let connection = match Connection::new(ConnectionType::ServerConnection, handle, mplex)
-			{
+			let connection = match Connection::new(
+				ConnectionType::ServerConnection,
+				handle,
+				mplex,
+				ctx.state.config.debug_pending,
+			) {
 				Ok(connection) => connection,
 				Err(_e) => {
 					continue;
@@ -1270,6 +1294,70 @@ mod test {
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
+		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
+	}
+
+	#[test]
+	fn test_ws_pending() {
+		let initial = crate::sys::safe_getalloccount();
+		let initial_fds = crate::sys::safe_getfdcount();
+		{
+			let config = WsConfig {
+				threads: 4,
+				debug_pending: true,
+				..WsConfig::default()
+			};
+			let mut ws = WsHandler::new(config).unwrap();
+			let lock = lock_box!().unwrap();
+			let mut conf = Rc::new(false).unwrap();
+			let lock_clone = lock.clone().unwrap();
+			let conf_clone = conf.clone().unwrap();
+			ws.start().unwrap();
+
+			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
+				Box::new(move |req: WsRequest, mut resp: WsResponse| {
+					let s = unsafe { from_utf8_unchecked(&req.msg()[0..req.msg().len()]) };
+					if s == "this is a test" {
+						let _ = resp.send("got it!");
+					} else if s == "got it!" {
+						let _l = lock.write();
+						*conf = true;
+					}
+					Ok(())
+				})
+				.unwrap();
+			let _ = ws.register_handler(b);
+
+			let port = ws
+				.add_server(WsServerConfig {
+					addr: [127, 0, 0, 1],
+					port: 0,
+					backlog: 10,
+				})
+				.unwrap();
+
+			let mut req = ws
+				.add_client(WsClientConfig {
+					addr: [127, 0, 0, 1],
+					port,
+				})
+				.unwrap();
+
+			assert!(req.send("this is a test").is_ok());
+
+			loop {
+				{
+					let _l = lock_clone.read();
+					if *conf_clone {
+						break;
+					}
+				}
+				crate::sys::safe_sleep_millis(1);
+			}
+
+			ws.stop().unwrap();
+		}
+		//	assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
 	}
 }
