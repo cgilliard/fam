@@ -89,7 +89,7 @@ impl Connection {
 
 	fn writeb(&self, msg: &[u8]) -> Result<(), Error> {
 		let mut inner = self.inner.clone().unwrap();
-		let _l = self.inner.lock.write();
+		//let _l = self.inner.lock.write();
 		if self.inner.cstate == ConnectionState::Closed {
 			return Err(err!(ConnectionClosed));
 		}
@@ -206,6 +206,7 @@ impl WsResponse {
 	}
 
 	fn send_impl(&mut self, mtype: MessageType, bytes: &[u8]) -> Result<(), Error> {
+		let _l = self.conn.inner.lock.write();
 		let b1 = match mtype {
 			MessageType::Text => 0x81,
 			MessageType::Binary => 0x82,
@@ -1014,6 +1015,8 @@ impl WsHandler {
 						}
 					}
 				} else {
+					let conn2 = conn.clone().unwrap();
+					let _l = conn2.inner.lock.write();
 					while Self::proc_write(&mut conn) != 0 {}
 				}
 			}
@@ -1172,24 +1175,36 @@ mod test {
 	#[test]
 	fn test_ws_perf() {
 		let config = WsConfig {
-			threads: 4,
+			threads: 8,
 			..WsConfig::default()
 		};
+		let threads = 4;
+		let target = 1_000;
+
 		let mut ws = WsHandler::new(config).unwrap();
-		let lock = lock_box!().unwrap();
-		let lock_clone = lock.clone().unwrap();
 		ws.start().unwrap();
-		let mut count = Rc::new([0u64, 0u64, 0u64, 0u64]).unwrap();
+		let mut count = Rc::new([0u64; 256]).unwrap();
 		let count_clone = count.clone().unwrap();
+		let mut sends = Vec::new();
+		let mut recvs = Vec::new();
+		for _i in 0..threads {
+			let (send, recv) = channel().unwrap();
+			let _ = sends.push(send);
+			let _ = recvs.push(recv);
+		}
 
 		let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
 			Box::new(move |req: WsRequest, _resp: WsResponse| {
-				let _s = unsafe { from_utf8_unchecked(&req.msg()[8..req.msg().len()]) };
-				let item = from_be_bytes_u64(&req.msg()[1..9]);
-				let _l = lock.write();
-				//println!("msg: {} {} {}", s, count, item);
-				assert_eq!((*count)[0], item);
-				(*count)[0] += 1;
+				let msg = req.msg();
+				let item = from_be_bytes_u64(&msg[1..9]);
+
+				let index = msg[0];
+				assert_eq!((*count)[index as usize], item);
+				(*count)[index as usize] += 1;
+				if (*count)[index as usize] == target {
+					let _ = sends[index as usize].send(());
+				}
+
 				Ok(())
 			})
 			.unwrap();
@@ -1217,16 +1232,14 @@ mod test {
 		let mut runtime = Runtime::<()>::new(config).unwrap();
 		assert!(runtime.start().is_ok());
 
-		//let target = 1_000_000;
-		let target = 10000;
-		let mut itt = 0u64;
+		let mut jhs = Vec::new();
 
-		for _ in 0..1 {
+		for v in 0..threads {
 			let mut resp = resp.clone().unwrap();
-			let _h1 = runtime
+			let h = runtime
 				.execute(move || {
 					let mut bytes = [b'm'; 10];
-					let x = aadd!(&mut itt, 1) as u8;
+					let x = v;
 					bytes[0] = x;
 					for i in 0..target {
 						to_be_bytes_u64(i as u64, &mut bytes[1..9]);
@@ -1234,13 +1247,16 @@ mod test {
 					}
 				})
 				.unwrap();
+			let _ = jhs.push(h);
 		}
 
-		loop {
-			let _l = lock_clone.read();
-			if (*count_clone)[0] == target {
-				break;
-			}
+		for i in 0..jhs.len() {
+			jhs[i].block_on();
+		}
+
+		for i in 0..threads {
+			let _ = recvs[i as usize].recv();
+			assert_eq!((*count_clone)[i as usize], target);
 		}
 
 		ws.stop().unwrap();
