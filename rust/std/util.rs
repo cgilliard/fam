@@ -13,21 +13,47 @@ pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	}
 }
 
-pub fn to_be_bytes_u64(value: u64) -> [u8; 8] {
-	[
-		(value >> 56) as u8,
-		(value >> 48) as u8,
-		(value >> 40) as u8,
-		(value >> 32) as u8,
-		(value >> 24) as u8,
-		(value >> 16) as u8,
-		(value >> 8) as u8,
-		value as u8,
-	]
+pub fn to_be_bytes_u64(value: u64, bytes: &mut [u8]) {
+	if bytes.len() >= 8 {
+		bytes[0] = (value >> 56) as u8;
+		bytes[1] = (value >> 48) as u8;
+		bytes[2] = (value >> 40) as u8;
+		bytes[3] = (value >> 32) as u8;
+		bytes[4] = (value >> 24) as u8;
+		bytes[5] = (value >> 16) as u8;
+		bytes[6] = (value >> 8) as u8;
+		bytes[7] = value as u8;
+	}
 }
 
-pub fn to_be_bytes_u16(value: u16) -> [u8; 2] {
-	[(value >> 8) as u8, value as u8]
+pub fn to_be_bytes_u16(value: u16, bytes: &mut [u8]) {
+	if bytes.len() >= 2 {
+		bytes[0] = (value >> 8) as u8;
+		bytes[1] = value as u8;
+	}
+}
+
+pub fn from_be_bytes_u64(bytes: &[u8]) -> u64 {
+	if bytes.len() >= 8 {
+		((bytes[0] as u64) << 56)
+			| ((bytes[1] as u64) << 48)
+			| ((bytes[2] as u64) << 40)
+			| ((bytes[3] as u64) << 32)
+			| ((bytes[4] as u64) << 24)
+			| ((bytes[5] as u64) << 16)
+			| ((bytes[6] as u64) << 8)
+			| (bytes[7] as u64)
+	} else {
+		0
+	}
+}
+
+pub fn from_be_bytes_u16(bytes: &[u8]) -> u16 {
+	if bytes.len() >= 2 {
+		((bytes[0] as u16) << 8) | (bytes[1] as u16)
+	} else {
+		0
+	}
 }
 
 pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usize {

@@ -145,8 +145,9 @@ impl Connection {
 		self.writeb(msg.as_bytes())
 	}
 
-	pub fn close(&self, status_code: u16) {
-		let status_code = to_be_bytes_u16(status_code);
+	pub fn close(&self, v: u16) {
+		let mut status_code = [0u8; 2];
+		to_be_bytes_u16(v, &mut status_code);
 		let _ = self.writeb(&[0x88, 0]);
 		let _ = self.writeb(&[0x88, 2]);
 		let _ = self.writeb(&status_code);
@@ -226,7 +227,8 @@ impl WsResponse {
 					return Err(e);
 				}
 			}
-			let len = to_be_bytes_u16(bytes.len() as u16);
+			let mut len = [0u8; 2];
+			to_be_bytes_u16(bytes.len() as u16, &mut len);
 			match self.conn.writeb(&len) {
 				Ok(_) => {}
 				Err(e) => {
@@ -242,7 +244,8 @@ impl WsResponse {
 					return Err(e);
 				}
 			}
-			let len = to_be_bytes_u64(bytes.len() as u64);
+			let mut len = [0u8; 8];
+			to_be_bytes_u64(bytes.len() as u64, &mut len);
 			match self.conn.writeb(&len) {
 				Ok(_) => {}
 				Err(e) => {
@@ -591,7 +594,7 @@ impl WsHandler {
 					break;
 				} else {
 					println!("WARN: Error accepting socket code: {}", res);
-					continue;
+					break;
 				}
 			}
 
@@ -1164,5 +1167,82 @@ mod test {
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
+	}
+
+	#[test]
+	fn test_ws_perf() {
+		let config = WsConfig {
+			threads: 4,
+			..WsConfig::default()
+		};
+		let mut ws = WsHandler::new(config).unwrap();
+		let lock = lock_box!().unwrap();
+		let lock_clone = lock.clone().unwrap();
+		ws.start().unwrap();
+		let mut count = Rc::new([0u64, 0u64, 0u64, 0u64]).unwrap();
+		let count_clone = count.clone().unwrap();
+
+		let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
+			Box::new(move |req: WsRequest, _resp: WsResponse| {
+				let _s = unsafe { from_utf8_unchecked(&req.msg()[8..req.msg().len()]) };
+				let item = from_be_bytes_u64(&req.msg()[1..9]);
+				let _l = lock.write();
+				//println!("msg: {} {} {}", s, count, item);
+				assert_eq!((*count)[0], item);
+				(*count)[0] += 1;
+				Ok(())
+			})
+			.unwrap();
+		let _ = ws.register_handler(b);
+
+		let port = ws
+			.add_server(WsServerConfig {
+				addr: [127, 0, 0, 1],
+				port: 0,
+				backlog: 10,
+			})
+			.unwrap();
+
+		let resp = ws
+			.add_client(WsClientConfig {
+				addr: [127, 0, 0, 1],
+				port,
+			})
+			.unwrap();
+
+		let config = RuntimeConfig {
+			min_threads: 4,
+			max_threads: 4,
+		};
+		let mut runtime = Runtime::<()>::new(config).unwrap();
+		assert!(runtime.start().is_ok());
+
+		//let target = 1_000_000;
+		let target = 10000;
+		let mut itt = 0u64;
+
+		for _ in 0..1 {
+			let mut resp = resp.clone().unwrap();
+			let _h1 = runtime
+				.execute(move || {
+					let mut bytes = [b'm'; 10];
+					let x = aadd!(&mut itt, 1) as u8;
+					bytes[0] = x;
+					for i in 0..target {
+						to_be_bytes_u64(i as u64, &mut bytes[1..9]);
+						assert!(resp.sendb(&bytes).is_ok());
+					}
+				})
+				.unwrap();
+		}
+
+		loop {
+			let _l = lock_clone.read();
+			if (*count_clone)[0] == target {
+				break;
+			}
+		}
+
+		ws.stop().unwrap();
 	}
 }
