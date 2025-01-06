@@ -252,7 +252,12 @@ impl<T> Vec<T> {
 
 		let rptr = self.value.raw();
 
-		let nptr = if rptr.is_null() {
+		let nptr = if ncapacity == 0 {
+			if !rptr.is_null() {
+				safe_release(rptr as *mut u8);
+			}
+			null_mut()
+		} else if rptr.is_null() {
 			safe_alloc(ncapacity * size_of::<T>())
 		} else {
 			safe_resize(rptr as *mut u8, ncapacity * size_of::<T>())
@@ -274,7 +279,8 @@ impl<T> Vec<T> {
 			}
 			true
 		} else {
-			false
+			self.value = Ptr::null();
+			ncapacity == 0
 		}
 	}
 
@@ -480,5 +486,20 @@ mod test {
 
 		v.clear();
 		assert_eq!(v.len(), 0);
+	}
+
+	#[test]
+	fn test_set_min0() {
+		let initial = safe_getalloccount();
+		{
+			let mut v = Vec::new();
+			v.set_min(0);
+			assert!(v.push(1).is_ok());
+			assert!(v.resize(128).is_ok());
+			assert!(v.resize(0).is_ok());
+			// it's already freed at this point
+			assert_eq!(initial, safe_getalloccount());
+		}
+		assert_eq!(initial, safe_getalloccount());
 	}
 }

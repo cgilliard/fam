@@ -72,7 +72,7 @@ impl Clone for Connection {
 impl Connection {
 	fn new(ctype: ConnectionType, handle: [u8; 4], mplex: [u8; 4]) -> Result<Self, Error> {
 		let mut rbuf = Vec::new();
-		rbuf.set_min(512);
+		rbuf.set_min(0);
 		match Rc::new(ConnectionInner {
 			next: Ptr::null(),
 			prev: Ptr::null(),
@@ -1184,7 +1184,7 @@ mod test {
 				..WsConfig::default()
 			};
 			let threads = 4;
-			let target = 1_000;
+			let target = 10_000;
 
 			let mut ws = WsHandler::new(config).unwrap();
 			ws.start().unwrap();
