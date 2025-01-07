@@ -55,7 +55,11 @@ extern "C" {
 		flags: i32,
 		ptr: *const u8,
 	) -> i32;
-	pub fn socket_multiplex_unregister_write(handle: *const u8, socket: *const u8) -> i32;
+	pub fn socket_multiplex_unregister_write(
+		handle: *const u8,
+		socket: *const u8,
+		connptr: *const u8,
+	) -> i32;
 	pub fn socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32;
 	pub fn socket_event_handle(handle: *mut u8, event: *const u8);
 	pub fn socket_event_is_read(event: *const u8) -> bool;
@@ -141,8 +145,12 @@ pub fn safe_socket_multiplex_register(
 ) -> i32 {
 	unsafe { socket_multiplex_register(handle, socket, flags, ptr) }
 }
-pub fn safe_socket_multiplex_unregister_write(handle: *const u8, socket: *const u8) -> i32 {
-	unsafe { socket_multiplex_unregister_write(handle, socket) }
+pub fn safe_socket_multiplex_unregister_write(
+	handle: *const u8,
+	socket: *const u8,
+	connptr: *const u8,
+) -> i32 {
+	unsafe { socket_multiplex_unregister_write(handle, socket, connptr) }
 }
 
 pub fn safe_socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32 {

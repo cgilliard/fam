@@ -976,6 +976,7 @@ impl WebSocket {
 			safe_socket_multiplex_unregister_write(
 				&ctx.state.wstate[ctx.tid].mplex as *const u8,
 				ehandle,
+				conn.inner.connptr.raw() as *const u8,
 			);
 		}
 	}

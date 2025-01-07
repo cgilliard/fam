@@ -335,7 +335,7 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 #endif	// __linux__
 #ifdef __APPLE__
 int socket_multiplex_unregister_write(MultiplexHandle *multiplex,
-				      SocketHandle *s) {
+				      SocketHandle *s, void *ptr) {
 	struct kevent change_event[1];
 	int event_count = 1;
 
@@ -351,13 +351,10 @@ int socket_multiplex_unregister_write(MultiplexHandle *multiplex,
 #endif	// __APPLE__
 #ifdef __linux__
 int socket_multiplex_unregister_write(MultiplexHandle *multiplex,
-				      SocketHandle *s) {
+				      SocketHandle *s, void *ptr) {
 	struct epoll_event event;
-
-	if (epoll_ctl(multiplex->fd, EPOLL_CTL_MOD, s->fd, &event) < 0)
-		return ERROR_REGISTER;
-
-	event.events &= ~EPOLLOUT;
+	event.data.ptr = ptr;
+	event.events = EPOLLIN;
 
 	if (epoll_ctl(multiplex->fd, EPOLL_CTL_MOD, s->fd, &event) < 0)
 		return ERROR_REGISTER;
