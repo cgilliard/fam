@@ -50,7 +50,7 @@ pub fn channel<T>() -> Result<(Sender<T>, Receiver<T>), Error> {
 
 impl<T> Drop for ChannelInner<T> {
 	fn drop(&mut self) {
-		while safe_channel_pending(&self.handle as *const u8) {
+		while self.pending() {
 			let _recv = self.recv();
 		}
 		let handle = &self.handle;
@@ -88,6 +88,10 @@ impl<T> ChannelInner<T> {
 			Err(e) => Err(e),
 		}
 	}
+
+	pub fn pending(&self) -> bool {
+		safe_channel_pending(&self.handle as *const u8)
+	}
 }
 
 impl<T> Clone for Sender<T> {
@@ -117,6 +121,10 @@ impl<T> Sender<T> {
 impl<T> Receiver<T> {
 	pub fn recv(&self) -> T {
 		self.inner.recv()
+	}
+
+	pub fn pending(&self) -> bool {
+		self.inner.pending()
 	}
 }
 
