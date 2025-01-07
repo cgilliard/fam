@@ -60,7 +60,12 @@ extern "C" {
 		socket: *const u8,
 		connptr: *const u8,
 	) -> i32;
-	pub fn socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32;
+	pub fn socket_multiplex_wait(
+		handle: *const u8,
+		events: *mut u8,
+		max_events: i32,
+		timeout_millis: i64,
+	) -> i32;
 	pub fn socket_event_handle(handle: *mut u8, event: *const u8);
 	pub fn socket_event_is_read(event: *const u8) -> bool;
 	pub fn socket_event_is_write(event: *const u8) -> bool;
@@ -153,8 +158,13 @@ pub fn safe_socket_multiplex_unregister_write(
 	unsafe { socket_multiplex_unregister_write(handle, socket, connptr) }
 }
 
-pub fn safe_socket_multiplex_wait(handle: *const u8, events: *mut u8, max_events: i32) -> i32 {
-	unsafe { socket_multiplex_wait(handle, events, max_events) }
+pub fn safe_socket_multiplex_wait(
+	handle: *const u8,
+	events: *mut u8,
+	max_events: i32,
+	timeout_millis: i64,
+) -> i32 {
+	unsafe { socket_multiplex_wait(handle, events, max_events, timeout_millis) }
 }
 pub fn safe_socket_event_handle(handle: *mut u8, event: *const u8) {
 	unsafe { socket_event_handle(handle, event) }
@@ -286,7 +296,7 @@ mod test {
 		let mut conn = [0u8; 4];
 		safe_socket_connect(&mut conn as *mut u8, [127, 0, 0, 1].as_ptr(), port);
 
-		let count = safe_socket_multiplex_wait(multi, events, 1);
+		let count = safe_socket_multiplex_wait(multi, events, 1, 1000);
 		assert_eq!(count, 1);
 		let ptr = safe_socket_event_ptr(events);
 		assert_eq!(unsafe { *ptr }, 7);

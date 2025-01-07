@@ -363,8 +363,9 @@ int socket_multiplex_unregister_write(MultiplexHandle *multiplex,
 }
 #endif	// __linux__
 
+/*
 int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
-			  int max_events) {
+			  int max_events, long long timeout_millis) {
 #ifdef __APPLE__
 	return kevent(multiplex->fd, NULL, 0, (struct kevent *)events,
 		      max_events, NULL);
@@ -372,6 +373,31 @@ int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
 #ifdef __linux__
 	return epoll_wait(multiplex->fd, (struct epoll_event *)events,
 			  max_events, -1);
+#endif	// __linux__
+}
+*/
+
+int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
+			  int max_events, long long timeout_millis) {
+#ifdef __APPLE__
+	struct timespec ts;
+	struct timespec *timeout_ptr = NULL;
+
+	if (timeout_millis >= 0) {
+		ts.tv_sec = timeout_millis / 1000;
+		ts.tv_nsec = (timeout_millis % 1000) * 1000000;
+		timeout_ptr = &ts;
+	}
+
+	return kevent(multiplex->fd, NULL, 0, (struct kevent *)events,
+		      max_events, timeout_ptr);
+#endif	// __APPLE__
+
+#ifdef __linux__
+	int timeout = (timeout_millis >= 0) ? (int)timeout_millis : -1;
+
+	return epoll_wait(multiplex->fd, (struct epoll_event *)events,
+			  max_events, timeout);
 #endif	// __linux__
 }
 

@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use core::ptr::{copy_nonoverlapping, null_mut};
 use prelude::*;
 use sys::*;
@@ -41,6 +38,7 @@ enum ConnectionType {
 pub struct WsConfig {
 	threads: u64,
 	max_events: i32,
+	timeout_micros: i64,
 	debug_pending: bool,
 }
 
@@ -62,6 +60,7 @@ struct ConnectionInner {
 	send: Sender<ConnectionMessage>,
 	debug_pending: bool,
 	wakeup: [u8; 8],
+	last: i64,
 }
 
 struct Connection {
@@ -118,6 +117,7 @@ pub struct WsContext {
 	state: Rc<State>,
 	tid: usize,
 	events: *mut u8,
+	last_check: i64,
 }
 
 pub struct WebSocket {
@@ -211,6 +211,14 @@ impl WsRequest<'_> {
 	pub fn msg(&self) -> &[u8] {
 		self.msg
 	}
+
+	pub fn fin(&self) -> bool {
+		self.fin
+	}
+
+	pub fn op(&self) -> u8 {
+		self.op
+	}
 }
 
 impl Default for WsConfig {
@@ -219,6 +227,7 @@ impl Default for WsConfig {
 			threads: 4,
 			max_events: 32,
 			debug_pending: false,
+			timeout_micros: 1_000_000 * 60,
 		}
 	}
 }
@@ -254,6 +263,7 @@ impl Connection {
 			send,
 			debug_pending,
 			wakeup,
+			last: safe_getmicros(),
 		}) {
 			Ok(inner) => Ok(Self { inner }),
 			Err(e) => Err(e),
@@ -262,6 +272,7 @@ impl Connection {
 
 	fn writeb(&self, msg: &[u8]) -> Result<(), Error> {
 		let mut inner = self.inner.clone().unwrap();
+		inner.last = safe_getmicros();
 		if self.inner.cstate == ConnectionState::Closed {
 			return Err(err!(ConnectionClosed));
 		}
@@ -317,11 +328,13 @@ impl Connection {
 	}
 
 	pub fn close(&self, v: u16) {
-		let mut status_code = [0u8; 2];
-		to_be_bytes_u16(v, &mut status_code);
-		let _ = self.writeb(&[0x88, 0]);
-		let _ = self.writeb(&[0x88, 2]);
-		let _ = self.writeb(&status_code);
+		if self.inner.cstate != ConnectionState::NeedHandshake {
+			let mut status_code = [0u8; 2];
+			to_be_bytes_u16(v, &mut status_code);
+			let _ = self.writeb(&[0x88, 0]);
+			let _ = self.writeb(&[0x88, 2]);
+			let _ = self.writeb(&status_code);
+		}
 		safe_socket_shutdown(&self.inner.handle as *const u8);
 	}
 }
@@ -390,7 +403,6 @@ impl WebSocket {
 		} else {
 			1
 		};
-		let mplex = self.state.wstate[itt].mplex;
 		let conn = match Connection::new(
 			ConnectionType::ClientConnection,
 			client,
@@ -603,7 +615,12 @@ impl WebSocket {
 				safe_alloc(safe_socket_event_size() * self.state.config.max_events as usize)
 					as *mut u8;
 
-			let mut ctx = WsContext { state, tid, events };
+			let mut ctx = WsContext {
+				state,
+				tid,
+				events,
+				last_check: 0,
+			};
 
 			let _ = runtime.execute(move || match Self::event_loop(&mut ctx) {
 				Ok(_) => {}
@@ -639,6 +656,27 @@ impl WebSocket {
 			}
 		}
 		state_clone2.wstate[ctx.tid].head = conn.as_ptr().raw();
+	}
+
+	fn check_stale(ctx: &mut WsContext) {
+		let mut cur = ctx.state.wstate[ctx.tid].head;
+		let now = safe_getmicros();
+		if now.saturating_sub(ctx.last_check) < 5000_000 {
+			return;
+		}
+		ctx.last_check = now;
+		while !cur.is_null() {
+			let v = cur;
+			cur = unsafe { (*cur).inner.next.raw() };
+
+			let mut b = Box::from_raw(Ptr::new(v));
+			b.leak();
+
+			let diff = now.saturating_sub(b.inner.last);
+			if diff > ctx.state.config.timeout_micros && b.inner.ctype != ConnectionType::Server {
+				Self::close_cleanly(&mut b, 1016);
+			}
+		}
 	}
 
 	fn proc_wakeup(ctx: &mut WsContext) {
@@ -982,6 +1020,7 @@ impl WebSocket {
 	}
 
 	fn proc_read(ctx: &mut WsContext, conn: &mut Box<Connection>, ehandle: *const u8) {
+		conn.inner.last = safe_getmicros();
 		loop {
 			let rlen = conn.inner.rbuf.len();
 			match conn.inner.rbuf.resize(rlen + 256) {
@@ -1025,7 +1064,7 @@ impl WebSocket {
 		}
 	}
 
-	fn proc_accept(ctx: &mut WsContext, conn: &mut Box<Connection>, ehandle: *const u8) {
+	fn proc_accept(ctx: &mut WsContext, _conn: &mut Box<Connection>, ehandle: *const u8) {
 		let mplex = ctx.state.wstate[ctx.tid].mplex;
 		loop {
 			let mut handle = [0u8; 4];
@@ -1112,7 +1151,8 @@ impl WebSocket {
 		let mplex = &ctx.state.wstate[ctx.tid].mplex as *const u8;
 
 		loop {
-			let count = safe_socket_multiplex_wait(mplex, ctx.events, ctx.state.config.max_events);
+			let count =
+				safe_socket_multiplex_wait(mplex, ctx.events, ctx.state.config.max_events, 1000);
 			{
 				let _l = ctx.state.lock.read();
 				if ctx.state.halt {
@@ -1137,6 +1177,7 @@ impl WebSocket {
 					Self::proc_connection(ctx, &mut connection, ehandle, evt);
 				}
 			}
+			Self::check_stale(ctx);
 		}
 
 		// cleanup connections
@@ -1174,13 +1215,12 @@ mod test {
 		{
 			let config = WsConfig {
 				threads: 4,
+				timeout_micros: 5_000_000,
 				..WsConfig::default()
 			};
 			let mut ws = WebSocket::new(config).unwrap();
 			let lock = lock_box!().unwrap();
 			let mut conf = Rc::new(false).unwrap();
-			let lock_clone = lock.clone().unwrap();
-			let conf_clone = conf.clone().unwrap();
 			ws.start().unwrap();
 
 			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
@@ -1198,13 +1238,14 @@ mod test {
 				.unwrap();
 			ws.register_handler(b);
 
-			let port = ws
+			let _port = ws
 				.add_server(WsServerConfig {
 					addr: [127, 0, 0, 1],
 					port: 9999,
 					backlog: 10,
 				})
 				.unwrap();
+			//park();
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());

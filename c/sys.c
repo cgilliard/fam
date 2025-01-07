@@ -51,3 +51,4 @@ int rand_bytes(unsigned char *buf, unsigned long long length) {
 }
 
 long long getalloccount() { return __alloc_count; }
+
