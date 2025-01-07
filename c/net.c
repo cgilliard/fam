@@ -333,6 +333,38 @@ int socket_multiplex_register(MultiplexHandle *multiplex, SocketHandle *s,
 	return 0;
 }
 #endif	// __linux__
+#ifdef __APPLE__
+int socket_multiplex_unregister_write(MultiplexHandle *multiplex,
+				      SocketHandle *s) {
+	struct kevent change_event[1];
+	int event_count = 1;
+
+	EV_SET(&change_event[0], s->fd, EVFILT_WRITE,
+	       EV_DELETE | EV_ENABLE | EV_CLEAR, 0, 0, NULL);
+
+	if (kevent(multiplex->fd, change_event, event_count, NULL, 0, NULL) <
+	    0) {
+		return ERROR_REGISTER;
+	}
+	return 0;
+}
+#endif	// __APPLE__
+#ifdef __linux__
+int socket_multiplex_unregister_write(MultiplexHandle *multiplex,
+				      SocketHandle *s) {
+	struct epoll_event event;
+
+	if (epoll_ctl(multiplex->fd, EPOLL_CTL_MOD, s->fd, &event) < 0)
+		return ERROR_REGISTER;
+
+	event.events &= ~EPOLLOUT;
+
+	if (epoll_ctl(multiplex->fd, EPOLL_CTL_MOD, s->fd, &event) < 0)
+		return ERROR_REGISTER;
+
+	return 0;
+}
+#endif	// __linux__
 
 int socket_multiplex_wait(MultiplexHandle *multiplex, void *events,
 			  int max_events) {

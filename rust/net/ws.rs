@@ -31,7 +31,7 @@ enum ConnectionState {
 	Closed,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 enum ConnectionType {
 	Server,
 	ServerConnection,
@@ -41,6 +41,7 @@ enum ConnectionType {
 pub struct WsConfig {
 	threads: u64,
 	max_events: i32,
+	debug_pending: bool,
 }
 
 enum ConnectionMessage {
@@ -58,6 +59,8 @@ struct ConnectionInner {
 	handle: [u8; 4],
 	lock: Lock,
 	send: Sender<ConnectionMessage>,
+	debug_pending: bool,
+	wakeup: [u8; 8],
 }
 
 struct Connection {
@@ -118,6 +121,14 @@ pub struct WsContext {
 
 pub struct WebSocket {
 	state: Rc<State>,
+}
+
+impl Clone for WsResponse {
+	fn clone(&self) -> Result<Self, Error> {
+		Ok(Self {
+			conn: self.conn.clone().unwrap(),
+		})
+	}
 }
 
 impl WsResponse {
@@ -206,6 +217,7 @@ impl Default for WsConfig {
 		Self {
 			threads: 4,
 			max_events: 32,
+			debug_pending: false,
 		}
 	}
 }
@@ -223,6 +235,8 @@ impl Connection {
 		ctype: ConnectionType,
 		handle: [u8; 4],
 		send: Sender<ConnectionMessage>,
+		debug_pending: bool,
+		wakeup: [u8; 8],
 	) -> Result<Self, Error> {
 		let mut rbuf = Vec::new();
 		rbuf.set_min(0);
@@ -236,6 +250,8 @@ impl Connection {
 			lock: lock!(),
 			cstate: ConnectionState::NeedHandshake,
 			send,
+			debug_pending,
+			wakeup,
 		}) {
 			Ok(inner) => Ok(Self { inner }),
 			Err(e) => Err(e),
@@ -247,7 +263,7 @@ impl Connection {
 		if self.inner.cstate == ConnectionState::Closed {
 			return Err(err!(ConnectionClosed));
 		}
-		let mut res = if inner.wbuf.len() == 0 {
+		let mut res = if inner.wbuf.len() == 0 && !self.inner.debug_pending {
 			safe_socket_send(&inner.handle as *const u8, msg.as_ptr(), msg.len())
 		} else {
 			0
@@ -273,25 +289,36 @@ impl Connection {
 				}
 			}
 
-			/*
 			let mut boxed_conn = match Box::new(Connection {
 				inner: inner.clone().unwrap(),
 			}) {
 				Ok(c) => c,
 				Err(e) => return Err(e),
 			};
-			if safe_socket_multiplex_register(
-				&mut inner.mplex as *mut u8,
-				&mut inner.handle as *mut u8,
-				REG_WRITE_FLAG,
-				boxed_conn.as_ptr().raw() as *mut u8,
-			) < 0
-			{
-				safe_socket_shutdown(&self.inner.handle as *const u8);
-			} else {
-				boxed_conn.leak();
-			}
+
+			/*
+			let c = Connection::new(
+				inner.ctype,
+				inner.handle,
+				inner.send.clone().unwrap(),
+				inner.debug_pending,
+				inner.wakeup,
+			)
+			.unwrap();
+			let mut boxed_conn = Box::new(c).unwrap();
 						*/
+
+			boxed_conn.leak();
+			match self.inner.send.send(ConnectionMessage::Write(boxed_conn)) {
+				Ok(_) => {}
+				Err(e) => return Err(e),
+			}
+
+			safe_socket_send(
+				unsafe { (&self.inner.wakeup as *const u8).add(4) },
+				&b'0',
+				1,
+			);
 		} else if res < 0 {
 			safe_socket_shutdown(&self.inner.handle as *const u8);
 		}
@@ -382,6 +409,8 @@ impl WebSocket {
 			ConnectionType::ClientConnection,
 			client,
 			self.state.wstate[itt].send.clone().unwrap(),
+			self.state.config.debug_pending,
+			self.state.wstate[itt].wakeup,
 		) {
 			Ok(conn) => conn,
 			Err(e) => {
@@ -448,7 +477,7 @@ impl WebSocket {
 		) < 1
 		{
 			safe_socket_close(client_ptr);
-			return Err(err!(WsStop));
+			return Err(err!(IO));
 		}
 		self.state.wstate[itt].comp_recv.recv();
 
@@ -474,6 +503,8 @@ impl WebSocket {
 				ConnectionType::Server,
 				server,
 				self.state.wstate[i].send.clone().unwrap(),
+				self.state.config.debug_pending,
+				self.state.wstate[i].wakeup,
 			) {
 				Ok(connection) => connection,
 				Err(e) => return Err(e),
@@ -642,7 +673,19 @@ impl WebSocket {
 						Self::update_head(ctx, &mut conn);
 					}
 				}
-				ConnectionMessage::Write(conn) => {}
+				ConnectionMessage::Write(conn) => {
+					if safe_socket_multiplex_register(
+						mplex as *const u8,
+						&conn.inner.handle as *const u8,
+						REG_READ_FLAG | REG_WRITE_FLAG,
+						conn.as_ptr().raw() as *const u8,
+					) < 0
+					{
+						safe_socket_close(&conn.inner.handle as *const u8);
+					} else {
+						//Self::update_head(ctx, &mut conn);
+					}
+				}
 			}
 		}
 	}
@@ -918,7 +961,40 @@ impl WebSocket {
 		}
 	}
 
-	fn proc_write(ctx: &mut WsContext, conn: &mut Box<Connection>, ehandle: *const u8) {}
+	fn proc_write(ctx: &mut WsContext, conn: &mut Box<Connection>, ehandle: *const u8) {
+		loop {
+			let ret = safe_socket_send(
+				&conn.inner.handle as *const u8,
+				conn.inner.wbuf[0..conn.inner.wbuf.len()].as_ptr(),
+				conn.inner.wbuf.len(),
+			);
+			if ret < 0 {
+				if ret != EAGAIN.into() {
+					safe_socket_shutdown(&conn.inner.handle as *const u8);
+				}
+				break;
+			} else {
+				if ret > 0 {
+					// cannot be an error
+					let _ = conn.inner.wbuf.shift(ret as usize);
+					let nlen = conn.inner.wbuf.len();
+					// downward resize cannot be an error
+					let _ = conn.inner.wbuf.resize(nlen);
+				} else {
+					break;
+				}
+			}
+		}
+
+		if conn.inner.wbuf.len() == 0 {
+			// cancel loop
+			println!("cancel {}", unsafe { socket_fd(ehandle) });
+			safe_socket_multiplex_unregister_write(
+				&ctx.state.wstate[ctx.tid].mplex as *const u8,
+				ehandle,
+			);
+		}
+	}
 
 	fn proc_read(ctx: &mut WsContext, conn: &mut Box<Connection>, ehandle: *const u8) {
 		loop {
@@ -982,6 +1058,8 @@ impl WebSocket {
 				ConnectionType::ServerConnection,
 				handle,
 				ctx.state.wstate[ctx.tid].send.clone().unwrap(),
+				ctx.state.config.debug_pending,
+				ctx.state.wstate[ctx.tid].wakeup,
 			) {
 				Ok(connection) => connection,
 				Err(_e) => {
@@ -1207,6 +1285,167 @@ mod test {
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
+		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
+	}
+
+	#[test]
+	fn test_ws_perf() {
+		let initial = crate::sys::safe_getalloccount();
+		let initial_fds = crate::sys::safe_getfdcount();
+		{
+			let config = WsConfig {
+				threads: 8,
+				..WsConfig::default()
+			};
+			let threads = 4;
+			let target = 1_000;
+
+			let mut ws = WebSocket::new(config).unwrap();
+			ws.start().unwrap();
+			let mut count = Rc::new([0u64; 256]).unwrap();
+			let count_clone = count.clone().unwrap();
+			let mut sends = Vec::new();
+			let mut recvs = Vec::new();
+			for _i in 0..threads {
+				let (send, recv) = channel().unwrap();
+				let _ = sends.push(send);
+				let _ = recvs.push(recv);
+			}
+
+			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
+				Box::new(move |req: WsRequest, _resp: WsResponse| {
+					let msg = req.msg();
+					let item = from_be_bytes_u64(&msg[1..9]);
+
+					let index = msg[0];
+					assert_eq!((*count)[index as usize], item);
+					(*count)[index as usize] += 1;
+					if (*count)[index as usize] == target {
+						let _ = sends[index as usize].send(());
+					}
+
+					Ok(())
+				})
+				.unwrap();
+			let _ = ws.register_handler(b);
+
+			let port = ws
+				.add_server(WsServerConfig {
+					addr: [127, 0, 0, 1],
+					port: 0,
+					backlog: 10,
+				})
+				.unwrap();
+			let mut resps = Vec::new();
+			for _i in 0..threads {
+				let resp = ws
+					.add_client(WsClientConfig {
+						addr: [127, 0, 0, 1],
+						port,
+					})
+					.unwrap();
+				let _ = resps.push(resp);
+			}
+
+			let config = RuntimeConfig {
+				min_threads: threads * 2,
+				max_threads: threads * 2,
+			};
+			let mut runtime = Runtime::<()>::new(config).unwrap();
+			assert!(runtime.start().is_ok());
+
+			let mut jhs = Vec::new();
+
+			for v in 0..threads {
+				let mut resp = resps[v as usize].clone().unwrap();
+				let h = runtime
+					.execute(move || {
+						let mut bytes = [b'm'; 10];
+						bytes[0] = v as u8;
+						for i in 0..target {
+							to_be_bytes_u64(i as u64, &mut bytes[1..9]);
+							assert!(resp.sendb(&bytes).is_ok());
+						}
+					})
+					.unwrap();
+				let _ = jhs.push(h);
+			}
+
+			for i in 0..jhs.len() {
+				jhs[i].block_on();
+			}
+
+			for i in 0..threads {
+				let _ = recvs[i as usize].recv();
+				assert_eq!((*count_clone)[i as usize], target);
+			}
+
+			ws.stop().unwrap();
+		}
+		assert_eq!(initial, crate::sys::safe_getalloccount());
+		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
+	}
+
+	#[test]
+	fn test_ws_pending() {
+		let initial = crate::sys::safe_getalloccount();
+		let initial_fds = crate::sys::safe_getfdcount();
+		{
+			let config = WsConfig {
+				threads: 4,
+				debug_pending: true,
+				..WsConfig::default()
+			};
+			let mut ws = WebSocket::new(config).unwrap();
+			let lock = lock_box!().unwrap();
+			let mut conf = Rc::new(false).unwrap();
+			let lock_clone = lock.clone().unwrap();
+			let conf_clone = conf.clone().unwrap();
+			ws.start().unwrap();
+
+			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
+				Box::new(move |req: WsRequest, mut resp: WsResponse| {
+					let s = unsafe { from_utf8_unchecked(&req.msg()[0..req.msg().len()]) };
+					if s == "this is a test" {
+						let _ = resp.send("got it!");
+					} else if s == "got it!" {
+						let _l = lock.write();
+						*conf = true;
+					}
+					Ok(())
+				})
+				.unwrap();
+			let _ = ws.register_handler(b);
+			let port = ws
+				.add_server(WsServerConfig {
+					addr: [127, 0, 0, 1],
+					port: 0,
+					backlog: 10,
+				})
+				.unwrap();
+
+			let mut req = ws
+				.add_client(WsClientConfig {
+					addr: [127, 0, 0, 1],
+					port,
+				})
+				.unwrap();
+
+			assert!(req.send("this is a test").is_ok());
+
+			loop {
+				{
+					let _l = lock_clone.read();
+					if *conf_clone {
+						break;
+					}
+				}
+				crate::sys::safe_sleep_millis(1);
+			}
+
+			ws.stop().unwrap();
+		}
+		//	assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
 	}
 }
