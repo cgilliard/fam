@@ -46,12 +46,13 @@ pub struct WsConfig {
 
 enum ConnectionMessage {
 	Read(Box<Connection>),
-	Write(Box<Connection>),
+	Write(Ptr<Connection>),
 }
 
 struct ConnectionInner {
 	next: Ptr<Connection>,
 	prev: Ptr<Connection>,
+	connptr: Ptr<Connection>,
 	ctype: ConnectionType,
 	cstate: ConnectionState,
 	rbuf: Vec<u8>,
@@ -243,6 +244,7 @@ impl Connection {
 		match Rc::new(ConnectionInner {
 			next: Ptr::null(),
 			prev: Ptr::null(),
+			connptr: Ptr::null(),
 			ctype,
 			rbuf,
 			wbuf: Vec::new(),
@@ -289,27 +291,11 @@ impl Connection {
 				}
 			}
 
-			let mut boxed_conn = match Box::new(Connection {
-				inner: inner.clone().unwrap(),
-			}) {
-				Ok(c) => c,
-				Err(e) => return Err(e),
-			};
-
-			/*
-			let c = Connection::new(
-				inner.ctype,
-				inner.handle,
-				inner.send.clone().unwrap(),
-				inner.debug_pending,
-				inner.wakeup,
-			)
-			.unwrap();
-			let mut boxed_conn = Box::new(c).unwrap();
-						*/
-
-			boxed_conn.leak();
-			match self.inner.send.send(ConnectionMessage::Write(boxed_conn)) {
+			match self
+				.inner
+				.send
+				.send(ConnectionMessage::Write(self.inner.connptr))
+			{
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
@@ -661,6 +647,7 @@ impl WebSocket {
 			match ctx.state.wstate[ctx.tid].recv.recv() {
 				ConnectionMessage::Read(mut conn) => {
 					let _ = ctx.state.wstate[ctx.tid].comp_send.send(());
+					conn.inner.connptr = conn.as_ptr();
 					if safe_socket_multiplex_register(
 						mplex as *const u8,
 						&conn.inner.handle as *const u8,
@@ -678,12 +665,10 @@ impl WebSocket {
 						mplex as *const u8,
 						&conn.inner.handle as *const u8,
 						REG_READ_FLAG | REG_WRITE_FLAG,
-						conn.as_ptr().raw() as *const u8,
+						conn.raw() as *const u8,
 					) < 0
 					{
 						safe_socket_close(&conn.inner.handle as *const u8);
-					} else {
-						//Self::update_head(ctx, &mut conn);
 					}
 				}
 			}
@@ -988,7 +973,6 @@ impl WebSocket {
 
 		if conn.inner.wbuf.len() == 0 {
 			// cancel loop
-			println!("cancel {}", unsafe { socket_fd(ehandle) });
 			safe_socket_multiplex_unregister_write(
 				&ctx.state.wstate[ctx.tid].mplex as *const u8,
 				ehandle,
@@ -1072,6 +1056,7 @@ impl WebSocket {
 					continue;
 				}
 			};
+			boxed_conn.inner.connptr = boxed_conn.as_ptr();
 			boxed_conn.leak();
 
 			if safe_socket_multiplex_register(
@@ -1445,7 +1430,7 @@ mod test {
 
 			ws.stop().unwrap();
 		}
-		//	assert_eq!(initial, crate::sys::safe_getalloccount());
+		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
 	}
 }
