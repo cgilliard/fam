@@ -77,8 +77,38 @@ extern "C" {
 	pub fn Base64encode(input: *const u8, output: *mut u8, len: usize);
 	pub fn SHA1(data: *const u8, size: usize, hash: *mut u8);
 
-	pub fn rand_bytes(data: *mut u8, len: usize);
+	pub fn fmap(id: i64, pages: usize) -> *const u8;
+	pub fn unmap(addr: *const u8, pages: usize);
+	pub fn flush() -> i32;
+	pub fn fsize() -> i64;
+	pub fn init(path: *const u8);
+	pub fn shutdown(opt_rem_file: *const u8);
+	pub fn getpagesize() -> usize;
 
+	pub fn rand_bytes(data: *mut u8, len: usize);
+}
+
+pub fn safe_getpagesize() -> usize {
+	unsafe { getpagesize() }
+}
+
+pub fn safe_fmap(id: i64, pages: usize) -> *const u8 {
+	unsafe { fmap(id, pages) }
+}
+pub fn safe_unmap(addr: *const u8, pages: usize) {
+	unsafe { unmap(addr, pages) }
+}
+pub fn safe_flush() -> i32 {
+	unsafe { flush() }
+}
+pub fn safe_fsize() -> i64 {
+	unsafe { fsize() }
+}
+pub fn safe_init(path: *const u8) {
+	unsafe { init(path) }
+}
+pub fn safe_shutdown(opt_rem_file: *const u8) {
+	unsafe { shutdown(opt_rem_file) }
 }
 
 pub fn safe_channel_init(channel: *const u8) -> i32 {
@@ -275,6 +305,8 @@ pub fn safe_socket_clear_pipe(handle: *const u8) -> i32 {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use prelude::*;
+
 	#[test]
 	fn test_events() {
 		let initial = crate::sys::safe_getalloccount();
@@ -306,5 +338,27 @@ mod test {
 		safe_release(events);
 
 		assert_eq!(initial, crate::sys::safe_getalloccount());
+	}
+	use core::slice::from_raw_parts_mut;
+
+	#[test]
+	fn test_fs() {
+		let s = ".test_fs.dat".as_bytes();
+		let mut v = Vec::new();
+		for i in 0..s.len() {
+			v.push(s[i]).unwrap();
+		}
+		v.push(0u8).unwrap();
+		safe_init(v.as_ptr());
+		let f = safe_fmap(0, 2) as *mut u8;
+		let x: &mut [u8] = unsafe { from_raw_parts_mut(f, safe_getpagesize() * 2) };
+		for i in 0..safe_getpagesize() * 2 {
+			x[i] = (i % 256) as u8;
+		}
+		for i in 0..safe_getpagesize() * 2 {
+			assert_eq!(x[i], (i % 256) as u8);
+		}
+		safe_shutdown(v.as_ptr());
+		safe_unmap(f, 2);
 	}
 }

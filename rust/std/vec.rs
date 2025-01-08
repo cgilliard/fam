@@ -298,6 +298,10 @@ impl<T> Vec<T> {
 		self.value.raw()
 	}
 
+	pub fn as_ptr(&self) -> *const u8 {
+		self.value.raw()
+	}
+
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {
 		if self.resize_impl(n) {
 			self.elements = n;

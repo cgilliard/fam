@@ -54,20 +54,22 @@ int check_size(i64 id) {
 	return ret;
 }
 
-void *fmap(i64 id) {
-	if (check_size(id)) return NULL;
-	void *ret = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
-			 aload(&_gfd), id * PAGE_SIZE);
+void *fmap(i64 id, long long blocks) {
+	if (blocks < 1 || check_size(id + (blocks - 1))) return NULL;
+	void *ret = mmap(NULL, PAGE_SIZE * blocks, PROT_READ | PROT_WRITE,
+			 MAP_SHARED, aload(&_gfd), id * PAGE_SIZE);
 	if (ret == MAP_FAILED) return NULL;
 
 	// trigger page fault
-	volatile byte *p = (byte *)ret;
-	*p = *p;
+	for (int i = 0; i < blocks; i++) {
+		volatile byte *p = (byte *)(ret + PAGE_SIZE * i);
+		*p = *p;
+	}
 
 	return ret;
 }
-void unmap(void *addr) {
-	if (munmap(addr, PAGE_SIZE)) {
+void unmap(void *addr, long long pages) {
+	if (munmap(addr, PAGE_SIZE * pages)) {
 		perror("munmap failed");
 		_exit(-1);
 	}
@@ -107,10 +109,13 @@ void init(const char *path) {
 		astore(&cur_file_size, lseek(gfd, 0, SEEK_END));
 	astore(&_gfd, gfd);
 }
-void shutdown() {
+void shutdown(const char *opt_rem_file) {
 	int gfd = aload(&_gfd);
 	if (gfd != -1) {
 		if (close(gfd)) perror("close");
 		astore(&_gfd, -1);
+		if (opt_rem_file) {
+			remove(opt_rem_file);
+		}
 	}
 }
