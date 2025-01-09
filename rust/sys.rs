@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use prelude::*;
+
 extern "C" {
 	pub fn _exit(code: i32);
 	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
@@ -302,10 +304,29 @@ pub fn safe_socket_clear_pipe(handle: *const u8) -> i32 {
 	unsafe { socket_clear_pipe(handle) }
 }
 
+pub fn safe_init_fs(s: &str) {
+	let s = s.as_bytes();
+	let mut v = Vec::new();
+	for i in 0..s.len() {
+		v.push(s[i]).unwrap();
+	}
+	v.push(0u8).unwrap();
+	safe_init(v.as_ptr());
+}
+
+pub fn shutdown_fs(s: &str) {
+	let s = s.as_bytes();
+	let mut v = Vec::new();
+	for i in 0..s.len() {
+		v.push(s[i]).unwrap();
+	}
+	v.push(0u8).unwrap();
+	safe_shutdown(v.as_ptr());
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
-	use prelude::*;
 
 	#[test]
 	fn test_events() {
@@ -343,13 +364,7 @@ mod test {
 
 	#[test]
 	fn test_fs() {
-		let s = ".test_fs.dat".as_bytes();
-		let mut v = Vec::new();
-		for i in 0..s.len() {
-			v.push(s[i]).unwrap();
-		}
-		v.push(0u8).unwrap();
-		safe_init(v.as_ptr());
+		safe_init_fs(".test_fs.dat");
 		let f = safe_fmap(0, 2) as *mut u8;
 		let x: &mut [u8] = unsafe { from_raw_parts_mut(f, safe_getpagesize() * 2) };
 		for i in 0..safe_getpagesize() * 2 {
@@ -358,7 +373,7 @@ mod test {
 		for i in 0..safe_getpagesize() * 2 {
 			assert_eq!(x[i], (i % 256) as u8);
 		}
-		safe_shutdown(v.as_ptr());
+		shutdown_fs(".test_fs.dat");
 		safe_unmap(f, 2);
 	}
 }

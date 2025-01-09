@@ -1226,7 +1226,6 @@ mod test {
 			let b: Box<dyn FnMut(WsRequest, WsResponse) -> Result<(), Error>> =
 				Box::new(move |req: WsRequest, mut resp: WsResponse| {
 					let s = unsafe { from_utf8_unchecked(&req.msg()[0..req.msg().len()]) };
-					println!("s={}", s);
 					if s == "this is a test" {
 						let _ = resp.send("got it!");
 					} else if s == "got it!" {
@@ -1401,12 +1400,10 @@ mod test {
 			for i in 0..jhs.len() {
 				jhs[i].block_on();
 			}
-
 			for i in 0..threads {
 				let _ = recvs[i as usize].recv();
 				assert_eq!((*count_clone)[i as usize], target);
 			}
-
 			ws.stop().unwrap();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());

@@ -27,6 +27,7 @@ define_enum_with_strings!(ErrorKind {
 	ThreadCreate,
 	ThreadJoin,
 	ThreadDetach,
+	IllegalState,
 	NotInitialized,
 	ChannelSend,
 	ChannelInit,

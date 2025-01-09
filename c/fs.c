@@ -24,6 +24,7 @@ off_t lseek(int fd, off_t offset, int whence);
 void _exit(int);
 void sched_yield();
 
+extern long long __alloc_count;
 int _gfd = -1;
 i64 cur_file_size = -1;
 int fupdate = 0;
@@ -60,6 +61,10 @@ void *fmap(i64 id, long long blocks) {
 			 MAP_SHARED, aload(&_gfd), id * PAGE_SIZE);
 	if (ret == MAP_FAILED) return NULL;
 
+#ifdef TEST
+	__atomic_fetch_add(&__alloc_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
+
 	// trigger page fault
 	for (int i = 0; i < blocks; i++) {
 		volatile byte *p = (byte *)(ret + PAGE_SIZE * i);
@@ -69,6 +74,9 @@ void *fmap(i64 id, long long blocks) {
 	return ret;
 }
 void unmap(void *addr, long long pages) {
+#ifdef TEST
+	__atomic_fetch_sub(&__alloc_count, 1, __ATOMIC_SEQ_CST);
+#endif	// TEST
 	if (munmap(addr, PAGE_SIZE * pages)) {
 		perror("munmap failed");
 		_exit(-1);

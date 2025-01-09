@@ -102,6 +102,9 @@ impl<'a, T> IntoIterator for &'a Vec<T> {
 
 impl<T> Drop for Vec<T> {
 	fn drop(&mut self) {
+		if self.value.get_bit() {
+			return;
+		}
 		if needs_drop::<T>() {
 			for i in 0..self.elements {
 				unsafe {
@@ -190,6 +193,26 @@ impl<T> Vec<T> {
 			min: 16,
 			_marker: PhantomData,
 		}
+	}
+
+	pub unsafe fn from_raw_parts(value: *const u8, elements: usize) -> Self {
+		let mut ret = Self {
+			value: Ptr::new(value),
+			capacity: elements * size_of::<T>(),
+			elements,
+			min: 16,
+			_marker: PhantomData,
+		};
+		ret.leak();
+		ret
+	}
+
+	pub fn leak(&mut self) {
+		self.value.set_bit(true);
+	}
+
+	pub fn unleak(&mut self) {
+		self.value.set_bit(false);
 	}
 
 	pub fn set_min(&mut self, n: usize) {
@@ -300,6 +323,14 @@ impl<T> Vec<T> {
 
 	pub fn as_ptr(&self) -> *const u8 {
 		self.value.raw()
+	}
+
+	pub fn as_slice(&self) -> &[u8] {
+		unsafe { from_raw_parts(self.value.raw(), self.elements) }
+	}
+
+	pub fn as_mut_slice(&mut self) -> &mut [u8] {
+		unsafe { from_raw_parts_mut(self.value.raw(), self.elements) }
 	}
 
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {
