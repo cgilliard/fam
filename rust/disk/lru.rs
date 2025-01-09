@@ -116,7 +116,10 @@ impl Lru {
 		self.head = block;
 		block.prev = Ptr::null();
 		block.chain_next = Ptr::null();
-		let slot = murmur3_32_of_u64(block.id, get_murmur_seed()) as usize % self.arr.len();
+		let slot = rem_usize(
+			murmur3_32_of_u64(block.id, get_murmur_seed()) as usize,
+			self.arr.len(),
+		);
 		let mut cur = self.arr[slot];
 		if cur.is_null() {
 			self.arr[slot] = block;
@@ -142,7 +145,10 @@ impl Lru {
 	}
 
 	pub fn find(&self, id: u64) -> Result<Ptr<Block>, Error> {
-		let slot = murmur3_32_of_u64(id, get_murmur_seed()) as usize % self.arr.len();
+		let slot = rem_usize(
+			murmur3_32_of_u64(id, get_murmur_seed()) as usize,
+			self.arr.len(),
+		);
 		let mut cur = self.arr[slot];
 		while !cur.is_null() && cur.id != id {
 			cur = cur.chain_next;
@@ -151,7 +157,10 @@ impl Lru {
 	}
 
 	pub fn remove(&mut self, id: u64) -> Ptr<Block> {
-		let slot = murmur3_32_of_u64(id, get_murmur_seed()) as usize % self.arr.len();
+		let slot = rem_usize(
+			murmur3_32_of_u64(id, get_murmur_seed()) as usize,
+			self.arr.len(),
+		);
 		let mut cur = self.arr[slot];
 		let mut last = cur;
 		while !cur.is_null() && cur.id != id {
