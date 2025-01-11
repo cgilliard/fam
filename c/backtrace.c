@@ -121,7 +121,7 @@ const char *backtrace_full() {
 			char buffer[128];
 			while (fgets(buffer, sizeof(buffer), fp) != NULL) {
 				int len = strlen(buffer);
-				if (strstr(buffer, ".c:")) {
+				if (strstr(buffer, ".rs:")) {
 					len_sum += len;
 					if (len_sum >= 4 * PAGE_SIZE) break;
 					if (term) {
