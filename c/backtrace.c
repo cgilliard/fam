@@ -13,6 +13,7 @@ char **backtrace_symbols(void **array, int capacity);
 
 #define u64 unsigned long long
 #define MAX_BACKTRACE_ENTRIES 128
+#define MAX_BACKTRACE_LEN (1024 * 1024)
 
 int getpagesize();
 #ifndef PAGE_SIZE
@@ -78,7 +79,7 @@ const char *backtrace_full() {
 	void *array[MAX_BACKTRACE_ENTRIES];
 	int size = backtrace(array, MAX_BACKTRACE_ENTRIES);
 	char **strings = backtrace_symbols(array, size);
-	char *ret = malloc(1024 * 1024);
+	char *ret = malloc(MAX_BACKTRACE_LEN);
 	if (ret == NULL) return NULL;
 #ifdef TEST
 	__alloc_count++;
@@ -169,7 +170,7 @@ const char *backtrace_full() {
 		while (fgets(buffer, sizeof(buffer), fp) != NULL) {
 			int len = strlen(buffer);
 			len_sum += len;
-			if (len_sum >= 4 * PAGE_SIZE) break;
+			if (len_sum >= MAX_BACKTRACE_LEN) break;
 			if (strstr(buffer, "backtrace_full ") != buffer) {
 				cstring_cat_n(ret, buffer, cstring_len(buffer));
 			}
