@@ -71,6 +71,10 @@ int cstring_compare(const char *X, const char *Y) {
 }
 
 const char *backtrace_full() {
+	char *v = getenv("RUST_BACKTRACE");
+	if (v == NULL || cstring_len(v) == 0) {
+		return NULL;
+	}
 	void *array[MAX_BACKTRACE_ENTRIES];
 	int size = backtrace(array, MAX_BACKTRACE_ENTRIES);
 	char **strings = backtrace_symbols(array, size);
