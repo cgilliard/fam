@@ -108,6 +108,6 @@ mod test {
 	#[test]
 	fn test_err() {
 		let _x = err!(Alloc);
-		//println!("x={}", _x);
+		println!("x=\n'{}'\n", _x);
 	}
 }

@@ -170,14 +170,8 @@ const char *backtrace_full() {
 			int len = strlen(buffer);
 			len_sum += len;
 			if (len_sum >= 4 * PAGE_SIZE) break;
-			if (strstr(buffer, "main ") == buffer) {
-				if (len && buffer[len - 1] == '\n')
-					buffer[len - 1] = 0;
-				cstring_cat_n(ret, buffer, strlen(buffer));
-				i = size;
-				break;
-			} else if (strstr(buffer, "backtrace_full ") == 0) {
-				cstring_cat_n(ret, buffer, strlen(buffer));
+			if (strstr(buffer, "backtrace_full ") != buffer) {
+				cstring_cat_n(ret, buffer, cstring_len(buffer));
 			}
 		}
 		pclose(fp);
