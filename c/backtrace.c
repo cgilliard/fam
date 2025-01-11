@@ -1,5 +1,7 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef __APPLE__
 #include <dlfcn.h>
 #include <mach/mach.h>
