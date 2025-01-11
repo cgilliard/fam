@@ -1,4 +1,7 @@
+use core::slice::from_raw_parts;
+use core::str::from_utf8_unchecked;
 use prelude::*;
+use sys::{safe_backtrace_full, safe_cstring_len, safe_release};
 
 macro_rules! define_enum_with_strings {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {
@@ -48,11 +51,34 @@ pub struct Error {
 	pub kind: ErrorKind,
 	pub line: u32,
 	pub file: String,
+	pub backtrace: String,
 }
 
 impl Error {
 	pub fn new(kind: ErrorKind, line: u32, file: &str) -> Self {
+		let backtrace;
+		#[cfg(test)]
+		{
+			let bt = safe_backtrace_full();
+			if bt.is_null() {
+				backtrace = String::empty();
+			} else {
+				let len = safe_cstring_len(bt);
+				let bt_slice = unsafe { from_raw_parts(bt, len) };
+				let bt_str = unsafe { from_utf8_unchecked(bt_slice) };
+				backtrace = match String::new(bt_str) {
+					Ok(backtrace) => backtrace,
+					Err(_) => String::empty(),
+				};
+				safe_release(bt);
+			}
+		}
+		#[cfg(not(test))]
+		{
+			backtrace = String::empty();
+		}
 		Self {
+			backtrace,
 			kind,
 			line,
 			file: match String::new(file) {
@@ -67,10 +93,11 @@ impl Display for Error {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		writeb!(
 			*f,
-			"Error[kind={},loc={}:{}]",
+			"Error[kind={},loc={}:{}]\n{}",
 			self.kind.as_str(),
 			self.file,
-			self.line
+			self.line,
+			self.backtrace
 		)
 	}
 }
@@ -80,6 +107,7 @@ mod test {
 	use super::*;
 	#[test]
 	fn test_err() {
-		let _x = err!(Alloc);
+		let x = err!(Alloc);
+		println!("x={}", x);
 	}
 }
