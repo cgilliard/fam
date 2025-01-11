@@ -176,8 +176,9 @@ const char *backtrace_full() {
 				cstring_cat_n(ret, buffer, strlen(buffer));
 				i = size;
 				break;
+			} else if (strstr(buffer, "backtrace_full ") == 0) {
+				cstring_cat_n(ret, buffer, strlen(buffer));
 			}
-			cstring_cat_n(ret, buffer, strlen(buffer));
 		}
 		pclose(fp);
 #else
