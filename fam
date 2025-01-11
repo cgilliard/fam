@@ -25,7 +25,7 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	done
 	cd ..
 	ar rcs .obj/libtest.a .obj/*.o || exit 1;
-	rustc +nightly --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
+	rustc +nightly -C debuginfo=2 --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
 	./bin/test_fam ${filter} --test-threads=1 || exit 1;
 	if [ "$coverage" = "1" ]; then
                 git log -1 > /tmp/coverage.txt || exit 1;

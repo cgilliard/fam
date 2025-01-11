@@ -110,14 +110,15 @@ macro_rules! exit {
         }};
 }
 
+#[cfg(not(test))]
 #[macro_export]
 macro_rules! panic {
-        ($fmt:expr) => {{
-                exit!("{}", $fmt);
-        }};
-        ($fmt:expr,  $($t:expr),*) => {{
-                exit!($fmt, $($t),*);
-        }};
+		($fmt:expr) => {{
+				exit!("{}", $fmt);
+		}};
+		($fmt:expr,  $($t:expr),*) => {{
+				exit!($fmt, $($t),*);
+		}};
 }
 
 #[macro_export]

@@ -74,3 +74,12 @@ impl Display for Error {
 		)
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	#[test]
+	fn test_err() {
+		let _x = err!(Alloc);
+	}
+}
