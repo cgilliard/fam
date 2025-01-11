@@ -107,7 +107,7 @@ mod test {
 	use super::*;
 	#[test]
 	fn test_err() {
-		let x = err!(Alloc);
-		println!("x={}", x);
+		let _x = err!(Alloc);
+		//println!("x={}", _x);
 	}
 }

@@ -33,6 +33,41 @@ void cstring_cat_n(char *X, char *Y, unsigned long long n) {
 	*X = 0;
 }
 
+int cstring_char_is_alpha_numeric(char ch) {
+	if (ch >= 'a' && ch <= 'z') return 1;
+	if (ch >= 'A' && ch <= 'Z') return 1;
+	if (ch >= '0' && ch <= '9') return 1;
+	if (ch == '_' || ch == '\n') return 1;
+	return 0;
+}
+int cstring_is_alpha_numeric(const char *X) {
+	if (*X >= '0' && *X <= '9') return 0;
+	while (*X)
+		if (!cstring_char_is_alpha_numeric(*X++)) return 0;
+
+	return 1;
+}
+
+unsigned long long cstring_strtoull(const char *X, int base) {
+	unsigned long long ret = 0, mul = 1, len = cstring_len(X);
+	while (len-- && X[len] != 'x') {
+		ret += X[len] > '9' ? ((X[len] - 'a') + 10) * mul
+				    : (X[len] - '0') * mul;
+		mul *= base;
+	}
+	return ret;
+}
+
+int cstring_compare(const char *X, const char *Y) {
+	while (*X == *Y && *X) {
+		X++;
+		Y++;
+	}
+	if (*X > *Y) return 1;
+	if (*Y > *X) return -1;
+	return 0;
+}
+
 const char *backtrace_full() {
 	void *array[MAX_BACKTRACE_ENTRIES];
 	int size = backtrace(array, MAX_BACKTRACE_ENTRIES);
@@ -58,7 +93,7 @@ const char *backtrace_full() {
 			len--;
 		}
 		if (last_plus > 0) {
-			byte *addr = strings[i] + last_plus + 1;
+			char *addr = strings[i] + last_plus + 1;
 			int itt = 0;
 			while (addr[itt]) {
 				if (addr[itt] == ')') {
@@ -67,7 +102,7 @@ const char *backtrace_full() {
 				}
 				itt++;
 			}
-			u64 address = strtoull(addr, 16);
+			u64 address = cstring_strtoull(addr, 16);
 			address -= 8;
 
 			char command[256];
