@@ -1,2 +1,2 @@
-//pub mod dkm;
+pub mod dkm;
 pub mod lru;

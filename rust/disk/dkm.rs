@@ -22,7 +22,7 @@ impl DiskCacheManager {
 		}
 		Ok(Self { lrus })
 	}
-	pub fn get_pages(&mut self, page_offset: u64, page_count: usize) -> Result<Vec<u8>, Error> {
+	pub fn get_block(&mut self, page_offset: u64, page_count: usize) -> Result<Block, Error> {
 		if page_count == 0 || (page_count & (page_count - 1)) != 0 {
 			return Err(err!(IllegalArgument));
 		}
@@ -39,7 +39,9 @@ impl DiskCacheManager {
 					Ok(block) => block,
 					Err(e) => return Err(e),
 				};
-				let ret = Block::from_raw(page_offset, page_count, block.as_vec());
+
+				// SAFETY: block.clone does not fail
+				let ret = (*block).clone().unwrap();
 				match lru.insert(block) {
 					Some(rem) => {
 						unsafe {
@@ -49,24 +51,18 @@ impl DiskCacheManager {
 					}
 					None => {}
 				}
-				Ok(ret.as_vec())
+				Ok(ret)
 			} else {
-				Ok((*ptr).as_vec())
+				Ok((*ptr).clone().unwrap())
 			}
 		} else {
 			Err(err!(OutOfBounds))
 		}
 	}
-	pub fn release_pages(
-		&mut self,
-		page_offset: u64,
-		page_count: usize,
-		data: Vec<u8>,
-	) -> Result<(), Error> {
-		let index = page_count.trailing_zeros() as usize;
+	pub fn release_block(&mut self, block: Block) -> Result<(), Error> {
+		let index = block.pages().trailing_zeros() as usize;
 		if index >= self.lrus.len() {
 			let lru = &mut self.lrus[index];
-			let block = Block::from_raw(page_offset, page_count, data);
 			let ptr = match Ptr::alloc(block) {
 				Ok(ptr) => ptr,
 				Err(e) => return Err(e),

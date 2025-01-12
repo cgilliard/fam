@@ -53,6 +53,21 @@ impl IndexMut<usize> for Block {
 	}
 }
 
+impl Clone for Block {
+	fn clone(&self) -> Result<Self, Error> {
+		let mut data = Box::<[u8]>::from_raw(self.data.as_ptr());
+		data.leak();
+		Ok(Self {
+			next: self.next,
+			prev: self.prev,
+			chain_next: self.chain_next,
+			id: self.id,
+			pages: self.pages,
+			data,
+		})
+	}
+}
+
 impl Block {
 	pub fn new(id: u64, pages: usize) -> Result<Self, Error> {
 		let page_size = safe_getpagesize();
@@ -73,6 +88,21 @@ impl Block {
 			pages,
 			data,
 		})
+	}
+
+	pub fn from_raw(id: u64, pages: usize, data: Box<[u8]>) -> Self {
+		Self {
+			next: Ptr::null(),
+			prev: Ptr::null(),
+			chain_next: Ptr::null(),
+			id,
+			pages,
+			data,
+		}
+	}
+
+	pub fn pages(&self) -> usize {
+		self.pages
 	}
 }
 
