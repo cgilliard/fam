@@ -17,6 +17,9 @@ for var in "$@"; do
 		all=1;
 		ccflags=-O3
 		;;
+	--debug)
+		debug="-C debuginfo=2"
+		;;
 	--output=*)
 		output=${var#*=}
 		;;
