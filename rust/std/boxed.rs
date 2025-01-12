@@ -87,7 +87,7 @@ impl<T> Box<[T]> {
 				return Ok(ret);
 			}
 		}
-		let ptr = safe_alloc(len);
+		let ptr = safe_alloc(len * size_of::<T>());
 		if ptr.is_null() {
 			return Err(err!(Alloc));
 		}
