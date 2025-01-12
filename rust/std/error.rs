@@ -1,7 +1,4 @@
-use core::slice::from_raw_parts;
-use core::str::from_utf8_unchecked;
 use prelude::*;
-use sys::{safe_backtrace_full, safe_cstring_len, safe_release};
 
 macro_rules! define_enum_with_strings {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {
@@ -59,7 +56,11 @@ impl Error {
 		let backtrace;
 		#[cfg(test)]
 		{
-			let bt = safe_backtrace_full();
+			use core::slice::from_raw_parts;
+			use core::str::from_utf8_unchecked;
+			use sys::{safe_backtrace_full, safe_cstring_len, safe_release};
+			let s = "./bin/test_fam";
+			let bt = safe_backtrace_full(s.as_ptr(), s.len());
 			if bt.is_null() {
 				backtrace = String::empty();
 			} else {

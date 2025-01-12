@@ -101,10 +101,38 @@ macro_rules! exit {
                 exit!("{}", $fmt);
         }};
         ($fmt:expr,  $($t:expr),*) => {{
-                        use sys::safe_exit;
+                        use sys::{safe_backtrace_full, safe_exit};
 
                         print!("Panic[@{}:{}]: ", file!(), line!());
                         println!($fmt, $($t),*);
+                        let bt;
+                        #[cfg(test)]
+                        {
+                            let s = "./bin/test_fam";
+                            bt = safe_backtrace_full(s.as_ptr(), s.len());
+                        }
+                        #[cfg(not(test))]
+                        {
+                            let s = "./bin/fam";
+                            bt = safe_backtrace_full(s.as_ptr(), s.len());
+                        }
+
+                        if !bt.is_null() {
+                                use sys::{safe_cstring_len, safe_release};
+                                use core::str::from_utf8_unchecked;
+                                use core::slice::from_raw_parts;
+
+                                let len = safe_cstring_len(bt);
+                                let bt_slice = unsafe { from_raw_parts(bt, len) };
+                                let bt_str = unsafe { from_utf8_unchecked(bt_slice) };
+                                let backtrace = match String::new(bt_str) {
+                                        Ok(backtrace) => backtrace,
+                                        Err(_) => String::empty(),
+                                };
+                                println!("{}", backtrace);
+                                safe_release(bt);
+                        }
+
                         safe_exit(-1);
                         loop {}
         }};

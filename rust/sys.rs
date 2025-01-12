@@ -89,7 +89,7 @@ extern "C" {
 
 	pub fn rand_bytes(data: *mut u8, len: usize);
 
-	pub fn backtrace_full() -> *const u8;
+	pub fn backtrace_full(bin: *const u8, len: usize) -> *const u8;
 	pub fn cstring_len(s: *const u8) -> usize;
 }
 
@@ -97,8 +97,8 @@ pub fn safe_cstring_len(s: *const u8) -> usize {
 	unsafe { cstring_len(s) }
 }
 
-pub fn safe_backtrace_full() -> *const u8 {
-	unsafe { backtrace_full() }
+pub fn safe_backtrace_full(s: *const u8, len: usize) -> *const u8 {
+	unsafe { backtrace_full(s, len) }
 }
 
 pub fn safe_getpagesize() -> usize {

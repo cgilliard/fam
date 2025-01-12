@@ -71,7 +71,10 @@ int cstring_compare(const char *X, const char *Y) {
 	return 0;
 }
 
-const char *backtrace_full() {
+const char *backtrace_full(const char *binary, u64 len) {
+	char *binary_null_term = malloc(len + 1);
+	strncpy(binary_null_term, binary, len);
+	binary_null_term[len] = 0;
 	char *v = getenv("RUST_BACKTRACE");
 	if (v == NULL || cstring_len(v) == 0) {
 		return NULL;
@@ -114,7 +117,7 @@ const char *backtrace_full() {
 
 			char command[256];
 			snprintf(command, sizeof(command),
-				 "addr2line -f -e ./bin/test_fam %llx",
+				 "addr2line -f -e %s %llx", binary_null_term,
 				 address);
 
 			void *fp = popen(command, "r");
@@ -162,8 +165,8 @@ const char *backtrace_full() {
 		snprintf(address, sizeof(address), "0x%llx", addr);
 		char command[256];
 		snprintf(command, sizeof(command),
-			 "atos -fullPath -o ./bin/test_fam -l 0x100000000 %s",
-			 address);
+			 "atos -fullPath -o %s -l 0x100000000 %s",
+			 binary_null_term, address);
 		void *fp = popen(command, "r");
 		char buffer[128];
 
