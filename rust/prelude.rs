@@ -5,7 +5,7 @@ pub use std::clone::Clone;
 pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::format::Formatter;
 pub use std::lock::{Lock, LockBox};
-pub use std::murmur::*;
+pub use std::murmur32::*;
 pub use std::option::{Option, Option::None, Option::Some};
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
