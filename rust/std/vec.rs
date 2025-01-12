@@ -195,26 +195,6 @@ impl<T> Vec<T> {
 		}
 	}
 
-	pub unsafe fn from_raw_parts(value: *const u8, elements: usize) -> Self {
-		let mut ret = Self {
-			value: Ptr::new(value),
-			capacity: elements * size_of::<T>(),
-			elements,
-			min: 16,
-			_marker: PhantomData,
-		};
-		ret.leak();
-		ret
-	}
-
-	pub fn leak(&mut self) {
-		self.value.set_bit(true);
-	}
-
-	pub fn unleak(&mut self) {
-		self.value.set_bit(false);
-	}
-
 	pub fn set_min(&mut self, n: usize) {
 		self.min = n;
 	}

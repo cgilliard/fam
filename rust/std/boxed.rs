@@ -1,6 +1,6 @@
 use core::marker::{Sized, Unsize};
 use core::mem::size_of;
-use core::ops::{CoerceUnsized, Deref, DerefMut};
+use core::ops::{CoerceUnsized, Deref, DerefMut, Index, IndexMut};
 use core::ptr::{drop_in_place, null_mut, write, write_bytes, NonNull};
 use core::slice::from_raw_parts_mut;
 use prelude::*;
@@ -76,13 +76,13 @@ impl<T> Box<T> {
 	}
 }
 
-impl Box<[u8]> {
-	pub fn new_zeroed_byte_slice(len: usize) -> Result<Box<[u8]>, Error> {
+impl<T> Box<[T]> {
+	pub fn new_zeroed_byte_slice(len: usize) -> Result<Box<[T]>, Error> {
 		if len == 0 {
 			unsafe {
-				let ptr = NonNull::<u8>::dangling().as_ptr();
+				let ptr = NonNull::<T>::dangling().as_ptr();
 				let ptr = from_raw_parts_mut(ptr, 0);
-				let mut ret: Box<[u8]> = Box::from_raw(Ptr::new(ptr));
+				let mut ret: Box<[T]> = Box::from_raw(Ptr::new(ptr));
 				ret.leak();
 				return Ok(ret);
 			}
@@ -92,11 +92,25 @@ impl Box<[u8]> {
 			return Err(err!(Alloc));
 		}
 		unsafe {
-			write_bytes(ptr as *mut u8, 0, len);
+			write_bytes(ptr as *mut T, 0, len);
 		}
-		let box_slice = unsafe { Box::from_raw(Ptr::new(from_raw_parts_mut(ptr as *mut u8, len))) };
+		let box_slice = unsafe { Box::from_raw(Ptr::new(from_raw_parts_mut(ptr as *mut T, len))) };
 
 		Ok(box_slice)
+	}
+}
+
+impl<T> Index<usize> for Box<T> {
+	type Output = T;
+
+	fn index(&self, index: usize) -> &Self::Output {
+		unsafe { &*self.ptr.raw().add(index) }
+	}
+}
+
+impl<T> IndexMut<usize> for Box<T> {
+	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+		unsafe { &mut *self.ptr.raw().add(index) }
 	}
 }
 
@@ -272,7 +286,7 @@ mod test {
 	fn test_drop_box() {
 		let initial = safe_getalloccount();
 		{
-			let _big = Box::new_zeroed_byte_slice(100000);
+			let _big = Box::<[u8]>::new_zeroed_byte_slice(100000);
 			let _v = Box::new(DropBox { x: 1 }).unwrap();
 			assert_eq!(unsafe { COUNT }, 0);
 		}
@@ -312,5 +326,16 @@ mod test {
 			assert_eq!(unsafe { CLONE_DROP_COUNT }, 0);
 		}
 		assert_eq!(unsafe { CLONE_DROP_COUNT }, 2);
+	}
+
+	#[test]
+	fn test_box_index() {
+		let mut mybox = Box::<[u64]>::new_zeroed_byte_slice(3).unwrap();
+		mybox[0] = 1;
+		mybox[1] = 2;
+		mybox[2] = 3;
+		assert_eq!(mybox[0], 1);
+		assert_eq!(mybox[1], 2);
+		assert_eq!(mybox[2], 3);
 	}
 }

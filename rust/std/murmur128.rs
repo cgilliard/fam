@@ -7,17 +7,16 @@
 // modified, or distributed except according to those terms.
 
 use core::cmp::min;
+use core::mem::size_of;
 use core::ops::Shl;
 use core::slice::from_raw_parts;
 use prelude::*;
 
-/// Use the x64 variant of the 128 bit murmur3 to hash byte slice without copying the buffer.
-///
-/// # Example
-/// ```
-/// use murmur3::murmur3_x64_128_of_slice;
-/// let hash_result = murmur3_x64_128_of_slice(b"hello world", 0);
-/// ```
+pub fn murmur3_128_of_u64(source: u64, seed: u32) -> u128 {
+	let slice = unsafe { from_raw_parts(&source as *const u64 as *const u8, size_of::<u64>()) };
+	murmur3_x64_128_of_slice(slice, seed)
+}
+
 pub fn murmur3_x64_128_of_slice(source: &[u8], seed: u32) -> u128 {
 	const C1: u64 = 0x87c3_7b91_1142_53d5;
 	const C2: u64 = 0x4cf5_ad43_2745_937f;
