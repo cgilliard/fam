@@ -8,6 +8,7 @@
 #[macro_use]
 pub mod std;
 
+pub mod disk;
 pub mod prelude;
 mod real_main;
 mod sys;
