@@ -64,6 +64,7 @@ void *fmap(i64 id, long long blocks) {
 #ifdef TEST
 	__atomic_fetch_add(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
+	// printf("fmap %p,alloc=%lli\n", ret, __alloc_count);
 
 	// trigger page fault
 	for (int i = 0; i < blocks; i++) {
@@ -81,6 +82,7 @@ void unmap(void *addr, long long pages) {
 		perror("munmap failed");
 		_exit(-1);
 	}
+	// printf("unmap %p,alloc=%lli\n", addr, __alloc_count);
 }
 int flush() {
 	int gfd = aload(&_gfd);

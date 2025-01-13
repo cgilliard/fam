@@ -6,6 +6,22 @@ pub struct DiskCacheManager {
 	lrus: Vec<Lru>,
 }
 
+impl Drop for DiskCacheManager {
+	fn drop(&mut self) {
+		for lru in &self.lrus {
+			let mut cur = lru.head();
+			while !cur.is_null() {
+				let to_delete = cur;
+				cur = cur.next();
+				unsafe {
+					drop_in_place(to_delete.raw());
+				}
+				to_delete.release();
+			}
+		}
+	}
+}
+
 impl DiskCacheManager {
 	pub fn new(mut count: usize, config: LruConfig) -> Result<Self, Error> {
 		let mut lrus = Vec::new();
@@ -41,7 +57,8 @@ impl DiskCacheManager {
 				};
 
 				// SAFETY: block.clone does not fail
-				let ret = (*block).clone().unwrap();
+				let mut ret = (*block).clone().unwrap();
+				ret.leak();
 				match lru.insert(block) {
 					Some(rem) => {
 						unsafe {
@@ -101,6 +118,7 @@ mod test {
 			let mut block1 = dkm.get_block(0, 1).unwrap();
 			block1[0] = 100;
 			assert!(dkm.release_block(block1).is_ok());
+
 			let block1 = dkm.get_block(0, 2).unwrap();
 			assert_eq!(block1[0], 100);
 

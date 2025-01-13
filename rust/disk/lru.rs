@@ -12,9 +12,10 @@ pub struct Block {
 	next: Ptr<Block>,
 	prev: Ptr<Block>,
 	chain_next: Ptr<Block>,
+	leak: bool,
 	id: u64,
 	pages: usize,
-	data: Box<[u8]>,
+	pub(crate) data: Box<[u8]>,
 }
 
 pub struct Lru {
@@ -27,7 +28,9 @@ pub struct Lru {
 
 impl Drop for Block {
 	fn drop(&mut self) {
-		safe_unmap(self.data.as_ptr().raw() as *const u8, self.pages);
+		if !self.leak {
+			safe_unmap(self.data.as_ptr().raw() as *const u8, self.pages);
+		}
 	}
 }
 
@@ -64,6 +67,7 @@ impl Clone for Block {
 			id: self.id,
 			pages: self.pages,
 			data,
+			leak: false,
 		})
 	}
 }
@@ -87,7 +91,12 @@ impl Block {
 			id,
 			pages,
 			data,
+			leak: false,
 		})
+	}
+
+	pub fn leak(&mut self) {
+		self.leak = true;
 	}
 
 	pub fn from_raw(id: u64, pages: usize, data: Box<[u8]>) -> Self {
@@ -98,11 +107,16 @@ impl Block {
 			id,
 			pages,
 			data,
+			leak: false,
 		}
 	}
 
 	pub fn pages(&self) -> usize {
 		self.pages
+	}
+
+	pub fn next(&self) -> Ptr<Block> {
+		self.next
 	}
 }
 
@@ -130,6 +144,10 @@ impl Lru {
 			count: 0,
 			capacity: config.capacity,
 		})
+	}
+
+	pub fn head(&self) -> Ptr<Block> {
+		self.head
 	}
 
 	pub fn insert(&mut self, mut block: Ptr<Block>) -> Option<Ptr<Block>> {
