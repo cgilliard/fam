@@ -132,6 +132,7 @@ mod test {
 
 			let mut block4 = dkm.get_block(3, 1).unwrap();
 			block4[0] = 103;
+			block4[1] = 5;
 			assert!(dkm.release_block(block4).is_ok());
 
 			let block1 = dkm.get_block(0, 1).unwrap();
@@ -152,6 +153,7 @@ mod test {
 
 			let block4 = dkm.get_block(3, 1).unwrap();
 			assert_eq!(block4[0], 103);
+			assert_eq!(block4[1], 5);
 			assert!(dkm.release_block(block4).is_ok());
 
 			crate::sys::shutdown_fs(fs_name);
