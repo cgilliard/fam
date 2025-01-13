@@ -4,8 +4,8 @@ use prelude::*;
 use sys::{safe_fmap, safe_getpagesize, safe_unmap};
 
 pub struct LruConfig {
-	arr_size: usize,
-	capacity: usize,
+	pub arr_size: usize,
+	pub capacity: usize,
 }
 
 pub struct Block {
