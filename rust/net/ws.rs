@@ -1213,11 +1213,18 @@ mod test {
 		let initial = crate::sys::safe_getalloccount();
 		let initial_fds = crate::sys::safe_getfdcount();
 		{
+			let threads = if cfg!(target_os = "linux") {
+				4 // 4 threads for Linux
+			} else {
+				1 // 1 thread for macOS or other OS
+			};
+
 			let config = WsConfig {
-				threads: 4,
+				threads,
 				timeout_micros: 5_000_000,
 				..WsConfig::default()
 			};
+
 			let mut ws = WebSocket::new(config).unwrap();
 			let lock = lock_box!().unwrap();
 			let mut conf = Rc::new(false).unwrap();
@@ -1256,8 +1263,14 @@ mod test {
 		let initial = crate::sys::safe_getalloccount();
 		let initial_fds = crate::sys::safe_getfdcount();
 		{
+			let threads = if cfg!(target_os = "linux") {
+				4 // 4 threads for Linux
+			} else {
+				1 // 1 thread for macOS or other OS
+			};
+
 			let config = WsConfig {
-				threads: 4,
+				threads,
 				..WsConfig::default()
 			};
 			let mut ws = WebSocket::new(config).unwrap();
@@ -1319,10 +1332,17 @@ mod test {
 		let initial = crate::sys::safe_getalloccount();
 		let initial_fds = crate::sys::safe_getfdcount();
 		{
+			let threads = if cfg!(target_os = "linux") {
+				8 // 8 threads for Linux
+			} else {
+				1 // 1 thread for macOS or other OS
+			};
+
 			let config = WsConfig {
-				threads: 8,
+				threads,
 				..WsConfig::default()
 			};
+
 			let threads = 4;
 			let target = 1_000;
 
@@ -1415,8 +1435,14 @@ mod test {
 		let initial = crate::sys::safe_getalloccount();
 		let initial_fds = crate::sys::safe_getfdcount();
 		{
+			let threads = if cfg!(target_os = "linux") {
+				4 // 4 threads for Linux
+			} else {
+				1 // 1 thread for macOS or other OS
+			};
+
 			let config = WsConfig {
-				threads: 4,
+				threads,
 				debug_pending: true,
 				..WsConfig::default()
 			};
