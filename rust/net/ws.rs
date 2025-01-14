@@ -537,7 +537,7 @@ impl WebSocket {
 		}
 		match self.wakeup_threads() {
 			Ok(_) => {}
-			Err(e) => return Err(e),
+			Err(_e) => {}
 		}
 		match &mut self.state.runtime {
 			Some(ref mut rt) => rt.stop(),
@@ -551,7 +551,6 @@ impl WebSocket {
 				println!("WARN: could not wakeup fd {}", unsafe {
 					socket_fd((&wstate.wakeup as *const u8).add(4) as *const u8)
 				});
-				return Err(err!(WsStop));
 			}
 		}
 		Ok(())
@@ -1251,8 +1250,12 @@ mod test {
 					backlog: 10,
 				})
 				.unwrap();
-			//park();
-			let _ = ws.stop();
+			match ws.stop() {
+				Ok(_) => {}
+				Err(_) => {
+					crate::sys::safe_sleep_millis(200);
+				}
+			}
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
@@ -1321,7 +1324,12 @@ mod test {
 				crate::sys::safe_sleep_millis(1);
 			}
 
-			let _ = ws.stop();
+			match ws.stop() {
+				Ok(_) => {}
+				Err(_) => {
+					crate::sys::safe_sleep_millis(200);
+				}
+			}
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
@@ -1424,7 +1432,12 @@ mod test {
 				let _ = recvs[i as usize].recv();
 				assert_eq!((*count_clone)[i as usize], target);
 			}
-			let _ = ws.stop();
+			match ws.stop() {
+				Ok(_) => {}
+				Err(_) => {
+					crate::sys::safe_sleep_millis(200);
+				}
+			}
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
@@ -1493,7 +1506,12 @@ mod test {
 				crate::sys::safe_sleep_millis(1);
 			}
 
-			let _ = ws.stop();
+			match ws.stop() {
+				Ok(_) => {}
+				Err(_) => {
+					crate::sys::safe_sleep_millis(200);
+				}
+			}
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
