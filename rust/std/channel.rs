@@ -144,7 +144,7 @@ mod test {
 			let mut jh = spawnj(|| {
 				let v = receiver.recv();
 				assert_eq!(v, 101);
-				let _v = lock.write(); // memory fence only
+				let _v = lock.write();
 				assert_eq!(*rc_clone, 1);
 				*rc_clone += 1;
 				assert_eq!(*rc_clone, 2);
@@ -155,7 +155,7 @@ mod test {
 
 			loop {
 				{
-					let _v = lock.read(); // memory fence only
+					let _v = lock.read();
 					if *rc == 1 {
 					} else {
 						assert_eq!(*rc, 2);

@@ -214,21 +214,29 @@ impl Lru {
 		if !cur.is_null() {
 			self.count -= 1;
 
+			// Update slot chain
 			if cur.raw() == self.arr[slot].raw() {
 				self.arr[slot] = self.arr[slot].chain_next;
 			} else {
 				last.chain_next = cur.chain_next;
 			}
+
+			// Update linked list pointers
 			if !cur.next.is_null() {
-				cur.next.prev = cur.next;
+				cur.next.prev = cur.prev;
 			} else {
 				self.tail = cur.prev;
 			}
+
 			if !cur.prev.is_null() {
-				cur.prev.next = cur.prev;
+				cur.prev.next = cur.next;
 			} else {
 				self.head = cur.next;
 			}
+
+			// Clear pointers to prevent dangling references
+			cur.prev = Ptr::null();
+			cur.next = Ptr::null();
 		}
 
 		cur
@@ -307,35 +315,38 @@ mod test {
 			let mut block = Block::new(4, 1).unwrap();
 			block[0] = 5;
 			let ptr = Ptr::alloc(block).unwrap();
-			let rem = lru.insert(ptr).unwrap();
-			assert_eq!(rem[0], 1);
-			unsafe {
-				drop_in_place(rem.raw());
-			}
-			rem.release();
 
-			let rem = lru.remove(1);
+			let rem1 = lru.insert(ptr).unwrap();
+			assert_eq!(rem1[0], 1);
+			unsafe {
+				drop_in_place(rem1.raw());
+			}
+			rem1.release();
+
+			let rem2 = lru.remove(1);
 
 			unsafe {
-				drop_in_place(rem.raw());
+				drop_in_place(rem2.raw());
 			}
-			rem.release();
-			let rem = lru.remove(2);
-			unsafe {
-				drop_in_place(rem.raw());
-			}
-			rem.release();
+			rem2.release();
 
-			let rem = lru.remove(3);
+			let rem3 = lru.remove(2);
 			unsafe {
-				drop_in_place(rem.raw());
+				drop_in_place(rem3.raw());
 			}
-			rem.release();
-			let rem = lru.remove(4);
+			rem3.release();
+
+			let rem4 = lru.remove(3);
 			unsafe {
-				drop_in_place(rem.raw());
+				drop_in_place(rem4.raw());
 			}
-			rem.release();
+			rem4.release();
+			let rem5 = lru.remove(4);
+			unsafe {
+				drop_in_place(rem5.raw());
+			}
+
+			rem5.release();
 
 			crate::sys::shutdown_fs(fs_name);
 		}

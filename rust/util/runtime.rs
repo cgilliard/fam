@@ -134,11 +134,11 @@ impl<T> Runtime<T> {
 				return Err(err!(NotInitialized));
 			}
 			self.state.halt = true;
-			for _i in 0..self.config.max_threads {
-				match self.send.send(Message::Halt) {
-					Ok(_) => {}
-					Err(e) => return Err(e),
-				}
+		}
+		for _i in 0..self.config.max_threads {
+			match self.send.send(Message::Halt) {
+				Ok(_) => {}
+				Err(e) => return Err(e),
 			}
 		}
 		for mut ent in &self.state.jhs {
@@ -158,9 +158,11 @@ impl<T> Runtime<T> {
 	where
 		F: FnMut() -> T + 'static,
 	{
-		let _l = self.lock.read();
-		if self.state.halt {
-			return Err(err!(NotInitialized));
+		{
+			let _l = self.lock.read();
+			if self.state.halt {
+				return Err(err!(NotInitialized));
+			}
 		}
 		let (send, recv) = match channel() {
 			Ok((send, recv)) => (send, recv),
