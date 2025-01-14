@@ -99,6 +99,26 @@ pub fn from_le_bytes_u16(bytes: &[u8]) -> u16 {
 	}
 }
 
+pub fn to_le_bytes_u32(value: u32, bytes: &mut [u8]) {
+	if bytes.len() >= 4 {
+		bytes[0] = value as u8;
+		bytes[1] = (value >> 8) as u8;
+		bytes[2] = (value >> 16) as u8;
+		bytes[3] = (value >> 24) as u8;
+	}
+}
+
+pub fn from_le_bytes_u32(bytes: &[u8]) -> u32 {
+	if bytes.len() >= 4 {
+		(bytes[0] as u32)
+			| ((bytes[1] as u32) << 8)
+			| ((bytes[2] as u32) << 16)
+			| ((bytes[3] as u32) << 24)
+	} else {
+		0
+	}
+}
+
 pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usize {
 	let buf_len = buf.len();
 	let mut i = buf_len - 1;
