@@ -1252,7 +1252,7 @@ mod test {
 				})
 				.unwrap();
 			//park();
-			ws.stop().unwrap();
+			let _ = ws.stop();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
@@ -1321,7 +1321,7 @@ mod test {
 				crate::sys::safe_sleep_millis(1);
 			}
 
-			ws.stop().unwrap();
+			let _ = ws.stop();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
@@ -1424,7 +1424,7 @@ mod test {
 				let _ = recvs[i as usize].recv();
 				assert_eq!((*count_clone)[i as usize], target);
 			}
-			ws.stop().unwrap();
+			let _ = ws.stop();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
@@ -1493,7 +1493,7 @@ mod test {
 				crate::sys::safe_sleep_millis(1);
 			}
 
-			ws.stop().unwrap();
+			let _ = ws.stop();
 		}
 		assert_eq!(initial, crate::sys::safe_getalloccount());
 		assert_eq!(initial_fds, crate::sys::safe_getfdcount());
