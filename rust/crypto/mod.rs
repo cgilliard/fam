@@ -23,31 +23,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-#[macro_use]
-#[allow(unused_imports)]
-//extern crate alloc;
-#[cfg(feature = "std")]
-#[macro_use]
-#[allow(unused_imports)]
-//extern crate std;
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-#[allow(unused_imports)]
-//pub(crate) use alloc::vec::Vec;
-#[cfg(feature = "std")]
-#[allow(unused_imports)]
-//pub(crate) use std::vec::Vec;
-
-/// The `rand_core` types are re-exported so that users of crrl do not
-/// have to worry about using the exact correct version of `rand_core`.
-//pub use rand_core::{CryptoRng, RngCore, Error as RngError};
-
+/*
 #[allow(unused_macros)]
 macro_rules! static_assert {
 	($condition:expr) => {
 		let _ = &[()][1 - ($condition) as usize];
 	};
 }
+*/
 
 //pub mod backend;
 //pub mod ed448;

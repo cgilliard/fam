@@ -1,4 +1,5 @@
 use core::ptr::copy_nonoverlapping;
+use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
 use sys::safe_f64_to_str;
@@ -60,6 +61,20 @@ impl Display for usize {
 		let mut buf = [0u8; 64];
 		let len = u128_to_str(*self as u128, 0, &mut buf, 10);
 		unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
+	}
+}
+
+impl Display for char {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		let mut buf = [0u8; 4];
+		let len = self.encode_utf8(&mut buf).len();
+		if len > 0 {
+			let buf = unsafe { from_raw_parts(buf.as_ptr(), len) };
+			let buf = unsafe { from_utf8_unchecked(&buf) };
+			f.write_str(buf, len)
+		} else {
+			Ok(())
+		}
 	}
 }
 

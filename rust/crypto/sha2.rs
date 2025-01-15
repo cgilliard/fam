@@ -640,19 +640,41 @@ impl<const SZ: usize> SHA2Big<SZ> {
 
 #[cfg(test)]
 mod tests {
-
 	use super::{Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256};
+	use core::convert::Into;
+	use core::iter::Iterator;
+	use core::option::Option as CoreOption;
+	use core::str::from_utf8;
+	use prelude::*;
 
-	/*
+	fn hex_decode(input: &str) -> Result<Vec<u8>, Error> {
+		if input.len() % 2 != 0 {
+			return Err(err!(IllegalArgument));
+		}
+
+		let mut result = Vec::new();
+
+		let mut chars = input.chars();
+
+		while let CoreOption::Some(high) = chars.next() {
+			let low = chars.next().unwrap();
+			let s = format!("{}{}", high, low).unwrap();
+			let byte = u8::from_str_radix(s.to_str(), 16).unwrap();
+			result.push(byte).unwrap();
+		}
+
+		Ok(result)
+	}
+
 	fn inner_sha224(src: &[u8], hexdst: &str) {
-		let dst = hex::decode(hexdst).unwrap();
-
-		assert!(Sha224::hash(src) == *dst);
+		let dst = hex_decode(hexdst).unwrap();
+		let res = Sha224::hash(src);
+		assert!(res == &dst[0..dst.len()]);
 		let mut sh = Sha224::new();
 		for i in 0..src.len() {
 			sh.update(&src[i..(i + 1)]);
 		}
-		assert!(sh.digest() == *dst);
+		assert!(sh.digest() == &dst[0..dst.len()]);
 	}
 
 	#[test]
@@ -670,6 +692,7 @@ mod tests {
 			&[0xE5u8, 0xE0u8, 0x99u8, 0x24u8],
 			"fd19e74690d291467ce59f077df311638f1c3a46e510d0e49a67062d",
 		);
+		/*
 		inner_sha224(
 			&[0u8; 56],
 			"5c3e25b69d0ea26f260cfae87e23759e1eca9d1ecc9fbf3c62266804",
@@ -686,7 +709,10 @@ mod tests {
 			&[0x99u8; 1005],
 			"cb00ecd03788bf6c0908401e0eb053ac61f35e7e20a2cfd7bd96d640",
 		);
+				*/
 	}
+
+	/*
 
 	fn inner_sha256(src: &[u8], hexdst: &str) {
 		let dst = hex::decode(hexdst).unwrap();
