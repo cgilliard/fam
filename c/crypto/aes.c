@@ -16,6 +16,8 @@
 
 #include "utilcrypt.h"
 
+unsigned long long AES_ctx_size() { return sizeof(struct AES_ctx); }
+
 // The number of columns comprising a state in AES. This is a constant in AES.
 // Value=4
 #define Nb 4

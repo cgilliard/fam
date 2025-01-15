@@ -52,11 +52,13 @@ struct AES_ctx {
 	unsigned char Iv[AES_BLOCKLEN];
 };
 
+unsigned long long AES_ctx_size();
+
 void AES_init_ctx_iv(struct AES_ctx *ctx, const unsigned char *key,
-					 const unsigned char *iv);
+		     const unsigned char *iv);
 void AES_ctx_set_iv(struct AES_ctx *ctx, const unsigned char *iv);
 
 void AES_CTR_xcrypt_buffer(struct AES_ctx *ctx, unsigned char *buf,
-						   unsigned long long length);
+			   unsigned long long length);
 
 #endif	// _BASE_AES__
