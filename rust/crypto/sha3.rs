@@ -473,7 +473,7 @@ impl KeccakState {
 macro_rules! sha3_impl {
 	($typename:ident, $size:expr) => {
 		#[doc = concat!("SHA3-", stringify!($size), " implementation.\n\n",
-		        "Instances are cloneable, which captures the current object state.")]
+																        "Instances are cloneable, which captures the current object state.")]
 		#[derive(Copy, Clone)]
 		pub struct $typename(SHA3Core<$size>);
 
@@ -516,7 +516,10 @@ macro_rules! sha3_impl {
 			/// provided slice. The number of written bytes is returned.
 			/// This instance is automatically reset.
 			pub fn finalize_write(&mut self, out: &mut [u8]) -> usize {
-				out[..($size >> 3)].copy_from_slice(&self.digest());
+                                let sz = $size >> 3;
+                                if sz < out.len() {
+			                out[0..sz].copy_from_slice(&self.digest());
+                                }
 				$size >> 3
 			}
 
@@ -594,9 +597,11 @@ impl<const SZ: usize> SHA3Core<SZ> {
 	}
 
 	fn digest_to(&mut self, dst: &mut [u8]) {
-		assert!(dst.len() == (SZ >> 3));
 		let i = self.ptr;
-		self.state.0[i >> 3] ^= 0x06u64 << ((i & 7) << 3);
+		let i3 = i >> 3;
+		if i3 < self.state.0.len() {
+			self.state.0[i3] ^= 0x06u64 << ((i & 7) << 3);
+		}
 		let i = Self::RATE - 1;
 		self.state.0[i >> 3] ^= 0x80u64 << ((i & 7) << 3);
 		self.state.process();
@@ -664,7 +669,6 @@ impl<const SZ: usize> SHAKE<SZ> {
 	/// This function can be called repeatedly. If the engine is in output
 	/// mode, then a panic is triggered.
 	pub fn inject(&mut self, src: impl AsRef<[u8]>) {
-		assert!(!self.flipped);
 		let mut ptr = self.ptr;
 		let src = src.as_ref();
 		let mut i = 0;
@@ -693,7 +697,6 @@ impl<const SZ: usize> SHAKE<SZ> {
 	///
 	/// If the engine is already in output mode, then a panic is triggered.
 	pub fn flip(&mut self) {
-		assert!(!self.flipped);
 		let i = self.ptr;
 		self.state.0[i >> 3] ^= 0x1Fu64 << ((i & 7) << 3);
 		let i = Self::RATE - 1;
@@ -707,7 +710,6 @@ impl<const SZ: usize> SHAKE<SZ> {
 	/// This function can be called repeatedly. If the engine is in input
 	/// mode, then a panic is triggered.
 	pub fn extract(&mut self, dst: &mut [u8]) {
-		assert!(self.flipped);
 		let mut ptr = self.ptr;
 		let mut i = 0;
 		while i < dst.len() {

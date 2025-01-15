@@ -50,38 +50,11 @@ macro_rules! static_assert {
 }
 
 //pub mod backend;
+//pub mod ed448;
 //pub mod field;
+pub mod sha2;
+//pub mod sha3;
 
 //pub use self::backend::{Zu128, Zu256, Zu384};
 
-#[cfg(feature = "ed25519")]
-//pub mod ed25519;
-#[cfg(feature = "x25519")]
-//pub mod x25519;
-#[cfg(feature = "ristretto255")]
-//pub mod ristretto255;
-#[cfg(feature = "jq255e")]
-//pub mod jq255e;
-#[cfg(feature = "jq255s")]
-//pub mod jq255s;
-#[cfg(feature = "p256")]
-//pub mod p256;
-#[cfg(feature = "secp256k1")]
-//pub mod secp256k1;
-#[cfg(feature = "gls254")]
-//pub mod gls254;
-#[cfg(feature = "ed448")]
-pub mod ed448;
-#[cfg(feature = "x448")]
-pub mod x448;
-
-#[cfg(feature = "decaf448")]
-//pub mod decaf448;
-#[cfg(all(feature = "alloc", feature = "frost"))]
-//pub mod frost;
-#[cfg(feature = "lms")]
-//pub mod lms;
-#[cfg(feature = "blake2s")]
-//pub mod blake2s;
-pub mod sha2;
-//pub mod sha3;
+//pub mod x448;
