@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "utilcrypt.h"
+
 #include "limits.h"
-#include "util.h"
 
 void copy_bytes(unsigned char *X, const unsigned char *Y,
 		unsigned long long x) {
