@@ -20,14 +20,14 @@ int getpagesize();
 #define PAGE_SIZE (getpagesize())
 #endif	// PAGE_SIZE
 
-unsigned long long cstring_len(const char *X) {
+unsigned long long bt_cstring_len(const char *X) {
 	const char *Y = X;
 	while (*X) X++;
 	return X - Y;
 }
 
-void cstring_cat_n(char *X, char *Y, unsigned long long n) {
-	X += cstring_len(X);
+void bt_cstring_cat_n(char *X, char *Y, unsigned long long n) {
+	X += bt_cstring_len(X);
 	while (n-- && *Y) {
 		*X = *Y;
 		X++;
@@ -36,23 +36,23 @@ void cstring_cat_n(char *X, char *Y, unsigned long long n) {
 	*X = 0;
 }
 
-int cstring_char_is_alpha_numeric(char ch) {
+int bt_cstring_char_is_alpha_numeric(char ch) {
 	if (ch >= 'a' && ch <= 'z') return 1;
 	if (ch >= 'A' && ch <= 'Z') return 1;
 	if (ch >= '0' && ch <= '9') return 1;
 	if (ch == '_' || ch == '\n') return 1;
 	return 0;
 }
-int cstring_is_alpha_numeric(const char *X) {
+int bt_cstring_is_alpha_numeric(const char *X) {
 	if (*X >= '0' && *X <= '9') return 0;
 	while (*X)
-		if (!cstring_char_is_alpha_numeric(*X++)) return 0;
+		if (!bt_cstring_char_is_alpha_numeric(*X++)) return 0;
 
 	return 1;
 }
 
-unsigned long long cstring_strtoull(const char *X, int base) {
-	unsigned long long ret = 0, mul = 1, len = cstring_len(X);
+unsigned long long bt_cstring_strtoull(const char *X, int base) {
+	unsigned long long ret = 0, mul = 1, len = bt_cstring_len(X);
 	while (len-- && X[len] != 'x') {
 		ret += X[len] > '9' ? ((X[len] - 'a') + 10) * mul
 				    : (X[len] - '0') * mul;
@@ -61,7 +61,7 @@ unsigned long long cstring_strtoull(const char *X, int base) {
 	return ret;
 }
 
-int cstring_compare(const char *X, const char *Y) {
+int bt_cstring_compare(const char *X, const char *Y) {
 	while (*X == *Y && *X) {
 		X++;
 		Y++;
@@ -76,7 +76,7 @@ const char *backtrace_full(const char *binary, u64 len) {
 	strncpy(binary_null_term, binary, len);
 	binary_null_term[len] = 0;
 	char *v = getenv("RUST_BACKTRACE");
-	if (v == NULL || cstring_len(v) == 0) {
+	if (v == NULL || bt_cstring_len(v) == 0) {
 		return NULL;
 	}
 	void *array[MAX_BACKTRACE_ENTRIES];
@@ -112,7 +112,7 @@ const char *backtrace_full(const char *binary, u64 len) {
 				}
 				itt++;
 			}
-			u64 address = cstring_strtoull(addr, 16);
+			u64 address = bt_cstring_strtoull(addr, 16);
 			address -= 8;
 
 			char command[256];
@@ -130,14 +130,16 @@ const char *backtrace_full(const char *binary, u64 len) {
 					if (term) {
 						if (buffer[len - 1] == '\n')
 							buffer[len - 1] = 0;
-						cstring_cat_n(ret, buffer,
-							      strlen(buffer));
+						bt_cstring_cat_n(
+						    ret, buffer,
+						    strlen(buffer));
 						i = size;
 						break;
 					}
-					cstring_cat_n(ret, buffer,
-						      strlen(buffer));
-				} else if (cstring_is_alpha_numeric(buffer)) {
+					bt_cstring_cat_n(ret, buffer,
+							 strlen(buffer));
+				} else if (bt_cstring_is_alpha_numeric(
+					       buffer)) {
 					if (len && buffer[len - 1] == '\n') {
 						len--;
 						buffer[len] = ' ';
@@ -145,9 +147,10 @@ const char *backtrace_full(const char *binary, u64 len) {
 
 					len_sum += len;
 					if (len_sum >= 4 * PAGE_SIZE) break;
-					cstring_cat_n(ret, buffer,
-						      strlen(buffer));
-					if (!cstring_compare(buffer, "main ")) {
+					bt_cstring_cat_n(ret, buffer,
+							 strlen(buffer));
+					if (!bt_cstring_compare(buffer,
+								"main ")) {
 						term = true;
 					}
 				}
@@ -175,7 +178,8 @@ const char *backtrace_full(const char *binary, u64 len) {
 			len_sum += len;
 			if (len_sum >= MAX_BACKTRACE_LEN) break;
 			if (strstr(buffer, "backtrace_full ") != buffer) {
-				cstring_cat_n(ret, buffer, cstring_len(buffer));
+				bt_cstring_cat_n(ret, buffer,
+						 bt_cstring_len(buffer));
 			}
 		}
 		pclose(fp);
