@@ -1,11 +1,19 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
+const SHA3_FLAGS_KECCAK: i32 = 1;
+const SHA3_FLAGS_NONE: i32 = 0;
+
 extern "C" {
 	pub fn AES_ctx_size() -> usize;
 	pub fn AES_init_ctx_iv(ctx: *mut u8, key: *const u8, iv: *const u8);
 	pub fn AES_ctx_set_iv(ctx: *mut u8, iv: *const u8);
 	pub fn AES_CTR_xcrypt_buffer(ctx: *mut u8, buf: *mut u8, len: u64);
+	pub fn x_sha3_context_size() -> usize;
+	pub fn sha3_Init256(ctx: *mut u8);
+	pub fn sha3_Update(ctx: *mut u8, input: *const u8, len: usize);
+	pub fn sha3_Finalize(ctx: *mut u8) -> *const u8;
+	pub fn sha3_SetFlags(ctx: *mut u8, flags: i32);
 }
 
 pub fn safe_AES_ctx_size() -> usize {
@@ -22,6 +30,25 @@ pub fn safe_AES_ctx_set_iv(ctx: *mut u8, iv: *const u8) {
 
 pub fn safe_AES_CTR_xcrypt_buffer(ctx: *mut u8, buf: *mut u8, len: u64) {
 	unsafe { AES_CTR_xcrypt_buffer(ctx, buf, len) }
+}
+
+pub fn safe_sha3_context_size() -> usize {
+	unsafe { x_sha3_context_size() }
+}
+
+pub fn safe_sha3_SetFlags(ctx: *mut u8, flags: i32) {
+	unsafe { sha3_SetFlags(ctx, flags) }
+}
+
+pub fn safe_sha3_Init256(ctx: *mut u8) {
+	unsafe { sha3_Init256(ctx) }
+}
+
+pub fn safe_sha3_Update(ctx: *mut u8, input: *const u8, len: usize) {
+	unsafe { sha3_Update(ctx, input, len) }
+}
+pub fn safe_sha3_Finalize(ctx: *mut u8) -> *const u8 {
+	unsafe { sha3_Finalize(ctx) }
 }
 
 #[cfg(test)]
@@ -107,6 +134,54 @@ mod test {
 		// Compare the output to the expected ciphertext
 		assert_eq!(input, expected_output, "AES-256-CTR encryption failed!");
 
+		crate::sys::safe_release(ctx);
+	}
+
+	#[test]
+	fn test_sha3_256_keccak() {
+		// Initialize the SHA3 context with the appropriate size for SHA3-256.
+		let sz = safe_sha3_context_size();
+		let ctx = crate::sys::safe_alloc(sz) as *mut u8;
+
+		// Initialize SHA3-256 with Keccak flag.
+		safe_sha3_Init256(ctx);
+		safe_sha3_SetFlags(ctx, SHA3_FLAGS_KECCAK);
+
+		// Prepare the input data (same as in the C test).
+		let input_data: [u8; 100] = [
+			0x43, 0x3c, 0x53, 0x03, 0x13, 0x16, 0x24, 0xc0, 0x02, 0x1d, 0x86, 0x8a, 0x30, 0x82,
+			0x54, 0x75, 0xe8, 0xd0, 0xbd, 0x30, 0x52, 0xa0, 0x22, 0x18, 0x03, 0x98, 0xf4, 0xca,
+			0x44, 0x23, 0xb9, 0x82, 0x14, 0xb6, 0xbe, 0xaa, 0xc2, 0x1c, 0x88, 0x07, 0xa2, 0xc3,
+			0x3f, 0x8c, 0x93, 0xbd, 0x42, 0xb0, 0x92, 0xcc, 0x1b, 0x06, 0xce, 0xdf, 0x32, 0x24,
+			0xd5, 0xed, 0x1e, 0xc2, 0x97, 0x84, 0x44, 0x4f, 0x22, 0xe0, 0x8a, 0x55, 0xaa, 0x58,
+			0x54, 0x2b, 0x52, 0x4b, 0x02, 0xcd, 0x3d, 0x5d, 0x5f, 0x69, 0x07, 0xaf, 0xe7, 0x1c,
+			0x5d, 0x74, 0x62, 0x22, 0x4a, 0x3f, 0x9d, 0x9e, 0x53, 0xe7, 0xe0, 0x84, 0x6d, 0xcb,
+			0xb4, 0xce,
+		];
+
+		// Update the context with the input data.
+		safe_sha3_Update(ctx, input_data.as_ptr(), input_data.len());
+
+		// Finalize the SHA3-256 hash.
+		let hash = safe_sha3_Finalize(ctx);
+
+		// The expected output hash from the C test.
+		let expected_hash: [u8; 32] = [
+			0xce, 0x87, 0xa5, 0x17, 0x3b, 0xff, 0xd9, 0x23, 0x99, 0x22, 0x16, 0x58, 0xf8, 0x01,
+			0xd4, 0x5c, 0x29, 0x4d, 0x90, 0x06, 0xee, 0x9f, 0x3f, 0x9d, 0x41, 0x9c, 0x8d, 0x42,
+			0x77, 0x48, 0xdc, 0x41,
+		];
+
+		use core::slice::from_raw_parts;
+		let hash_slice = unsafe { from_raw_parts(hash, 32) };
+
+		// Assert that the hash matches the expected output.
+		assert_eq!(
+			hash_slice, expected_hash,
+			"SHA3-256(433C...CE) doesn't match known answer (single buffer)"
+		);
+
+		// Release the context.
 		crate::sys::safe_release(ctx);
 	}
 }
