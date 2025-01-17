@@ -160,11 +160,15 @@ impl<T> Index<Range<usize>> for Vec<T> {
 			panic!("Index out of bounds");
 		}
 
-		let element_size = size_of::<T>();
-		let start_offset = range.start * element_size;
-		unsafe {
-			let ptr = (self.value.raw() as *const u8).add(start_offset) as *const T;
-			from_raw_parts(ptr, range.end - range.start)
+		if self.len() == 0 {
+			&[]
+		} else {
+			let element_size = size_of::<T>();
+			let start_offset = range.start * element_size;
+			unsafe {
+				let ptr = (self.value.raw() as *const u8).add(start_offset) as *const T;
+				from_raw_parts(ptr, range.end - range.start)
+			}
 		}
 	}
 }
@@ -175,11 +179,15 @@ impl<T> IndexMut<Range<usize>> for Vec<T> {
 			panic!("Index out of bounds");
 		}
 
-		let element_size = size_of::<T>();
-		let start_offset = range.start * element_size;
-		unsafe {
-			let ptr = (self.value.raw() as *mut u8).add(start_offset) as *mut T;
-			from_raw_parts_mut(ptr, range.end - range.start)
+		if self.len() == 0 {
+			&mut []
+		} else {
+			let element_size = size_of::<T>();
+			let start_offset = range.start * element_size;
+			unsafe {
+				let ptr = (self.value.raw() as *mut u8).add(start_offset) as *mut T;
+				from_raw_parts_mut(ptr, range.end - range.start)
+			}
 		}
 	}
 }
