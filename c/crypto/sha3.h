@@ -102,4 +102,8 @@ sha3_return_t sha3_HashBuffer(
     const void *in, unsigned inBytes, void *out,
     unsigned outBytes); /* up to bitSize/8; truncation OK */
 
+sha3_return_t sha3_HashBuffer_sq(unsigned bitSize, enum SHA3_FLAGS flags,
+				 const void *in, unsigned inBytes, void *out,
+				 unsigned outBytes);
+
 #endif

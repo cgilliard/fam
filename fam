@@ -32,7 +32,15 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
                 	${cc} ${ccflags} -DTEST -o ../../.obj/${file%.c}.o -c -I. ${file} || exit 1;
         	fi
         done
-	cd ../..
+	cd 448
+	for file in *.c
+        do
+                if [ ! -e ../../../.obj/${file%.c}.o ] || [ ${file} -nt ../../../.obj/${file%.c}.o ]; then
+                        echo "${cc} ${ccflags} -DTEST -o ../../../.obj/${file%.c}.o -c -I. ${file}";
+                        ${cc} ${ccflags} -DTEST -o ../../../.obj/${file%.c}.o -c -I. ${file} || exit 1;
+                fi
+        done
+	cd ../../..
 	ar rcs .obj/libtest.a .obj/*.o || exit 1;
 	rustc +nightly -C debuginfo=2 --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
 	./bin/test_fam ${filter} --test-threads=1 || exit 1;

@@ -32,6 +32,8 @@
 
 #include "sha3.h"
 
+#include <string.h>
+
 #include "utilcrypt.h"
 
 #define SHA3_ASSERT(x)
@@ -119,6 +121,34 @@ static void keccakf(unsigned long long s[25]) {
 }
 
 /* *************************** Public Inteface ************************ */
+
+sha3_return_t sha3_Squeeze(void *priv, void *out, unsigned outBytes) {
+	sha3_context *ctx = (sha3_context *)priv;
+	unsigned char *output = (unsigned char *)out;
+	unsigned bytesGenerated = 0;
+
+	// Ensure Finalize was called and state is ready for squeezing
+	if (ctx->byteIndex != 0 || ctx->wordIndex != 0) {
+		return SHA3_RETURN_BAD_PARAMS;	// Not ready for squeezing
+	}
+
+	while (bytesGenerated < outBytes) {
+		// Calculate how many bytes to copy in this iteration
+		unsigned chunkSize = outBytes - bytesGenerated;
+		if (chunkSize > sizeof(ctx->u.sb)) {
+			chunkSize = sizeof(ctx->u.sb);
+		}
+
+		// Copy the current state to output
+		memcpy(output + bytesGenerated, ctx->u.sb, chunkSize);
+		bytesGenerated += chunkSize;
+
+		// Permute the state for the next chunk
+		keccakf(ctx->u.s);
+	}
+
+	return SHA3_RETURN_OK;
+}
 
 unsigned long long x_sha3_context_size() { return sizeof(sha3_context); }
 
@@ -317,3 +347,29 @@ sha3_return_t sha3_HashBuffer(unsigned bitSize, enum SHA3_FLAGS flags,
 	copy_bytes(out, h, outBytes);
 	return SHA3_RETURN_OK;
 }
+
+sha3_return_t sha3_HashBuffer_sq(unsigned bitSize, enum SHA3_FLAGS flags,
+				 const void *in, unsigned inBytes, void *out,
+				 unsigned outBytes) {
+	sha3_context ctx;
+	if (sha3_Init(&ctx, bitSize) != SHA3_RETURN_OK) {
+		return SHA3_RETURN_BAD_PARAMS;
+	}
+
+	sha3_Update(&ctx, in, inBytes);
+
+	// Finalize the state
+	if (sha3_Finalize(&ctx) == NULL) {
+		return SHA3_RETURN_BAD_PARAMS;
+	}
+
+	// Squeeze output if SHAKE mode
+	if (flags == SHA3_FLAGS_KECCAK) {
+		return sha3_Squeeze(&ctx, out, outBytes);
+	} else {
+		// Standard SHA3 with truncation
+		memcpy(out, ctx.u.sb, outBytes);
+		return SHA3_RETURN_OK;
+	}
+}
+

@@ -3,17 +3,54 @@
 
 const SHA3_FLAGS_KECCAK: i32 = 1;
 const SHA3_FLAGS_NONE: i32 = 0;
+const ED448_BYTES: usize = 57;
+const ED448_SIG_BYTES: usize = ED448_BYTES * 2;
 
 extern "C" {
+	// AES
 	pub fn AES_ctx_size() -> usize;
 	pub fn AES_init_ctx_iv(ctx: *mut u8, key: *const u8, iv: *const u8);
 	pub fn AES_ctx_set_iv(ctx: *mut u8, iv: *const u8);
 	pub fn AES_CTR_xcrypt_buffer(ctx: *mut u8, buf: *mut u8, len: u64);
+
+	// SHA3
 	pub fn x_sha3_context_size() -> usize;
 	pub fn sha3_Init256(ctx: *mut u8);
 	pub fn sha3_Update(ctx: *mut u8, input: *const u8, len: usize);
 	pub fn sha3_Finalize(ctx: *mut u8) -> *const u8;
 	pub fn sha3_SetFlags(ctx: *mut u8, flags: i32);
+
+	// ed448
+	pub fn ossl_c448_ed448_derive_public_key(
+		ctx: *mut u8,
+		pubkey: [u8; ED448_BYTES],
+		privkey: [u8; ED448_BYTES],
+		propq: *const u8,
+	) -> i32;
+	pub fn ossl_c448_ed448_sign(
+		ctx: *mut u8,
+		signature: [u8; ED448_SIG_BYTES],
+		privkey: [u8; ED448_BYTES],
+		pubkey: [u8; ED448_BYTES],
+		message: *const u8,
+		message_len: usize,
+		prehashed: u8,
+		context: *const u8,
+		context_len: usize,
+		propq: *const u8,
+	) -> i32;
+	pub fn ossl_c448_ed448_verify(
+		ctx: *mut u8,
+		signature: [u8; ED448_SIG_BYTES],
+		pubkey: [u8; ED448_BYTES],
+		message: *const u8,
+		message_len: usize,
+		prehashed: u8,
+		context: *const u8,
+		context_len: usize,
+		propq: *const u8,
+	) -> i32;
+
 }
 
 pub fn safe_AES_ctx_size() -> usize {
@@ -183,5 +220,74 @@ mod test {
 
 		// Release the context.
 		crate::sys::safe_release(ctx);
+	}
+
+	#[test]
+	fn test_488_1() {
+		let ctx: *mut u8 = crate::sys::safe_alloc(10000) as *mut u8;
+
+		// Sample private and public keys (use actual key material in real use cases)
+		let privkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
+		let pubkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
+
+		// Sample message and context
+		let message = b"Hello, world!";
+		let context = b"SomeContext";
+
+		// Test public key derivation
+		let mut derived_pubkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
+		let propq = crate::sys::safe_alloc(10000) as *mut u8;
+		unsafe {
+			let result = ossl_c448_ed448_derive_public_key(ctx, derived_pubkey, privkey, propq);
+			assert_eq!(result, 0);
+		}
+		/*
+
+		// Test signing
+		let mut signature: [u8; ED448_SIG_BYTES] = [0u8; ED448_SIG_BYTES];
+		let prehashed = 0; // Use 0 for non-prehashed messages, or 1 for prehashed
+		let context_len = context.len();
+		unsafe {
+			let sign_result = ossl_c448_ed448_sign(
+				ctx,
+				signature,
+				privkey,
+				pubkey,
+				message.as_ptr(),
+				message.len(),
+				prehashed,
+				context.as_ptr(),
+				context_len,
+				propq,
+			);
+			if sign_result == 0 {
+				println!("Message signed successfully!");
+			} else {
+				println!("Message signing failed!");
+			}
+		}
+
+		// Test verification
+		let mut verify_result: i32 = -1;
+		unsafe {
+			verify_result = ossl_c448_ed448_verify(
+				ctx,
+				signature,
+				pubkey,
+				message.as_ptr(),
+				message.len(),
+				prehashed,
+				context.as_ptr(),
+				context_len,
+				propq,
+			);
+		}
+
+		if verify_result == 0 {
+			println!("Signature verified successfully!");
+		} else {
+			println!("Signature verification failed!");
+		}
+				*/
 	}
 }
