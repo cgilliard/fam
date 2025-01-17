@@ -34,7 +34,13 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
         done
 	cd ../..
 	ar rcs .obj/libtest.a .obj/*.o || exit 1;
-	rustc +nightly -C debuginfo=2 --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
+	cd rust/test_deps/num-bigint
+	cargo +nightly build --release
+	cp target/release/libnum_bigint.rlib ../../../.obj
+	cp target/release/deps/libnum_integer-*.rlib ../../../.obj/libnum_integer.rlib
+	cp target/release/deps/libnum_traits-*.rlib ../../../.obj/libnum_traits.rlib
+	cd ../../..
+	rustc +nightly --extern num_integer=.obj/libnum_integer.rlib --extern num_traits=.obj/libnum_traits.rlib --extern num_bigint=.obj/libnum_bigint.rlib -C debuginfo=2 --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
 	./bin/test_fam ${filter} --test-threads=1 || exit 1;
 	if [ "$coverage" = "1" ]; then
                 git log -1 > /tmp/coverage.txt || exit 1;
@@ -77,5 +83,5 @@ if [ "$all" = "1" ]; then
         ${cc} ${ccflags} -o bin/fam .obj/*.o
 fi
 if [ "$clean" = "1" ]; then
-	rm -rf .obj/* libtest.a bin/*
+	rm -rf .obj/* libtest.a bin/* rust/test_deps/*/target
 fi
