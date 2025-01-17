@@ -5,40 +5,12 @@ use core::slice::from_raw_parts;
 use core::iter::Iterator;
 use prelude::*;
 
-#[cfg(target_arch = "x86_64")]
-#[allow(dead_code)]
-#[inline(always)]
-pub fn addcarry_u64(x: u64, y: u64, c: u8) -> (u64, u8) {
-	use core::arch::x86_64::_addcarry_u64;
-	unsafe {
-		let mut d = 0u64;
-		let cc = _addcarry_u64(c, x, y, &mut d);
-		(d, cc)
-	}
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-#[allow(dead_code)]
 #[inline(always)]
 pub const fn addcarry_u64(x: u64, y: u64, c: u8) -> (u64, u8) {
 	let z = (x as u128).wrapping_add(y as u128).wrapping_add(c as u128);
 	(z as u64, (z >> 64) as u8)
 }
 
-#[cfg(target_arch = "x86_64")]
-#[allow(dead_code)]
-#[inline(always)]
-pub fn subborrow_u64(x: u64, y: u64, c: u8) -> (u64, u8) {
-	use core::arch::x86_64::_subborrow_u64;
-	unsafe {
-		let mut d = 0u64;
-		let cc = _subborrow_u64(c, x, y, &mut d);
-		(d, cc)
-	}
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-#[allow(dead_code)]
 #[inline(always)]
 pub const fn subborrow_u64(x: u64, y: u64, c: u8) -> (u64, u8) {
 	let z = (x as u128).wrapping_sub(y as u128).wrapping_sub(c as u128);
@@ -53,6 +25,42 @@ pub const fn subborrow_u64(x: u64, y: u64, c: u8) -> (u64, u8) {
 #[inline(always)]
 pub const fn lzcnt(x: u64) -> u32 {
 	x.leading_zeros()
+}
+
+#[cfg(not(any(
+	all(target_arch = "x86_64", target_feature = "lzcnt"),
+	target_arch = "aarch64",
+)))]
+#[allow(dead_code)]
+pub const fn lzcnt(x: u64) -> u32 {
+	let m = sgnw((x >> 32).wrapping_sub(1));
+	let s = m & 32;
+	let x = (x >> 32) ^ (m & (x ^ (x >> 32)));
+
+	let m = sgnw((x >> 16).wrapping_sub(1));
+	let s = s | (m & 16);
+	let x = (x >> 16) ^ (m & (x ^ (x >> 16)));
+
+	let m = sgnw((x >> 8).wrapping_sub(1));
+	let s = s | (m & 8);
+	let x = (x >> 8) ^ (m & (x ^ (x >> 8)));
+
+	let m = sgnw((x >> 4).wrapping_sub(1));
+	let s = s | (m & 4);
+	let x = (x >> 4) ^ (m & (x ^ (x >> 4)));
+
+	let m = sgnw((x >> 2).wrapping_sub(1));
+	let s = s | (m & 2);
+	let x = (x >> 2) ^ (m & (x ^ (x >> 2)));
+
+	// At this point, x fits on 2 bits. Number of leading zeros is then:
+	//   x = 0   -> 2
+	//   x = 1   -> 1
+	//   x = 2   -> 0
+	//   x = 3   -> 0
+	let s = s.wrapping_add(2u64.wrapping_sub(x) & (x.wrapping_sub(3) >> 2));
+
+	s as u32
 }
 
 // Return 0xFFFFFFFFFFFFFFFF if x >= 0x8000000000000000, 0 otherwise
