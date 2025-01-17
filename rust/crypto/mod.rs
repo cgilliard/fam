@@ -3,8 +3,6 @@
 
 const SHA3_FLAGS_KECCAK: i32 = 1;
 const SHA3_FLAGS_NONE: i32 = 0;
-const ED448_BYTES: usize = 57;
-const ED448_SIG_BYTES: usize = ED448_BYTES * 2;
 
 extern "C" {
 	// AES
@@ -19,37 +17,6 @@ extern "C" {
 	pub fn sha3_Update(ctx: *mut u8, input: *const u8, len: usize);
 	pub fn sha3_Finalize(ctx: *mut u8) -> *const u8;
 	pub fn sha3_SetFlags(ctx: *mut u8, flags: i32);
-
-	// ed448
-	pub fn ossl_c448_ed448_derive_public_key(
-		ctx: *mut u8,
-		pubkey: *mut u8,
-		privkey: *const u8,
-		propq: *const u8,
-	) -> i32;
-	pub fn ossl_c448_ed448_sign(
-		ctx: *mut u8,
-		signature: *mut u8,
-		privkey: *const u8,
-		pubkey: *const u8,
-		message: *const u8,
-		message_len: usize,
-		prehashed: u8,
-		context: *const u8,
-		context_len: usize,
-		propq: *const u8,
-	) -> i32;
-	pub fn ossl_c448_ed448_verify(
-		ctx: *mut u8,
-		signature: *const u8,
-		pubkey: *const u8,
-		message: *const u8,
-		message_len: usize,
-		prehashed: u8,
-		context: *const u8,
-		context_len: usize,
-		propq: *const u8,
-	) -> i32;
 
 }
 
@@ -91,7 +58,6 @@ pub fn safe_sha3_Finalize(ctx: *mut u8) -> *const u8 {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use prelude::*;
 
 	#[test]
 	fn test_aes1() {
@@ -221,171 +187,5 @@ mod test {
 
 		// Release the context.
 		crate::sys::safe_release(ctx);
-	}
-
-	#[repr(C)] // Ensure that the struct layout matches C's struct layout
-	pub struct Curve448Point {
-		x: [u8; 32],
-		y: [u8; 32],
-		z: [u8; 32],
-		t: [u8; 32],
-	}
-
-	#[repr(C)]
-	pub struct Curve448Scalar {
-		limb: [u64; 7], // Adjust size if necessary
-	}
-
-	//type curve448_scalar_t = *mut Curve448Scalar;
-
-	extern "C" {
-		fn ossl_curve448_precomputed_scalarmul_with_base_table(
-			p: *mut Curve448Point,
-			s: Curve448Scalar,
-		);
-	}
-
-	fn privkey_to_scalar(privkey: &[u8; ED448_BYTES]) -> Curve448Scalar {
-		let mut scalar = Curve448Scalar { limb: [0u64; 7] };
-		// Convert the byte array into the scalar limbs (this assumes that you are using little-endian byte order)
-		for i in 0..ED448_BYTES / 8 {
-			scalar.limb[i] = u64::from_le_bytes(privkey[i * 8..(i + 1) * 8].try_into().unwrap());
-		}
-		scalar
-	}
-
-	#[test]
-	fn test_448_keygen() {
-		let ctx: *mut u8 = crate::sys::safe_alloc(10000) as *mut u8;
-
-		// The provided private key (hexadecimal values converted to bytes)
-		let privkey: [u8; ED448_BYTES] = [
-			0x6c, 0x82, 0xa5, 0x62, 0xcb, 0x80, 0x8d, 0x10, 0xd6, 0x32, 0xbe, 0x89, 0xc8, 0x51,
-			0x3e, 0xbf, 0x6c, 0x92, 0x9f, 0x34, 0xdd, 0xfa, 0x8c, 0x9f, 0x63, 0xc9, 0x96, 0x0e,
-			0xf6, 0xe3, 0x48, 0xa3, 0x52, 0x8c, 0x8a, 0x3f, 0xcc, 0x2f, 0x04, 0x4e, 0x39, 0xa3,
-			0xfc, 0x5b, 0x94, 0x49, 0x2f, 0x8f, 0x03, 0x2e, 0x75, 0x49, 0xa2, 0x00, 0x98, 0xf9,
-			0x5b,
-		];
-
-		// Test public key derivation
-		let mut derived_pubkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
-		let propq = crate::sys::safe_alloc(10000) as *mut u8;
-		unsafe {
-			let result = ossl_c448_ed448_derive_public_key(
-				ctx,
-				&mut derived_pubkey as *mut u8,
-				&privkey as *const u8,
-				propq,
-			);
-			assert_eq!(result, -1); // Ensure key derivation succeeds
-		}
-
-		// Convert the private key to a Curve448Scalar
-		let scalar = privkey_to_scalar(&privkey);
-
-		// Create a Curve448Point to hold the public key
-		let mut point: Curve448Point = Curve448Point {
-			x: [0; 32],
-			y: [0; 32],
-			z: [0; 32],
-			t: [0; 32],
-		};
-
-		// Perform scalar multiplication with the precomputed base table
-		unsafe {
-			ossl_curve448_precomputed_scalarmul_with_base_table(
-				&mut point as *mut Curve448Point,
-				scalar,
-			);
-		}
-
-		// Now, `point` contains the computed public key.
-		// Compare the computed public key (`point`) with the `derived_pubkey`.
-		// Check if the computed public key matches the derived public key.
-		//assert_eq!(point.x, derived_pubkey[0..32]);
-		//assert_eq!(point.y, derived_pubkey[32..64]);
-	}
-
-	#[test]
-	fn test_448_1() {
-		let ctx: *mut u8 = crate::sys::safe_alloc(10000) as *mut u8;
-
-		// Sample private and public keys (use actual key material in real use cases)
-		let privkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
-		let pubkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
-
-		// Sample message and context
-		let message = b"Hello, world!";
-		let context = b"SomeContext";
-
-		// Test public key derivation
-		let mut derived_pubkey: [u8; ED448_BYTES] = [0u8; ED448_BYTES];
-		let propq = crate::sys::safe_alloc(10000) as *mut u8;
-		unsafe {
-			let result = ossl_c448_ed448_derive_public_key(
-				ctx,
-				&mut derived_pubkey as *mut u8,
-				&privkey as *const u8,
-				propq,
-			);
-			assert_eq!(result, -1);
-		}
-
-		// Test signing
-		let mut signature: [u8; ED448_SIG_BYTES] = [0u8; ED448_SIG_BYTES];
-		let prehashed = 0; // Use 0 for non-prehashed messages, or 1 for prehashed
-		let context_len = context.len();
-		unsafe {
-			let sign_result = ossl_c448_ed448_sign(
-				ctx,
-				&mut signature as *mut u8,
-				&privkey as *const u8,
-				&pubkey as *const u8,
-				message.as_ptr(),
-				message.len(),
-				prehashed,
-				context.as_ptr(),
-				context_len,
-				propq,
-			);
-			assert_eq!(sign_result, -1);
-		}
-
-		// Test verification
-		let mut _verify_result: i32;
-		unsafe {
-			_verify_result = ossl_c448_ed448_verify(
-				ctx,
-				&signature as *const u8,
-				&pubkey as *const u8,
-				message.as_ptr(),
-				message.len(),
-				prehashed,
-				context.as_ptr(),
-				context_len,
-				propq,
-			);
-		}
-
-		//assert_eq!(verify_result, -1);
-
-		signature[0] = 0;
-		signature[1] = 0;
-
-		unsafe {
-			_verify_result = ossl_c448_ed448_verify(
-				ctx,
-				&signature as *const u8,
-				&pubkey as *const u8,
-				message.as_ptr(),
-				message.len(),
-				prehashed,
-				context.as_ptr(),
-				context_len,
-				propq,
-			);
-		}
-
-		//assert_eq!(verify_result, 0);
 	}
 }
