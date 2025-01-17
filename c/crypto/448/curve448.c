@@ -12,6 +12,7 @@
 // #include <openssl/crypto.h>
 // #include "crypto/ecx.h"
 #include <stdint.h>
+#include <stdio.h>
 
 #include "curve448_local.h"
 #include "ed448.h"
@@ -250,6 +251,12 @@ void ossl_curve448_precomputed_scalarmul(curve448_point_t out,
 
 	OPENSSL_cleanse(ni, sizeof(ni));
 	OPENSSL_cleanse(scalar1x, sizeof(scalar1x));
+}
+
+void ossl_curve448_precomputed_scalarmul_with_base_table(
+    curve448_point_t out, const curve448_scalar_t scalar) {
+	ossl_curve448_precomputed_scalarmul(out, ossl_curve448_precomputed_base,
+					    scalar);
 }
 
 void ossl_curve448_point_mul_by_ratio_and_encode_like_eddsa(

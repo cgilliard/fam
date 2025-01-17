@@ -80,7 +80,11 @@ typedef enum {
 
 /* Return success if x is true */
 static ossl_inline c448_error_t c448_succeed_if(c448_bool_t x) {
-	return (c448_error_t)x;
+	if (x)
+		return C448_SUCCESS;
+	else
+		return C448_FAILURE;
+	// return (c448_error_t)x;
 }
 
 #endif /* __C448_COMMON_H__ */

@@ -29,7 +29,7 @@ static c448_error_t oneshot_hash(OSSL_LIB_CTX *ctx, uint8_t *out, size_t outlen,
 				 const char *propq) {
 	// Assuming SHAKE256 corresponds to 256-bit output
 	const unsigned bitSize = 256;
-	const enum SHA3_FLAGS flags = SHA3_FLAGS_KECCAK;
+	const enum SHA3_FLAGS flags = SHA3_FLAGS_NONE;
 
 	// Use your sha3_HashBuffer_sq function
 	sha3_return_t ret =
@@ -66,7 +66,7 @@ static c448_error_t hash_init_with_dom(OSSL_LIB_CTX *ctx, sha3_context *hashctx,
 	dom[1] = (uint8_t)context_len;
 
 	/* Initialize SHA3 context with SHAKE256 configuration */
-	sha3_Init(hashctx, 256);  // SHAKE256 uses 256-bit initialization
+	sha3_Init256(hashctx);	// SHAKE256 uses 256-bit initialization
 
 	/* Feed domain-specific data into the hash */
 	sha3_Update(hashctx, dom_s, sizeof(dom_s) - 1);	 // "SigEd448" prefix
@@ -127,9 +127,11 @@ c448_error_t ossl_c448_ed448_derive_public_key(
 	unsigned int c;
 	curve448_point_t p;
 
-	if (!oneshot_hash(ctx, secret_scalar_ser, sizeof(secret_scalar_ser),
-			  privkey, EDDSA_448_PRIVATE_BYTES, propq))
+	if (oneshot_hash(ctx, secret_scalar_ser, sizeof(secret_scalar_ser),
+			 privkey, EDDSA_448_PRIVATE_BYTES,
+			 propq) != C448_SUCCESS) {
 		return C448_FAILURE;
+	}
 
 	clamp(secret_scalar_ser);
 
@@ -156,7 +158,6 @@ c448_error_t ossl_c448_ed448_derive_public_key(
 	ossl_curve448_scalar_destroy(secret_scalar);
 	ossl_curve448_point_destroy(p);
 	OPENSSL_cleanse(secret_scalar_ser, sizeof(secret_scalar_ser));
-
 	return C448_SUCCESS;
 }
 
@@ -177,18 +178,17 @@ c448_error_t ossl_c448_ed448_sign(
 	{
 		uint8_t expanded[EDDSA_448_PRIVATE_BYTES * 2];
 		sha3_context ctx_hash;
-
 		// Hash the private key to expand it
-		sha3_Init(&ctx_hash, 2 * EDDSA_448_PRIVATE_BYTES * 8);
+		sha3_Init256(&ctx_hash);
+		sha3_SetFlags(&ctx_hash, SHA3_FLAGS_NONE);
 		sha3_Update(&ctx_hash, privkey, EDDSA_448_PRIVATE_BYTES);
 		memcpy(expanded, sha3_Finalize(&ctx_hash), sizeof(expanded));
-
 		clamp(expanded);
 		ossl_curve448_scalar_decode_long(secret_scalar, expanded,
 						 EDDSA_448_PRIVATE_BYTES);
 
 		// Hash to initialize the nonce
-		sha3_Init(&ctx_hash, 2 * EDDSA_448_PRIVATE_BYTES * 8);
+		sha3_Init256(&ctx_hash);
 		sha3_Update(&ctx_hash, expanded + EDDSA_448_PRIVATE_BYTES,
 			    EDDSA_448_PRIVATE_BYTES);
 		sha3_Update(&ctx_hash, message, message_len);
@@ -202,7 +202,7 @@ c448_error_t ossl_c448_ed448_sign(
 		uint8_t nonce[2 * EDDSA_448_PRIVATE_BYTES];
 		sha3_context ctx_hash;
 
-		sha3_Init(&ctx_hash, 2 * EDDSA_448_PRIVATE_BYTES * 8);
+		sha3_Init256(&ctx_hash);
 		sha3_Update(&ctx_hash, privkey, EDDSA_448_PRIVATE_BYTES);
 		memcpy(nonce, sha3_Finalize(&ctx_hash), sizeof(nonce));
 
@@ -234,7 +234,7 @@ c448_error_t ossl_c448_ed448_sign(
 		uint8_t challenge[2 * EDDSA_448_PRIVATE_BYTES];
 		sha3_context ctx_hash;
 
-		sha3_Init(&ctx_hash, 2 * EDDSA_448_PRIVATE_BYTES * 8);
+		sha3_Init256(&ctx_hash);
 		sha3_Update(&ctx_hash, nonce_point, sizeof(nonce_point));
 		sha3_Update(&ctx_hash, pubkey, EDDSA_448_PUBLIC_BYTES);
 		sha3_Update(&ctx_hash, message, message_len);
@@ -516,20 +516,27 @@ c448_error_t ossl_c448_ed448_verify(
 	 * publicly invalid.
 	 */
 	for (i = EDDSA_448_PUBLIC_BYTES - 1; i >= 0; i--) {
-		if (signature[i + EDDSA_448_PUBLIC_BYTES] > order[i])
+		if (signature[i + EDDSA_448_PUBLIC_BYTES] > order[i]) {
 			return C448_FAILURE;
+		}
 		if (signature[i + EDDSA_448_PUBLIC_BYTES] < order[i]) break;
 	}
-	if (i < 0) return C448_FAILURE;
+	if (i < 0) {
+		return C448_FAILURE;
+	}
 
 	error = ossl_curve448_point_decode_like_eddsa_and_mul_by_ratio(pk_point,
 								       pubkey);
 
-	if (C448_SUCCESS != error) return error;
+	if (C448_SUCCESS != error) {
+		return error;
+	}
 
 	error = ossl_curve448_point_decode_like_eddsa_and_mul_by_ratio(
 	    r_point, signature);
-	if (C448_SUCCESS != error) return error;
+	if (C448_SUCCESS != error) {
+		return error;
+	}
 
 	{
 		/* Compute the challenge */
@@ -539,7 +546,7 @@ c448_error_t ossl_c448_ed448_verify(
 						    // challenge on the stack
 
 		/* Initialize SHA3 context */
-		sha3_Init(&hashctx, 256);  // SHAKE256 initialization
+		sha3_Init256(&hashctx);	 // SHAKE256 initialization
 
 		/* Feed domain-specific data into the hash */
 		sha3_Update(&hashctx, signature, EDDSA_448_PUBLIC_BYTES);
@@ -574,6 +581,7 @@ c448_error_t ossl_c448_ed448_verify(
 	/* pk_point = -c(x(P)) + (cx + k)G = kG */
 	ossl_curve448_base_double_scalarmul_non_secret(
 	    pk_point, response_scalar, pk_point, challenge_scalar);
+
 	return c448_succeed_if(ossl_curve448_point_eq(pk_point, r_point));
 }
 
