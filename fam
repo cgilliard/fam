@@ -80,7 +80,7 @@ if [ "$all" = "1" ]; then
                         || exit 1;
         fi
 	echo "${cc} ${ccflags} -o bin/fam .obj/*.o";
-        ${cc} ${ccflags} -o bin/fam .obj/*.o
+       	${cc} ${ccflags} -o bin/fam .obj/*.o || exit 1;
 fi
 if [ "$clean" = "1" ]; then
 	rm -rf .obj/* libtest.a bin/* rust/test_deps/*/target
