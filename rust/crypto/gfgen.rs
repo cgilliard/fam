@@ -18,6 +18,33 @@ macro_rules! define_gfgen {
 			#[derive(Clone, Copy)]
 			pub struct $typename([u64; $typename::N]);
 
+			const fn wrapping_neg(x: u64) -> u64 {
+				((!x as u128) + 1) as u64
+			}
+
+			const fn wrapping_mul(a: u64, b: u64) -> u64 {
+				let product = (a as u128) * (b as u128);
+				product as u64
+			}
+
+			const fn wrapping_add(a: u64, b: u64) -> u64 {
+				let sum = (a as u128) + (b as u128);
+				sum as u64
+			}
+
+			const fn wrapping_sub(a: u64, b: u64) -> u64 {
+				let result = (a as i128) - (b as i128);
+				result as u64
+			}
+
+			const fn wrapping_sub_u128(a: u128, b: u128) -> u128 {
+				if a >= b {
+					a - b
+				} else {
+					a + (0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFu128 - b + 1)
+				}
+			}
+
 			impl $typename {
 				const N: usize = Self::top_word_index() + 1;
 				const BITLEN: usize = Self::mod_bitlen();
@@ -57,6 +84,33 @@ macro_rules! define_gfgen {
 					Self::R2,
 				);
 				const SQRT_EXP: [u64; Self::N] = Self::const_sqrt_exp();
+
+				const fn wrapping_mul(a: u64, b: u64) -> u64 {
+					let product = (a as u128) * (b as u128);
+					product as u64
+				}
+
+				const fn wrapping_add(a: u64, b: u64) -> u64 {
+					let sum = (a as u128) + (b as u128);
+					sum as u64
+				}
+
+				const fn wrapping_sub(a: u64, b: u64) -> u64 {
+					let result = (a as i128) - (b as i128);
+					result as u64
+				}
+
+				const fn wrapping_sub_u128(a: u128, b: u128) -> u128 {
+					if a >= b {
+						a - b
+					} else {
+						a + (0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFu128 - b + 1)
+					}
+				}
+
+				const fn wrapping_neg(x: u64) -> u64 {
+					((!x as u128) + 1) as u64
+				}
 
 				// Create an element from its 64-bit limbs, provided in little-endian
 				// order (least significant limb first). This function is meant to be
@@ -184,6 +238,11 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						(self.0[i], cc2) = subborrow_u64(self.0[i], Self::MODULUS[i], cc2);
 					}
+
+					/*
+					let cc1 = Self::wrapping_neg(cc1 as u64);
+					let cc2 = Self::wrapping_neg(cc2 as u64);
+										*/
 					let cc1 = (cc1 as u64).wrapping_neg();
 					let cc2 = (cc2 as u64).wrapping_neg();
 					let m = cc2 & !cc1;
@@ -213,6 +272,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						(self.0[i], cc1) = subborrow_u64(0, self.0[i], cc1);
 					}
+					//let m = Self::wrapping_neg(cc1 as u64);
 					let m = (cc1 as u64).wrapping_neg();
 					let mut cc2 = 0;
 					for i in 0..Self::N {
@@ -247,7 +307,7 @@ macro_rules! define_gfgen {
 
 				fn set_montyred(&mut self) {
 					for _ in 0..Self::N {
-						let f = self.0[0].wrapping_mul(Self::M0I);
+						let f = wrapping_mul(self.0[0], Self::M0I);
 						let (_, mut cc) = umull_add(f, Self::MODULUS[0], self.0[0]);
 						for i in 1..Self::N {
 							let (d, hi) = umull_add2(f, Self::MODULUS[i], self.0[i], cc);
@@ -266,7 +326,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						let f = rhs.0[i];
 						let (lo, mut cc1) = umull_add(f, self.0[0], t.0[0]);
-						let g = lo.wrapping_mul(Self::M0I);
+						let g = wrapping_mul(lo, Self::M0I);
 						let (_, mut cc2) = umull_add(g, Self::MODULUS[0], lo);
 						for j in 1..Self::N {
 							let (d, hi1) = umull_add2(f, self.0[j], t.0[j], cc1);
@@ -287,7 +347,7 @@ macro_rules! define_gfgen {
 						t.0[i] = d;
 						cc = ee;
 					}
-					let mm = (cch as u64).wrapping_sub(cc as u64);
+					let mm = Self::wrapping_sub(cch as u64, cc as u64);
 					cc = 0;
 					for i in 0..Self::N {
 						let (d, ee) = addcarry_u64(t.0[i], mm & Self::MODULUS[i], cc);
@@ -394,7 +454,8 @@ macro_rules! define_gfgen {
 				/// Halve this value.
 				#[inline]
 				pub fn set_half(&mut self) {
-					let m = (self.0[0] & 1).wrapping_neg();
+					//let m = Self::wrapping_neg(self.0[0] & 1);
+					let m = Self::wrapping_neg(self.0[0] & 1);
 					let (mut dd, mut cc) = addcarry_u64(self.0[0], m & Self::MODULUS[0], 0);
 					dd >>= 1;
 					for i in 1..Self::N {
@@ -572,10 +633,10 @@ macro_rules! define_gfgen {
 
 					// Compute b = floor(x1/p1).
 					let (_, t) = umull(x1, Self::P1DIV_M);
-					let b = (x1.wrapping_sub(t) >> 1).wrapping_add(t) >> 31;
+					let b = Self::wrapping_add(Self::wrapping_sub(x1, t) >> 1, t) >> 31;
 
 					// Add 1 to b, unless b == p1 (we cannot have b > p1).
-					let b = b + (Self::P1.wrapping_sub(b) >> 63);
+					let b = b + (Self::wrapping_sub(Self::P1, b) >> 63);
 
 					// Subtract b*p from x.
 					let mut cc1 = 0;
@@ -615,10 +676,10 @@ macro_rules! define_gfgen {
 				fn set_montylin(&mut self, u: &Self, v: &Self, f: u64, g: u64) {
 					// Make sure f and g are non-negative.
 					let sf = sgnw(f);
-					let f = (f ^ sf).wrapping_sub(sf);
+					let f = Self::wrapping_sub(f ^ sf, sf);
 					let tu = Self::select(u, &-u, sf as u32);
 					let sg = sgnw(g);
-					let g = (g ^ sg).wrapping_sub(sg);
+					let g = Self::wrapping_sub(g ^ sg, sg);
 					let tv = Self::select(v, &-v, sg as u32);
 
 					let (d, mut cc) = umull_x2(tu.0[0], f, tv.0[0], g);
@@ -631,7 +692,7 @@ macro_rules! define_gfgen {
 					let up = cc;
 
 					// Montgomery reduction (one round)
-					let k = self.0[0].wrapping_mul(Self::M0I);
+					let k = wrapping_mul(self.0[0], Self::M0I);
 					let (_, mut cc) = umull_add(k, Self::MODULUS[0], self.0[0]);
 					for i in 1..Self::N {
 						let (d, hi) = umull_add2(k, Self::MODULUS[i], self.0[i], cc);
@@ -650,7 +711,7 @@ macro_rules! define_gfgen {
 						self.0[i] = d;
 						cc2 = ee;
 					}
-					let mm = (cc1 as u64).wrapping_sub(cc2 as u64);
+					let mm = Self::wrapping_sub(cc1 as u64, cc2 as u64);
 					let mut cc = 0;
 					for i in 0..Self::N {
 						let (d, ee) = addcarry_u64(self.0[i], mm & Self::MODULUS[i], cc);
@@ -679,9 +740,9 @@ macro_rules! define_gfgen {
 					// Replace f and g with abs(f) and abs(g), but remember the
 					// original signs.
 					let sf = sgnw(f);
-					let f = (f ^ sf).wrapping_sub(sf);
+					let f = Self::wrapping_sub(f ^ sf, sf);
 					let sg = sgnw(g);
-					let g = (g ^ sg).wrapping_sub(sg);
+					let g = Self::wrapping_sub(g ^ sg, sg);
 
 					// Compute a*f + b*g (upper word in 'up')
 					let mut cc1 = 0;
@@ -696,9 +757,8 @@ macro_rules! define_gfgen {
 						self.0[i] = d3;
 						cc3 = hi3;
 					}
-					let up = cc3
-						.wrapping_sub((cc1 as u64).wrapping_neg() & f)
-						.wrapping_sub((cc2 as u64).wrapping_neg() & g);
+					let up = Self::wrapping_sub(cc3, Self::wrapping_neg(cc1 as u64) & f);
+					let up = Self::wrapping_sub(up, Self::wrapping_neg(cc2 as u64) & g);
 
 					// Right-shift the result by 31 bits.
 					for i in 0..(Self::N - 1) {
@@ -781,7 +841,7 @@ macro_rules! define_gfgen {
 							b_lo ^= (b_lo ^ bw) & c_lo;
 							c_lo = c_hi;
 							let mw = aw | bw;
-							c_hi &= ((mw | mw.wrapping_neg()) >> 63).wrapping_sub(1);
+							c_hi &= Self::wrapping_sub((mw | Self::wrapping_neg(mw)) >> 63, 1);
 						}
 
 						// If c_lo = 0, then we grabbed two words for a and b.
@@ -804,34 +864,35 @@ macro_rules! define_gfgen {
 						let mut fg0 = 1u64;
 						let mut fg1 = 1u64 << 32;
 						for _ in 0..31 {
-							let a_odd = (xa & 1).wrapping_neg();
+							let a_odd = Self::wrapping_neg(xa & 1);
 							let (_, cc) = subborrow_u64(xa, xb, 0);
-							let swap = a_odd & (cc as u64).wrapping_neg();
+							let swap = a_odd & Self::wrapping_neg(cc as u64);
 							let t1 = swap & (xa ^ xb);
 							xa ^= t1;
 							xb ^= t1;
 							let t2 = swap & (fg0 ^ fg1);
 							fg0 ^= t2;
 							fg1 ^= t2;
-							xa = xa.wrapping_sub(a_odd & xb);
-							fg0 = fg0.wrapping_sub(a_odd & fg1);
+							xa = Self::wrapping_sub(xa, a_odd & xb);
+							fg0 = Self::wrapping_sub(fg0, a_odd & fg1);
 							xa >>= 1;
 							fg1 <<= 1;
 						}
 						fg0 = fg0.wrapping_add(0x7FFFFFFF7FFFFFFF);
 						fg1 = fg1.wrapping_add(0x7FFFFFFF7FFFFFFF);
-						let f0 = (fg0 & 0xFFFFFFFF).wrapping_sub(0x7FFFFFFF);
-						let g0 = (fg0 >> 32).wrapping_sub(0x7FFFFFFF);
-						let f1 = (fg1 & 0xFFFFFFFF).wrapping_sub(0x7FFFFFFF);
-						let g1 = (fg1 >> 32).wrapping_sub(0x7FFFFFFF);
+						let f0 = Self::wrapping_sub(fg0 & 0xFFFFFFFF, 0x7FFFFFFF);
+						let g0 = Self::wrapping_sub(fg0 >> 32, 0x7FFFFFFF);
+						let f1 = Self::wrapping_sub(fg1 & 0xFFFFFFFF, 0x7FFFFFFF);
+						let g1 = Self::wrapping_sub(fg1 >> 32, 0x7FFFFFFF);
 
 						// Propagate updates to a, b, u and v.
 						let (na, nega) = Self::lindiv31abs(&a, &b, f0, g0);
 						let (nb, negb) = Self::lindiv31abs(&a, &b, f1, g1);
-						let f0 = (f0 ^ nega).wrapping_sub(nega);
-						let g0 = (g0 ^ nega).wrapping_sub(nega);
-						let f1 = (f1 ^ negb).wrapping_sub(negb);
-						let g1 = (g1 ^ negb).wrapping_sub(negb);
+						let f0 = Self::wrapping_sub(f0 ^ nega, nega);
+						let g0 = Self::wrapping_sub(g0 ^ nega, nega);
+						let f1 = Self::wrapping_sub(f1 ^ nega, negb);
+						let g1 = Self::wrapping_sub(g1 ^ negb, negb);
+
 						let nu = Self::montylin(&u, &v, f0, g0);
 						let nv = Self::montylin(&u, &v, f1, g1);
 						a = na;
@@ -853,9 +914,9 @@ macro_rules! define_gfgen {
 					let mut f1 = 0u64;
 					let mut g1 = 1u64;
 					for _ in 0..Self::NUM2 {
-						let a_odd = (xa & 1).wrapping_neg();
+						let a_odd = Self::wrapping_neg(xa & 1);
 						let (_, cc) = subborrow_u64(xa, xb, 0);
-						let swap = a_odd & (cc as u64).wrapping_neg();
+						let swap = a_odd & Self::wrapping_neg(cc as u64);
 						let t1 = swap & (xa ^ xb);
 						xa ^= t1;
 						xb ^= t1;
@@ -865,9 +926,9 @@ macro_rules! define_gfgen {
 						let t3 = swap & (g0 ^ g1);
 						g0 ^= t3;
 						g1 ^= t3;
-						xa = xa.wrapping_sub(a_odd & xb);
-						f0 = f0.wrapping_sub(a_odd & f1);
-						g0 = g0.wrapping_sub(a_odd & g1);
+						xa = Self::wrapping_sub(xa, a_odd & xb);
+						f0 = Self::wrapping_sub(f0, a_odd & f1);
+						g0 = Self::wrapping_sub(g0, a_odd & g1);
 						xa >>= 1;
 						f1 <<= 1;
 						g1 <<= 1;
@@ -1003,7 +1064,7 @@ macro_rules! define_gfgen {
 							b_lo ^= (b_lo ^ bw) & c_lo;
 							c_lo = c_hi;
 							let mw = aw | bw;
-							c_hi &= ((mw | mw.wrapping_neg()) >> 63).wrapping_sub(1);
+							c_hi &= Self::wrapping_sub((mw | Self::wrapping_neg(mw)) >> 63, 1);
 						}
 
 						// If c_lo = 0, then we grabbed two words for a and b.
@@ -1026,9 +1087,9 @@ macro_rules! define_gfgen {
 						let mut fg0 = 1u64;
 						let mut fg1 = 1u64 << 32;
 						for _ in 0..29 {
-							let a_odd = (xa & 1).wrapping_neg();
+							let a_odd = Self::wrapping_neg(xa & 1);
 							let (_, cc) = subborrow_u64(xa, xb, 0);
-							let swap = a_odd & (cc as u64).wrapping_neg();
+							let swap = a_odd & Self::wrapping_neg(cc as u64);
 							ls ^= swap & ((xa & xb) >> 1);
 							let t1 = swap & (xa ^ xb);
 							xa ^= t1;
@@ -1036,8 +1097,8 @@ macro_rules! define_gfgen {
 							let t2 = swap & (fg0 ^ fg1);
 							fg0 ^= t2;
 							fg1 ^= t2;
-							xa = xa.wrapping_sub(a_odd & xb);
-							fg0 = fg0.wrapping_sub(a_odd & fg1);
+							xa = Self::wrapping_sub(xa, a_odd & xb);
+							fg0 = Self::wrapping_sub(fg0, a_odd & fg1);
 							xa >>= 1;
 							fg1 <<= 1;
 							ls ^= xb.wrapping_add(2) >> 2;
@@ -1047,22 +1108,21 @@ macro_rules! define_gfgen {
 						// bits for the next two iterations.
 						let fg0z = fg0.wrapping_add(0x7FFFFFFF7FFFFFFF);
 						let fg1z = fg1.wrapping_add(0x7FFFFFFF7FFFFFFF);
-						let f0 = (fg0z & 0xFFFFFFFF).wrapping_sub(0x7FFFFFFF);
-						let g0 = (fg0z >> 32).wrapping_sub(0x7FFFFFFF);
-						let f1 = (fg1z & 0xFFFFFFFF).wrapping_sub(0x7FFFFFFF);
-						let g1 = (fg1z >> 32).wrapping_sub(0x7FFFFFFF);
-						let mut a0 = a.0[0]
-							.wrapping_mul(f0)
-							.wrapping_add(b.0[0].wrapping_mul(g0))
-							>> 29;
+						let f0 = Self::wrapping_sub(fg0z & 0xFFFFFFFF, 0x7FFFFFFF);
+						let g0 = Self::wrapping_sub(fg0z >> 32, 0x7FFFFFFF);
+						let f1 = Self::wrapping_sub(fg1z & 0xFFFFFFFF, 0x7FFFFFFF);
+						let g1 = Self::wrapping_sub(fg1z >> 32, 0x7FFFFFFF);
+
+						let mut a0 =
+							wrapping_mul(a.0[0], f0).wrapping_add(wrapping_mul(b.0[0], g0)) >> 29;
 						let mut b0 = a.0[0]
 							.wrapping_mul(f1)
-							.wrapping_add(b.0[0].wrapping_mul(g1))
+							.wrapping_add(wrapping_mul(b.0[0], g1))
 							>> 29;
 						for _ in 0..2 {
-							let a_odd = (xa & 1).wrapping_neg();
+							let a_odd = Self::wrapping_neg(xa & 1);
 							let (_, cc) = subborrow_u64(xa, xb, 0);
-							let swap = a_odd & (cc as u64).wrapping_neg();
+							let swap = a_odd & Self::wrapping_neg(cc as u64);
 							ls ^= swap & ((a0 & b0) >> 1);
 							let t1 = swap & (xa ^ xb);
 							xa ^= t1;
@@ -1073,9 +1133,9 @@ macro_rules! define_gfgen {
 							let t3 = swap & (a0 ^ b0);
 							a0 ^= t3;
 							b0 ^= t3;
-							xa = xa.wrapping_sub(a_odd & xb);
-							fg0 = fg0.wrapping_sub(a_odd & fg1);
-							a0 = a0.wrapping_sub(a_odd & b0);
+							xa = Self::wrapping_sub(xa, a_odd & xb);
+							fg0 = Self::wrapping_sub(fg0, a_odd & fg1);
+							a0 = Self::wrapping_sub(a0, a_odd & b0);
 							xa >>= 1;
 							fg1 <<= 1;
 							a0 >>= 1;
@@ -1085,10 +1145,11 @@ macro_rules! define_gfgen {
 						// Propagate updates to a and b.
 						fg0 = fg0.wrapping_add(0x7FFFFFFF7FFFFFFF);
 						fg1 = fg1.wrapping_add(0x7FFFFFFF7FFFFFFF);
-						let f0 = (fg0 & 0xFFFFFFFF).wrapping_sub(0x7FFFFFFF);
-						let g0 = (fg0 >> 32).wrapping_sub(0x7FFFFFFF);
-						let f1 = (fg1 & 0xFFFFFFFF).wrapping_sub(0x7FFFFFFF);
-						let g1 = (fg1 >> 32).wrapping_sub(0x7FFFFFFF);
+
+						let f0 = Self::wrapping_sub(fg0 & 0xFFFFFFFF, 0x7FFFFFFF);
+						let g0 = Self::wrapping_sub(fg0 >> 32, 0x7FFFFFFF);
+						let f1 = Self::wrapping_sub(fg1 & 0xFFFFFFFF, 0x7FFFFFFF);
+						let g1 = Self::wrapping_sub(fg1 >> 32, 0x7FFFFFFF);
 
 						// Propagate updates to a, b, u and v.
 						let (na, nega) = Self::lindiv31abs(&a, &b, f0, g0);
@@ -1107,14 +1168,14 @@ macro_rules! define_gfgen {
 					let mut xa = a.0[0];
 					let mut xb = b.0[0];
 					for _ in 0..Self::NUM2 {
-						let a_odd = (xa & 1).wrapping_neg();
+						let a_odd = Self::wrapping_neg(xa & 1);
 						let (_, cc) = subborrow_u64(xa, xb, 0);
-						let swap = a_odd & (cc as u64).wrapping_neg();
+						let swap = a_odd & Self::wrapping_neg(cc as u64);
 						ls ^= swap & ((xa & xb) >> 1);
 						let t1 = swap & (xa ^ xb);
 						xa ^= t1;
 						xb ^= t1;
-						xa = xa.wrapping_sub(a_odd & xb);
+						xa = Self::wrapping_sub(xa, a_odd & xb);
 						xa >>= 1;
 						ls ^= xb.wrapping_add(2) >> 2;
 					}
@@ -1123,7 +1184,7 @@ macro_rules! define_gfgen {
 					// bit of ls contains the QR status (0 = square, 1 = non-square),
 					// which we need to convert to the expected value (+1 or -1).
 					// If y == 0, then we return 0, per the API.
-					let r = 1u32.wrapping_sub(((ls as u32) & 1) << 1);
+					let r = Self::wrapping_sub(1, ((ls as u64) & 1) << 1 as u64) as u32;
 					(r & !self.iszero()) as i32
 				}
 
@@ -1222,7 +1283,7 @@ macro_rules! define_gfgen {
 					// Normalize square root so that its least significant bit is 0.
 					self.set_cond(
 						&-(self as &Self),
-						((self.encode()[0] as u32) & 1).wrapping_neg(),
+						Self::wrapping_neg((self.encode()[0] as u64) & 1) as u32,
 					);
 
 					// Check computed square root to set the result status. The
@@ -1412,7 +1473,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						r |= self.0[i] ^ rhs.0[i];
 					}
-					((r | r.wrapping_neg()) >> 63).wrapping_sub(1) as u32
+					((r | Self::wrapping_neg(r)) >> 63).wrapping_sub(1) as u32
 				}
 
 				// Compare this value with zero (constant-time): returned value
@@ -1425,7 +1486,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						r |= self.0[i];
 					}
-					((r | r.wrapping_neg()) >> 63).wrapping_sub(1) as u32
+					Self::wrapping_sub((r | Self::wrapping_neg(r)) >> 63, 1) as u32
 				}
 
 				// Encode this value into bytes (unsigned little-endian encoding
@@ -1492,7 +1553,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						(_, cc) = subborrow_u64(self.0[i], Self::MODULUS[i], cc);
 					}
-					let r = (cc as u32).wrapping_neg();
+					let r = Self::wrapping_neg(cc as u64) as u32;
 					self.set_cond(&Self::ZERO, !r);
 
 					// Convert to Montgomery representation.
@@ -1585,7 +1646,7 @@ macro_rules! define_gfgen {
 							self.0[i] = w;
 							cc = ee;
 						}
-						let m = (cc as u64).wrapping_neg();
+						let m = Self::wrapping_neg(cc as u64);
 						cc = 0;
 						for i in 0..Self::N {
 							let (w, ee) = subborrow_u64(self.0[i], m & Self::MODULUS[i], cc);
@@ -1615,13 +1676,13 @@ macro_rules! define_gfgen {
 
 				// Return -1/x mod 2^64. It is assumed that x is odd.
 				const fn ninv64(x: u64) -> u64 {
-					let y = ((2i128 - x as i128) & 0xFFFF_FFFF_FFFF_FFFF) as u64;
-					let y = y.wrapping_mul(2u64.wrapping_sub(y.wrapping_mul(x)));
-					let y = y.wrapping_mul(2u64.wrapping_sub(y.wrapping_mul(x)));
-					let y = y.wrapping_mul(2u64.wrapping_sub(y.wrapping_mul(x)));
-					let y = y.wrapping_mul(2u64.wrapping_sub(y.wrapping_mul(x)));
-					let y = y.wrapping_mul(2u64.wrapping_sub(y.wrapping_mul(x)));
-					y.wrapping_neg()
+					let y = Self::wrapping_sub(2, x);
+					let y = Self::wrapping_mul(y, Self::wrapping_sub(2, Self::wrapping_mul(y, x)));
+					let y = Self::wrapping_mul(y, Self::wrapping_sub(2, Self::wrapping_mul(y, x)));
+					let y = Self::wrapping_mul(y, Self::wrapping_sub(2, Self::wrapping_mul(y, x)));
+					let y = Self::wrapping_mul(y, Self::wrapping_sub(2, Self::wrapping_mul(y, x)));
+					let y = Self::wrapping_mul(y, Self::wrapping_sub(2, Self::wrapping_mul(y, x)));
+					Self::wrapping_neg(y)
 				}
 
 				// Custom add-with-carry, for use in const (compile-time) contexts.
@@ -1632,8 +1693,10 @@ macro_rules! define_gfgen {
 
 				// Custom sub-with-borrow, for use in const (compile-time) contexts.
 				const fn sbb(x: u64, y: u64, cc: u64) -> (u64, u64) {
-					let z = (x as u128).wrapping_sub(y as u128).wrapping_sub(cc as u128);
-					(z as u64, ((z >> 64) as u64).wrapping_neg())
+					let z = Self::wrapping_sub_u128(x as u128, y as u128);
+					let z = Self::wrapping_sub_u128(z, cc as u128);
+
+					(z as u64, Self::wrapping_neg((z >> 64) as u64))
 				}
 
 				// Subtract the modulus, return borrow (compile-time).
@@ -1779,7 +1842,7 @@ macro_rules! define_gfgen {
 						} else {
 							let (d, dh) = lsh_inner(d, 0, 0);
 							let (d, cc) = $typename::subm(d);
-							let d = $typename::addm_cond(d, (cc & !dh).wrapping_neg());
+							let d = $typename::addm_cond(d, wrapping_neg(cc & !dh));
 							pow2mod_inner(d, n - 1)
 						}
 					}

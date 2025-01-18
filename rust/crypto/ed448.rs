@@ -4244,8 +4244,9 @@ mod tests {
 			let Q_enc = hex_decode(tv.Q).unwrap();
 			let msg = hex_decode(tv.m).unwrap();
 			let ctx = hex_decode(tv.ctx).unwrap();
-			let v = hex_decode(tv.sig).unwrap();
-			let sig = &v[0..v.len()];
+			let mut v = hex_decode(tv.sig).unwrap();
+			let len = v.len();
+			let sig = &mut v[0..len];
 
 			let skey = PrivateKey::from_seed(&seed[0..seed.len()]);
 			assert!(&Q_enc[0..Q_enc.len()] == skey.public_key.encode());
@@ -4278,6 +4279,12 @@ mod tests {
 				assert!(!pkey.verify_ctx(&sig, &ctx[0..ctx.len()], &[0u8]));
 				if ctx.len() == 0 {
 					assert!(pkey.verify_raw(&sig, &msg[0..msg.len()]));
+					if sig[0] != 0 {
+						sig[0] = 0;
+					} else {
+						sig[0] = 1;
+					}
+					assert!(!pkey.verify_raw(&sig, &msg[0..msg.len()]));
 				}
 			}
 		}
