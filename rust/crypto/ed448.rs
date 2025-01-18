@@ -77,18 +77,20 @@
 // using lowercase only for affine coordinates.
 #![allow(non_snake_case)]
 
-//use super::field::GF448;
+use crate::crypto::gf448::GF448;
 use crate::crypto::sha3::SHAKE256;
 use core::convert::TryFrom;
 use core::iter::Iterator;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use prelude::*;
+use sys::rand_bytes;
 //use super::{CryptoRng, RngCore};
-//use crate::backend::define_gfgen;
+use crate::crypto::gfgen::define_gfgen;
+use crate::crypto::gfgen::define_gfgen_tests;
 //use crate::backend::define_gfgen_tests;
 
 /// A point on the Edwards curve edwards448.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Point {
 	// We use projective coordinates, as suggested by RFC 8032.
 	//
@@ -151,7 +153,7 @@ impl ScalarParams {
 		0x3FFFFFFFFFFFFFFF,
 	];
 }
-define_gfgen!(Scalar, ScalarParams, scalarmod, true);
+define_gfgen!(Scalar, ScalarParams, true);
 define_gfgen_tests!(Scalar, 2, tests_scalarmod);
 
 impl Point {
@@ -374,7 +376,6 @@ impl Point {
 		});
 	}
 
-	/// Doubles this point (in place).
 	pub fn set_double(&mut self) {
 		let (X1, Y1, Z1) = (&self.X, &self.Y, &self.Z);
 
@@ -385,9 +386,9 @@ impl Point {
 		let E = C + D;
 		let H = Z1.square();
 		let J = E - H.mul2();
-		self.X = (B - E) * J;
-		self.Y = E * (C - D);
-		self.Z = E * J;
+		self.X = (B - E) * J; // 1
+		self.Y = E * (C - D); // 2
+		self.Z = E * J; // 3
 	}
 
 	/// Doubles this point.
@@ -684,7 +685,9 @@ impl Point {
 		let mut acc_len: i32 = 0; // number of buffered bits
 		for j in 0..89 {
 			if acc_len < 5 {
-				acc |= (bb[i] as u32) << acc_len;
+				if i < bb.len() {
+					acc |= (bb[i] as u32) << acc_len;
+				}
 				acc_len += 8;
 				i += 1;
 			}
@@ -692,7 +695,9 @@ impl Point {
 			acc >>= 5;
 			acc_len -= 5;
 			let m = 16u32.wrapping_sub(d) >> 8;
-			sd[j] = (d.wrapping_sub(m & 32)) as i8;
+			if j < sd.len() {
+				sd[j] = (d.wrapping_sub(m & 32)) as i8;
+			}
 			cc = m & 1;
 		}
 		sd[89] = (acc + cc) as i8;
@@ -744,11 +749,10 @@ impl Point {
 			win[j - 1] = win[i - 1].double();
 			win[j] = win[j - 1] + win[0];
 		}
-		win[15] = win[7].double();
 
+		win[15] = win[7].double();
 		// Recode the scalar into 90 signed digits.
 		let sd = Self::recode_scalar(n);
-
 		// Process the digits in high-to-low order.
 		*self = Self::lookup(&win, sd[89]);
 		for i in (0..89).rev() {
@@ -888,14 +892,15 @@ impl Point {
 
 		let mut zz = true;
 		let mut ndbl = 0u32;
+
 		for i in (0..447).rev() {
 			// We have one more doubling to perform.
 			ndbl += 1;
 
 			// Get next digits. If they are all zeros, then we can loop
 			// immediately.
-			let e1 = sdu[i];
-			let e2 = sdv[i];
+			let e1 = if i < sdu.len() { sdu[i] } else { 0 };
+			let e2 = if i < sdv.len() { sdv[i] } else { 0 };
 			if ((e1 as u32) | (e2 as u32)) == 0 {
 				continue;
 			}
@@ -912,16 +917,24 @@ impl Point {
 			// Process digits.
 			if e1 != 0 {
 				if e1 > 0 {
-					self.set_add(&win[e1 as usize >> 1]);
+					if (e1 as usize >> 1) < win.len() {
+						self.set_add(&win[e1 as usize >> 1]);
+					}
 				} else {
-					self.set_sub(&win[(-e1) as usize >> 1]);
+					if ((-e1) as usize >> 1) < win.len() {
+						self.set_sub(&win[(-e1) as usize >> 1]);
+					}
 				}
 			}
 			if e2 != 0 {
 				if e2 > 0 {
-					self.set_add_affine(&PRECOMP_B[e2 as usize - 1]);
+					if (e2 as usize) - 1 < PRECOMP_B.len() {
+						self.set_add_affine(&PRECOMP_B[e2 as usize - 1]);
+					}
 				} else {
-					self.set_sub_affine(&PRECOMP_B[(-e2) as usize - 1]);
+					if ((-e2) as usize) - 1 < PRECOMP_B.len() {
+						self.set_sub_affine(&PRECOMP_B[(-e2) as usize - 1]);
+					}
 				}
 			}
 		}
@@ -1050,8 +1063,8 @@ impl Point {
 
 		let mut h0 = [0u8; 28];
 		let mut h1 = [0u8; 28];
-		h0[..].copy_from_slice(&c0[..28]);
-		h1[..].copy_from_slice(&c1[..28]);
+		h0[0..28].copy_from_slice(&c0[0..28]);
+		h1[0..28].copy_from_slice(&c1[0..28]);
 		let sd0 = Self::recode_halfwidth_NAF(&h0);
 		let sd1 = Self::recode_halfwidth_NAF(&h1);
 		let sds = Self::recode_scalar_NAF(&ss);
@@ -1077,6 +1090,7 @@ impl Point {
 		// Process all other digits. We coalesce long sequences of
 		// doublings to leverage the optimizations of xdouble().
 		let mut ndbl = 0u32;
+
 		for i in (0..225).rev() {
 			// We have one more doubling to perform.
 			ndbl += 1;
@@ -1086,7 +1100,12 @@ impl Point {
 			let e0 = sd0[i];
 			let e1 = sd1[i];
 			let e2 = sds[i];
-			let e3 = if i < 222 { sds[i + 225] } else { 0 };
+
+			let e3 = if i < 222 && i + 225 < sds.len() {
+				sds[i + 225]
+			} else {
+				0
+			};
 			if ((e0 as u32) | (e1 as u32) | (e2 as u32) | (e3 as u32)) == 0 {
 				continue;
 			}
@@ -1100,32 +1119,50 @@ impl Point {
 			ndbl = 0u32;
 
 			// Process digits.
+
 			if e0 != 0 {
 				if e0 > 0 {
-					T.set_add(&win0[e0 as usize >> 1]);
+					if e0 as usize >> 1 < win0.len() {
+						T.set_add(&win0[e0 as usize >> 1]);
+					}
 				} else {
-					T.set_sub(&win0[(-e0) as usize >> 1]);
+					if (-e0) as usize >> 1 < win0.len() {
+						T.set_sub(&win0[(-e0) as usize >> 1]);
+					}
 				}
 			}
+
 			if e1 != 0 {
 				if e1 > 0 {
-					T.set_add(&win1[e1 as usize >> 1]);
+					if e1 as usize >> 1 < win1.len() {
+						T.set_add(&win1[e1 as usize >> 1]);
+					}
 				} else {
-					T.set_sub(&win1[(-e1) as usize >> 1]);
+					if (-e1) as usize >> 1 < win1.len() {
+						T.set_sub(&win1[(-e1) as usize >> 1]);
+					}
 				}
 			}
 			if e2 != 0 {
 				if e2 > 0 {
-					T.set_add_affine(&PRECOMP_B[e2 as usize - 1]);
+					if e2 as usize - 1 < PRECOMP_B.len() {
+						T.set_add_affine(&PRECOMP_B[e2 as usize - 1]);
+					}
 				} else {
-					T.set_sub_affine(&PRECOMP_B[(-e2) as usize - 1]);
+					if (-e2) as usize - 1 < PRECOMP_B.len() {
+						T.set_sub_affine(&PRECOMP_B[(-e2) as usize - 1]);
+					}
 				}
 			}
 			if e3 != 0 {
 				if e3 > 0 {
-					T.set_add_affine(&PRECOMP_B225[e3 as usize - 1]);
+					if e3 as usize - 1 < PRECOMP_B225.len() {
+						T.set_add_affine(&PRECOMP_B225[e3 as usize - 1]);
+					}
 				} else {
-					T.set_sub_affine(&PRECOMP_B225[(-e3) as usize - 1]);
+					if (-e3) as usize - 1 < PRECOMP_B225.len() {
+						T.set_sub_affine(&PRECOMP_B225[(-e3) as usize - 1]);
+					}
 				}
 			}
 		}
@@ -1436,7 +1473,7 @@ impl SubAssign<&Point> for Point {
 /// cryptographically secure random source with at least 224 bits of
 /// entropy). From the seed are derived the secret scalar and the public
 /// key. The public key is a curve point, that can be encoded as such.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct PrivateKey {
 	s: Scalar,                 // secret scalar
 	seed: [u8; 57],            // source seed
@@ -1449,7 +1486,7 @@ pub struct PrivateKey {
 /// It wraps around the curve point, but also includes a copy of the
 /// encoded point. The point and its encoded version can be accessed
 /// directly; if modified, then the two values MUST match.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct PublicKey {
 	pub point: Point,
 	pub encoded: [u8; 57],
@@ -1462,7 +1499,9 @@ impl PrivateKey {
 	/// Generates a new private key from a cryptographically secure RNG.
 	pub fn generate() -> Self {
 		let mut seed = [0u8; 57];
-		//rng.fill_bytes(&mut seed);
+		unsafe {
+			rand_bytes(&mut seed as *mut u8, 57);
+		}
 		Self::from_seed(&seed)
 	}
 
@@ -1620,7 +1659,10 @@ impl PublicKey {
 	// the subgroup. The point may also be the curve neutral point, or a
 	// low order point.
 	pub fn decode(buf: &[u8]) -> Option<PublicKey> {
-		let point = Point::decode(buf)?;
+		let point = match Point::decode(buf) {
+			Some(p) => p,
+			None => return None,
+		};
 		let mut encoded = [0u8; 57];
 		encoded[..].copy_from_slice(&buf[0..57]);
 		Some(Self { point, encoded })
@@ -1742,7 +1784,7 @@ impl PublicKey {
 // 4 tables.
 
 /// A point in affine coordinates (x,y).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 struct PointAffine {
 	x: GF448,
 	y: GF448,
@@ -3803,7 +3845,26 @@ static PRECOMP_B375: [PointAffine; 16] = [
 mod tests {
 
 	use super::{Point, PrivateKey, PublicKey, Scalar};
-	use crate::sha3::SHAKE256;
+	use crate::crypto::sha3::SHAKE256;
+	use core::iter::Iterator;
+	use core::option::Option as CoreOption;
+	use prelude::*;
+
+	fn hex_decode(input: &str) -> Result<Vec<u8>, Error> {
+		if input.len() % 2 != 0 {
+			return Err(err!(IllegalArgument));
+		}
+		let mut result = Vec::new();
+
+		let mut chars = input.chars();
+		while let CoreOption::Some(high) = chars.next() {
+			let low = chars.next().unwrap();
+			let s = format!("{}{}", high, low).unwrap();
+			let byte = u8::from_str_radix(s.to_str(), 16).unwrap();
+			result.push(byte).unwrap();
+		}
+		Ok(result)
+	}
 
 	/* unused
 	use std::fmt;
@@ -4179,44 +4240,44 @@ mod tests {
 	#[test]
 	fn signatures() {
 		for tv in TEST_VECTORS.iter() {
-			let seed = hex::decode(tv.s).unwrap();
-			let Q_enc = hex::decode(tv.Q).unwrap();
-			let msg = hex::decode(tv.m).unwrap();
-			let ctx = hex::decode(tv.ctx).unwrap();
-			let mut sig = [0u8; 114];
-			hex::decode_to_slice(tv.sig, &mut sig[..]).unwrap();
+			let seed = hex_decode(tv.s).unwrap();
+			let Q_enc = hex_decode(tv.Q).unwrap();
+			let msg = hex_decode(tv.m).unwrap();
+			let ctx = hex_decode(tv.ctx).unwrap();
+			let v = hex_decode(tv.sig).unwrap();
+			let sig = &v[0..v.len()];
 
-			let skey = PrivateKey::from_seed(&seed[..]);
-			assert!(&Q_enc[..] == skey.public_key.encode());
+			let skey = PrivateKey::from_seed(&seed[0..seed.len()]);
+			assert!(&Q_enc[0..Q_enc.len()] == skey.public_key.encode());
 			if tv.ph {
 				let mut sh = SHAKE256::new();
-				sh.inject(&msg[..]);
+				sh.inject(&msg[0..msg.len()]);
 				let mut hm = [0u8; 64];
 				sh.flip_extract_reset(&mut hm);
-				assert!(skey.sign_ph(&ctx[..], &hm) == sig);
+				assert!(skey.sign_ph(&ctx[0..ctx.len()], &hm) == sig);
 			} else {
-				assert!(skey.sign_ctx(&ctx[..], &msg[..]) == sig);
+				assert!(skey.sign_ctx(&ctx[0..ctx.len()], &msg[0..msg.len()]) == sig);
 				if ctx.len() == 0 {
-					assert!(skey.sign_raw(&msg[..]) == sig);
+					assert!(skey.sign_raw(&msg[0..msg.len()]) == sig);
 				}
 			}
 
-			let pkey = PublicKey::decode(&Q_enc[..]).unwrap();
+			let pkey = PublicKey::decode(&Q_enc[0..Q_enc.len()]).unwrap();
 			if tv.ph {
 				let mut sh = SHAKE256::new();
-				sh.inject(&msg[..]);
+				sh.inject(&msg[0..msg.len()]);
 				let mut hm = [0u8; 64];
 				sh.flip_extract_reset(&mut hm);
-				assert!(pkey.verify_ph(&sig, &ctx[..], &hm));
+				assert!(pkey.verify_ph(&sig, &ctx[0..ctx.len()], &hm));
 				assert!(!pkey.verify_ph(&sig, &[1u8], &hm));
 				hm[42] ^= 0x08;
-				assert!(!pkey.verify_ph(&sig, &ctx[..], &hm));
+				assert!(!pkey.verify_ph(&sig, &ctx[0..ctx.len()], &hm));
 			} else {
-				assert!(pkey.verify_ctx(&sig, &ctx[..], &msg[..]));
-				assert!(!pkey.verify_ctx(&sig, &[1u8], &msg[..]));
-				assert!(!pkey.verify_ctx(&sig, &ctx[..], &[0u8]));
+				assert!(pkey.verify_ctx(&sig, &ctx[0..ctx.len()], &msg[0..msg.len()]));
+				assert!(!pkey.verify_ctx(&sig, &[1u8], &msg[0..msg.len()]));
+				assert!(!pkey.verify_ctx(&sig, &ctx[0..ctx.len()], &[0u8]));
 				if ctx.len() == 0 {
-					assert!(pkey.verify_raw(&sig, &msg[..]));
+					assert!(pkey.verify_raw(&sig, &msg[0..msg.len()]));
 				}
 			}
 		}

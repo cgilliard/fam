@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-//pub mod ed448;
+#[cfg(not(mrustc))]
+pub mod ed448;
 mod gf448;
+mod gfgen;
+mod lagrange;
 mod sha2;
 pub mod sha3;
 

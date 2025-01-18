@@ -8,6 +8,12 @@ int getentropy(void *buf, unsigned long long length);
 long long __alloc_count = 0;
 void _exit(int);
 
+// handle bounds check errors
+void _ZN4core9panicking18panic_bounds_check17hd8c2e93ae78325eeE() {
+	printf("panic bounds check!\n");
+	_exit(-1);
+}
+
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
 	// printf("malloc %p (%lu) (alloc=%lli)\n", ptr, size, __alloc_count);
