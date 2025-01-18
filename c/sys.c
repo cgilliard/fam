@@ -14,6 +14,11 @@ void _ZN4core9panicking18panic_bounds_check17hd8c2e93ae78325eeE() {
 	_exit(-1);
 }
 
+void _ZN4core9panicking18panic_bounds_check17h4b8b67e9bd768044() {
+	printf("panic bounds check!\n");
+	_exit(-1);
+}
+
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
 	// printf("malloc %p (%lu) (alloc=%lli)\n", ptr, size, __alloc_count);
