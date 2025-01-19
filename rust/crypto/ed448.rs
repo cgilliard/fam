@@ -81,6 +81,7 @@ use crate::crypto::gf448::GF448;
 use crate::crypto::sha3::SHAKE256;
 use core::iter::Iterator;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::slice::from_raw_parts;
 use prelude::*;
 use sys::rand_bytes;
 //use super::{CryptoRng, RngCore};
@@ -229,7 +230,8 @@ impl Point {
 		let sign_x = buf[56] >> 7;
 
 		// Decode y. It uses bytes 0 to 55.
-		let (mut y, mut r) = GF448::decode_ct(&buf[..56]);
+		let slice = unsafe { from_raw_parts(buf.as_ptr(), 56) };
+		let (mut y, mut r) = GF448::decode_ct(slice);
 
 		// If any of bits 0 to 6 of byte 56 is non-zero, then this is
 		// an incorrect encoding.
@@ -1062,8 +1064,10 @@ impl Point {
 
 		let mut h0 = [0u8; 28];
 		let mut h1 = [0u8; 28];
-		copy_from_slice(&mut h0, &c0[0..28]);
-		copy_from_slice(&mut h1, &c1[0..28]);
+		let slice = unsafe { from_raw_parts(c0.as_ptr(), 28) };
+		copy_from_slice(&mut h0, slice);
+		let slice = unsafe { from_raw_parts(c1.as_ptr(), 28) };
+		copy_from_slice(&mut h1, slice);
 		let sd0 = Self::recode_halfwidth_NAF(&h0);
 		let sd1 = Self::recode_halfwidth_NAF(&h1);
 		let sds = Self::recode_scalar_NAF(&ss);
@@ -1527,11 +1531,13 @@ impl PrivateKey {
 		hh[0] &= 0xFC;
 		hh[56] = 0;
 		hh[55] |= 0x80;
-		let s = Scalar::decode_reduce(&hh[..57]);
+		let slice = unsafe { from_raw_parts(hh.as_ptr(), 57) };
+		let s = Scalar::decode_reduce(slice);
 
 		// Save second half of the hashed seed for signing operations.
 		let mut h = [0u8; 57];
-		copy_from_slice(&mut h, &hh[57..57 * 2]);
+		let slice = unsafe { from_raw_parts(hh.as_ptr().add(57), 57) };
+		copy_from_slice(&mut h, slice);
 
 		// Public key is obtained from the secret scalar.
 		let public_key = PublicKey::from_point(&Point::mulgen(&s));
@@ -1672,7 +1678,8 @@ impl PublicKey {
 			None => return None,
 		};
 		let mut encoded = [0u8; 57];
-		copy_from_slice(&mut encoded, &buf[0..57]);
+		let slice = unsafe { from_raw_parts(buf.as_ptr(), 57) };
+		copy_from_slice(&mut encoded, slice);
 		Some(Self { point, encoded })
 	}
 
@@ -1739,14 +1746,17 @@ impl PublicKey {
 		if sig[113] != 0x00 {
 			return false;
 		}
-		let R_enc = &sig[0..57];
+		let R_enc = unsafe { from_raw_parts(sig.as_ptr(), 57) };
 		let R = match Point::decode(R_enc) {
 			Some(R) => R,
 			None => {
 				return false;
 			}
 		};
-		let (S, ok) = Scalar::decode_ct(&sig[57..113]);
+		let sigptr = sig as *const [u8] as *const u8;
+		let slice = unsafe { from_raw_parts(sigptr.add(57), 56) };
+		let (S, ok) = Scalar::decode_ct(slice);
+
 		if ok == 0 {
 			return false;
 		}

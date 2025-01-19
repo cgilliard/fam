@@ -1,5 +1,6 @@
 use crate::crypto::gf448::{addcarry_u64, sgnw, subborrow_u64, umull, umull_add, umull_add2};
 use core::iter::Iterator;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
 
 // Given integers k and n, with 0 <= k < n < Nmax (with n prime), return
 // signed integers c0 and c1 such that k = c0/c1 mod n. Integers are provided
@@ -224,12 +225,14 @@ macro_rules! define_lagrange {
 
 			// u <- [n, 0]
 			let mut u0 = $n0::ZERO;
-			copy_from_slice_u64(&mut u0.0, &n[0..$n0::N]);
+			let slice = unsafe { from_raw_parts(n.as_ptr(), $n0::N) };
+			copy_from_slice_u64(&mut u0.0, slice);
 			let mut u1 = $n0::ZERO;
 
 			// v <- [k, 1]
 			let mut v0 = $n0::ZERO;
-			copy_from_slice_u64(&mut v0.0, &k[..$n0::N]);
+			let slice = unsafe { from_raw_parts(k.as_ptr(), $n0::N) };
+			copy_from_slice_u64(&mut v0.0, slice);
 			let mut v1 = $n0::ZERO;
 			v1.0[0] = 1;
 
@@ -304,9 +307,12 @@ macro_rules! define_lagrange {
 			let mut new_nu = $n2::ZERO;
 			let mut new_nv = $n2::ZERO;
 			let mut new_sp = $n2::ZERO;
-			copy_from_slice_u64(&mut new_nu.0, &nu.0[0..$n2::N]);
-			copy_from_slice_u64(&mut new_nv.0, &nv.0[0..$n2::N]);
-			copy_from_slice_u64(&mut new_sp.0, &sp.0[0..$n2::N]);
+			let slice = unsafe { from_raw_parts(nu.0.as_ptr(), $n2::N) };
+			copy_from_slice_u64(&mut new_nu.0, slice);
+			let slice = unsafe { from_raw_parts(nv.0.as_ptr(), $n2::N) };
+			copy_from_slice_u64(&mut new_nv.0, slice);
+			let slice = unsafe { from_raw_parts(sp.0.as_ptr(), $n2::N) };
+			copy_from_slice_u64(&mut new_sp.0, slice);
 			let mut nu = new_nu;
 			let mut nv = new_nv;
 			let mut sp = new_sp;
@@ -416,8 +422,10 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 			copy_from_slice_u64(&mut k1, k);
 			copy_from_slice_u64(&mut n1, n);
 			let (v0, v1) = lagrange256_vartime(&k1, &n1, max_bitlen);
-			copy_from_slice_u64(c0, &v0[0..c0len]);
-			copy_from_slice_u64(c1, &v1[0..c1len]);
+			let slice = unsafe { from_raw_parts(v0.as_ptr(), c0len) };
+			copy_from_slice_u64(c0, slice);
+			let slice = unsafe { from_raw_parts(v1.as_ptr(), c1len) };
+			copy_from_slice_u64(c1, slice);
 		}
 		5 => {
 			let mut k1 = [0u64; 5];
@@ -425,8 +433,10 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 			copy_from_slice_u64(&mut k1, k);
 			copy_from_slice_u64(&mut n1, n);
 			let (v0, v1) = lagrange320_vartime(&k1, &n1, max_bitlen);
-			copy_from_slice_u64(c0, &v0[0..c0len]);
-			copy_from_slice_u64(c1, &v1[0..c1len]);
+			let slice = unsafe { from_raw_parts(v0.as_ptr(), c0len) };
+			copy_from_slice_u64(c0, slice);
+			let slice = unsafe { from_raw_parts(v1.as_ptr(), c1len) };
+			copy_from_slice_u64(c1, slice);
 		}
 		6 => {
 			let mut k1 = [0u64; 6];
@@ -434,8 +444,10 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 			copy_from_slice_u64(&mut k1, k);
 			copy_from_slice_u64(&mut n1, n);
 			let (v0, v1) = lagrange384_vartime(&k1, &n1, max_bitlen);
-			copy_from_slice_u64(c0, &v0[0..c0len]);
-			copy_from_slice_u64(c1, &v1[0..c1len]);
+			let slice = unsafe { from_raw_parts(v0.as_ptr(), c0len) };
+			copy_from_slice_u64(c0, slice);
+			let slice = unsafe { from_raw_parts(v1.as_ptr(), c1len) };
+			copy_from_slice_u64(c1, slice);
 		}
 		7 => {
 			let mut k1 = [0u64; 7];
@@ -443,8 +455,10 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 			copy_from_slice_u64(&mut k1, k);
 			copy_from_slice_u64(&mut n1, n);
 			let (v0, v1) = lagrange448_vartime(&k1, &n1, max_bitlen);
-			copy_from_slice_u64(c0, &v0[0..c0len]);
-			copy_from_slice_u64(c1, &v1[0..c1len]);
+			let slice = unsafe { from_raw_parts(v0.as_ptr(), c0len) };
+			copy_from_slice_u64(c0, slice);
+			let slice = unsafe { from_raw_parts(v1.as_ptr(), c1len) };
+			copy_from_slice_u64(c1, slice);
 		}
 		8 => {
 			let mut k1 = [0u64; 8];
@@ -452,8 +466,10 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 			copy_from_slice_u64(&mut k1, k);
 			copy_from_slice_u64(&mut n1, n);
 			let (v0, v1) = lagrange512_vartime(&k1, &n1, max_bitlen);
-			copy_from_slice_u64(c0, &v0[0..c0len]);
-			copy_from_slice_u64(c1, &v1[0..c1len]);
+			let slice = unsafe { from_raw_parts(v0.as_ptr(), c0len) };
+			copy_from_slice_u64(c0, slice);
+			let slice = unsafe { from_raw_parts(v1.as_ptr(), c1len) };
+			copy_from_slice_u64(c1, slice);
 		}
 		_ => {}
 	}
@@ -515,13 +531,17 @@ macro_rules! define_lagrange_spec {
 			// u <- [a0, a1]
 			// We only keep the second coordinate.
 			let mut u1 = $n0::ZERO;
-			copy_from_slice_u64(&mut u1.0[0..$n0::N], &a1[0..$n0::N]);
+			let slice1 = unsafe { from_raw_parts_mut(u1.0.as_mut_ptr(), $n0::N) };
+			let slice2 = unsafe { from_raw_parts(a1.as_ptr(), $n0::N) };
+			copy_from_slice_u64(slice1, slice2);
 
 			// v <- [b0, b1]
 			// We only keep the second coordinate.
 			let mut v1 = $n0::ZERO;
 
-			copy_from_slice_u64(&mut v1.0[0..$n0::N], &b1[0..$n0::N]);
+			let slice1 = unsafe { from_raw_parts_mut(v1.0.as_mut_ptr(), $n0::N) };
+			let slice2 = unsafe { from_raw_parts(b1.as_ptr(), $n0::N) };
+			copy_from_slice_u64(slice1, slice2);
 
 			// nu = u0^2 + u1^2 = a0^2 + a1^2
 			let mut nu = smul(a0, a0);

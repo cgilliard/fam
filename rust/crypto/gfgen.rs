@@ -14,6 +14,7 @@ macro_rules! define_gfgen {
 			use core::iter::Iterator;
 			use core::ops;
 			use core::ptr::copy_nonoverlapping;
+			use core::slice::from_raw_parts;
 			use prelude::*;
 
 			#[derive(Clone, Copy)]
@@ -421,10 +422,13 @@ macro_rules! define_gfgen {
 					//    value of at most p
 					//  - set_add() tolerates an input operand equal to p provided
 					//    that the sum is less than 2*p
-					copy_from_slice_u64(&mut self.0, &t[0..Self::N]);
+					let slice = unsafe { from_raw_parts(t.as_ptr(), Self::N) };
+					copy_from_slice_u64(&mut self.0, slice);
 					self.set_montyred();
 					let mut y = Self([0u64; Self::N]);
-					copy_from_slice_u64(&mut y.0, &t[Self::N..t.len()]);
+					let slice =
+						unsafe { from_raw_parts(t.as_ptr().add(Self::N), t.len() - Self::N) };
+					copy_from_slice_u64(&mut y.0, slice);
 					self.set_add(&y);
 				}
 
@@ -1527,10 +1531,13 @@ macro_rules! define_gfgen {
 					let mut j = 0;
 					for i in 0..Self::N {
 						self.0[i] = if j + 8 < n {
-							from_le_bytes_u64(&buf[j..(j + 8)])
+							let slice = unsafe { from_raw_parts(buf.as_ptr().add(j), 8) };
+							from_le_bytes_u64(&slice)
 						} else if j < n {
 							let mut tmp = [0u8; 8];
-							copy_from_slice(&mut tmp, &buf[j..buf.len()]);
+							let slice =
+								unsafe { from_raw_parts(buf.as_ptr().add(j), buf.len() - j) };
+							copy_from_slice(&mut tmp, slice);
 							from_le_bytes_u64(&tmp)
 						} else {
 							0
@@ -1632,7 +1639,8 @@ macro_rules! define_gfgen {
 						j -= CHUNK_LEN;
 					}
 					if j < buf.len() {
-						self.set_decode_raw(&buf[j..buf.len()]);
+						let slice = unsafe { from_raw_parts(buf.as_ptr().add(j), buf.len() - j) };
+						self.set_decode_raw(slice);
 					}
 					self.set_mul(&Self::R2);
 
@@ -1643,7 +1651,9 @@ macro_rules! define_gfgen {
 						// Decode next chunk into x.
 						let mut x = Self::ZERO;
 						if j < buf.len() {
-							x.set_decode_raw(&buf[j..buf.len()]);
+							let slice =
+								unsafe { from_raw_parts(buf.as_ptr().add(j), buf.len() - j) };
+							x.set_decode_raw(slice);
 						}
 
 						// Add x to current value; if necessary, subtract the
