@@ -26,6 +26,12 @@ extern "C" {
 	pub fn sha3_Finalize(ctx: *mut u8) -> *const u8;
 	pub fn sha3_SetFlags(ctx: *mut u8, flags: i32);
 
+	pub fn cpsrng_rand_bytes(v: *mut u8, len: usize);
+
+}
+
+pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
+	unsafe { cpsrng_rand_bytes(v, len) }
 }
 
 pub fn safe_AES_ctx_size() -> usize {

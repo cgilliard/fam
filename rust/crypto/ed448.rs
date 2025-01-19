@@ -78,12 +78,12 @@
 #![allow(non_snake_case)]
 
 use crate::crypto::gf448::GF448;
+use crate::crypto::safe_cpsrng_rand_bytes;
 use crate::crypto::sha3::SHAKE256;
 use core::iter::Iterator;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::slice::from_raw_parts;
 use prelude::*;
-use sys::rand_bytes;
 //use super::{CryptoRng, RngCore};
 use crate::crypto::gfgen::define_gfgen;
 use crate::crypto::gfgen::define_gfgen_tests;
@@ -1502,9 +1502,7 @@ impl PrivateKey {
 	/// Generates a new private key from a cryptographically secure RNG.
 	pub fn generate() -> Self {
 		let mut seed = [0u8; 57];
-		unsafe {
-			rand_bytes(&mut seed as *mut u8, 57);
-		}
+		safe_cpsrng_rand_bytes(&mut seed as *mut u8, 57);
 		Self::from_seed(&seed)
 	}
 
@@ -3883,27 +3881,6 @@ mod tests {
 		}
 		Ok(result)
 	}
-
-	/* unused
-	use std::fmt;
-	use crate::field::GF448;
-
-	fn print_gf(name: &str, x: GF448) {
-		print!("{} = 0x", name);
-		let bb = x.encode();
-		for i in (0..56).rev() {
-			print!("{:02X}", bb[i]);
-		}
-		println!();
-	}
-
-	fn print(name: &str, P: Point) {
-		println!("{}:", name);
-		print_gf("  X", P.X);
-		print_gf("  Y", P.Y);
-		print_gf("  Z", P.Z);
-	}
-	*/
 
 	#[test]
 	fn base_arith() {
