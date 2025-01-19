@@ -24,65 +24,6 @@ pub fn lagrange253_vartime(k: &[u64; 4], n: &[u64; 4]) -> (i128, i128) {
 
 // ========================================================================
 
-/* unused
-#[derive(Clone, Copy, Debug)]
-struct ZInt64(u64);
-
-#[allow(dead_code)]
-impl ZInt64 {
-	const BITLEN: usize = 64;
-	const N: usize = 1;
-	const ZERO: Self = Self(0);
-
-	// Return true iff self < rhs (inputs must be nonnegative).
-	fn lt(self, rhs: &Self) -> bool {
-		self.0 < rhs.0
-	}
-
-	// Swap the contents of self with rhs.
-	fn swap(&mut self, rhs: &mut Self) {
-		let t = self.0;
-		self.0 = rhs.0;
-		rhs.0 = t;
-	}
-
-	// Get the length (in bits) of this value. If `unsigned` is true,
-	// then the value is considered unsigned; otherwise, the top bit
-	// is a sign bit.
-	fn bitlength(self, unsigned: bool) -> u32 {
-		let m = if unsigned { 0 } else { sgnw(self.0) };
-		return 64 - (self.0 ^ m).leading_zeros();
-	}
-
-	// Return true if self is lower than 2^(64*s - 1). The value self
-	// MUST be non-negative. The value s MUST be greater than 0, and
-	// not greater than Self::N.
-	fn ltnw(self, _s: usize) -> bool {
-		// Parameter requirements imply that s == 1.
-		(self.0 as i64) >= 0
-	}
-
-	// Return true for negative values.
-	fn is_negative(self) -> bool {
-		(self.0 as i64) < 0
-	}
-
-	// Add (2^s)*rhs to self.
-	fn set_add_shifted(&mut self, rhs: &Self, s: u32) {
-		if s < 64 {
-			self.0 = self.0.wrapping_add(rhs.0 << s);
-		}
-	}
-
-	// Subtract (2^s)*rhs from self.
-	fn set_sub_shifted(&mut self, rhs: &Self, s: u32) {
-		if s < 64 {
-			self.0 = self.0.wrapping_sub(rhs.0 << s);
-		}
-	}
-}
-*/
-
 macro_rules! define_bigint {
 	($typename:ident, $bitlen:expr) => {
 		#[derive(Clone, Copy)]
@@ -283,14 +224,12 @@ macro_rules! define_lagrange {
 
 			// u <- [n, 0]
 			let mut u0 = $n0::ZERO;
-			let u0len = u0.0.len();
-			copy_from_slice_u64(&mut u0.0[0..u0len], &n[0..$n0::N]);
+			copy_from_slice_u64(&mut u0.0, &n[0..$n0::N]);
 			let mut u1 = $n0::ZERO;
 
 			// v <- [k, 1]
 			let mut v0 = $n0::ZERO;
-			let v0len = v0.0.len();
-			copy_from_slice_u64(&mut v0.0[0..v0len], &k[..$n0::N]);
+			copy_from_slice_u64(&mut v0.0, &k[..$n0::N]);
 			let mut v1 = $n0::ZERO;
 			v1.0[0] = 1;
 
@@ -365,9 +304,9 @@ macro_rules! define_lagrange {
 			let mut new_nu = $n2::ZERO;
 			let mut new_nv = $n2::ZERO;
 			let mut new_sp = $n2::ZERO;
-			copy_from_slice_u64(&mut new_nu.0[0..$n2::N], &nu.0[0..$n2::N]);
-			copy_from_slice_u64(&mut new_nv.0[0..$n2::N], &nv.0[0..$n2::N]);
-			copy_from_slice_u64(&mut new_sp.0[0..$n2::N], &sp.0[0..$n2::N]);
+			copy_from_slice_u64(&mut new_nu.0, &nu.0[0..$n2::N]);
+			copy_from_slice_u64(&mut new_nv.0, &nv.0[0..$n2::N]);
+			copy_from_slice_u64(&mut new_sp.0, &sp.0[0..$n2::N]);
 			let mut nu = new_nu;
 			let mut nv = new_nv;
 			let mut sp = new_sp;

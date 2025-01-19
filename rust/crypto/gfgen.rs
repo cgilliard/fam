@@ -1357,8 +1357,8 @@ macro_rules! define_gfgen {
 					if Self::N < 4 {
 						let mut nt = [0u64; 4];
 						let mut kt = [0u64; 4];
-						copy_from_slice_u64(&mut nt[0..Self::N], &Self::MODULUS);
-						copy_from_slice_u64(&mut kt[0..Self::N], &k.0);
+						copy_from_slice_u64(&mut nt, &Self::MODULUS);
+						copy_from_slice_u64(&mut kt, &k.0);
 						use crypto::lagrange::lagrange_vartime;
 						lagrange_vartime(&kt, &nt, (Self::BITLEN >> 1) as u32, &mut d0, &mut d1);
 					} else {
@@ -1401,8 +1401,8 @@ macro_rules! define_gfgen {
 						// (non-Montgomery) representation.
 						let mut s0 = Self::ZERO;
 						let mut s1 = Self::ZERO;
-						copy_from_slice_u64(&mut s0.0[0..DLEN], &d0);
-						copy_from_slice_u64(&mut s1.0[0..DLEN], &d1);
+						copy_from_slice_u64(&mut s0.0, &d0);
+						copy_from_slice_u64(&mut s1.0, &d1);
 						if (d0[DLEN - 1] >> 63) != 0 {
 							s0 -= thalf;
 						}
