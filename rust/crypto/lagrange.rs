@@ -1,5 +1,3 @@
-//use super::{addcarry_u64, sgnw, subborrow_u64, umull, umull_add, umull_add2};
-
 use crate::crypto::gf448::{addcarry_u64, sgnw, subborrow_u64, umull, umull_add, umull_add2};
 
 use core::convert::TryFrom;
@@ -258,6 +256,7 @@ macro_rules! define_lagrange {
 			n: &[u64; $n1::N],
 			max_bitlen: u32,
 		) -> ([u64; $n0::N], [u64; $n0::N]) {
+			use prelude::*;
 			// Product of integers. Operands must be non-negative.
 			fn umul(a: &[u64; $n1::N], b: &[u64; $n1::N]) -> $n3 {
 				let mut d = $n3::ZERO;
@@ -286,12 +285,14 @@ macro_rules! define_lagrange {
 
 			// u <- [n, 0]
 			let mut u0 = $n0::ZERO;
-			u0.0[..].copy_from_slice(&n[..$n0::N]);
+			let u0len = u0.0.len();
+			copy_from_slice_u64(&mut u0.0[0..u0len], &n[0..$n0::N]);
 			let mut u1 = $n0::ZERO;
 
 			// v <- [k, 1]
 			let mut v0 = $n0::ZERO;
-			v0.0[..].copy_from_slice(&k[..$n0::N]);
+			let v0len = v0.0.len();
+			copy_from_slice_u64(&mut v0.0[0..v0len], &k[..$n0::N]);
 			let mut v1 = $n0::ZERO;
 			v1.0[0] = 1;
 
@@ -366,9 +367,9 @@ macro_rules! define_lagrange {
 			let mut new_nu = $n2::ZERO;
 			let mut new_nv = $n2::ZERO;
 			let mut new_sp = $n2::ZERO;
-			new_nu.0[..].copy_from_slice(&nu.0[..$n2::N]);
-			new_nv.0[..].copy_from_slice(&nv.0[..$n2::N]);
-			new_sp.0[..].copy_from_slice(&sp.0[..$n2::N]);
+			copy_from_slice_u64(&mut new_nu.0[0..$n2::N], &nu.0[0..$n2::N]);
+			copy_from_slice_u64(&mut new_nv.0[0..$n2::N], &nv.0[0..$n2::N]);
+			copy_from_slice_u64(&mut new_sp.0[0..$n2::N], &sp.0[0..$n2::N]);
 			let mut nu = new_nu;
 			let mut nv = new_nv;
 			let mut sp = new_sp;
@@ -454,6 +455,8 @@ define_lagrange!(lagrange384_vartime, ZInt192, ZInt384, ZInt512, ZInt768);
 define_lagrange!(lagrange448_vartime, ZInt256, ZInt448, ZInt640, ZInt896);
 define_lagrange!(lagrange512_vartime, ZInt256, ZInt512, ZInt768, ZInt1024);
 
+use prelude::*;
+
 //
 // Rules:
 //   k and n must have the same length, which is between 4 and 8 (inclusive)
@@ -467,6 +470,8 @@ define_lagrange!(lagrange512_vartime, ZInt256, ZInt512, ZInt768, ZInt1024);
 // c0 and c1 use _signed_ little-endian notation.
 #[allow(dead_code)]
 pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c1: &mut [u64]) {
+	let c0len = c0.len();
+	let c1len = c1.len();
 	match n.len() {
 		4 => {
 			let (v0, v1) = lagrange256_vartime(
@@ -474,8 +479,8 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 				<&[u64; 4]>::try_from(n).unwrap(),
 				max_bitlen,
 			);
-			c0.copy_from_slice(&v0[..c0.len()]);
-			c1.copy_from_slice(&v1[..c1.len()]);
+			copy_from_slice_u64(c0, &v0[0..c0len]);
+			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		5 => {
 			let (v0, v1) = lagrange320_vartime(
@@ -483,8 +488,8 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 				<&[u64; 5]>::try_from(n).unwrap(),
 				max_bitlen,
 			);
-			c0.copy_from_slice(&v0[..c0.len()]);
-			c1.copy_from_slice(&v1[..c1.len()]);
+			copy_from_slice_u64(c0, &v0[0..c0len]);
+			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		6 => {
 			let (v0, v1) = lagrange384_vartime(
@@ -492,8 +497,8 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 				<&[u64; 6]>::try_from(n).unwrap(),
 				max_bitlen,
 			);
-			c0.copy_from_slice(&v0[..c0.len()]);
-			c1.copy_from_slice(&v1[..c1.len()]);
+			copy_from_slice_u64(c0, &v0[0..c0len]);
+			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		7 => {
 			let (v0, v1) = lagrange448_vartime(
@@ -501,8 +506,8 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 				<&[u64; 7]>::try_from(n).unwrap(),
 				max_bitlen,
 			);
-			c0.copy_from_slice(&v0[..c0.len()]);
-			c1.copy_from_slice(&v1[..c1.len()]);
+			copy_from_slice_u64(c0, &v0[0..c0len]);
+			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		8 => {
 			let (v0, v1) = lagrange512_vartime(
@@ -510,8 +515,8 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 				<&[u64; 8]>::try_from(n).unwrap(),
 				max_bitlen,
 			);
-			c0.copy_from_slice(&v0[..c0.len()]);
-			c1.copy_from_slice(&v1[..c1.len()]);
+			copy_from_slice_u64(c0, &v0[0..c0len]);
+			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		_ => {}
 	}
@@ -573,12 +578,13 @@ macro_rules! define_lagrange_spec {
 			// u <- [a0, a1]
 			// We only keep the second coordinate.
 			let mut u1 = $n0::ZERO;
-			u1.0[..].copy_from_slice(&a1[..$n0::N]);
+			copy_from_slice_u64(&mut u1.0[0..$n0::N], &a1[0..$n0::N]);
 
 			// v <- [b0, b1]
 			// We only keep the second coordinate.
 			let mut v1 = $n0::ZERO;
-			v1.0[..].copy_from_slice(&b1[..$n0::N]);
+
+			copy_from_slice_u64(&mut v1.0[0..$n0::N], &b1[0..$n0::N]);
 
 			// nu = u0^2 + u1^2 = a0^2 + a1^2
 			let mut nu = smul(a0, a0);

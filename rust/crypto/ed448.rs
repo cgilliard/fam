@@ -309,7 +309,7 @@ impl Point {
 		let iZ = GF448::ONE / self.Z;
 		let (x, y) = (self.X * iZ, self.Y * iZ);
 		let mut bb = [0u8; 57];
-		bb[..56].copy_from_slice(&y.encode());
+		copy_from_slice(&mut bb[0..56], &y.encode());
 		bb[56] |= x.encode()[0] << 7;
 		bb
 	}
@@ -1062,8 +1062,8 @@ impl Point {
 
 		let mut h0 = [0u8; 28];
 		let mut h1 = [0u8; 28];
-		h0[0..28].copy_from_slice(&c0[0..28]);
-		h1[0..28].copy_from_slice(&c1[0..28]);
+		copy_from_slice(&mut h0[0..28], &c0[0..28]);
+		copy_from_slice(&mut h1[0..28], &c1[0..28]);
 		let sd0 = Self::recode_halfwidth_NAF(&h0);
 		let sd1 = Self::recode_halfwidth_NAF(&h1);
 		let sds = Self::recode_scalar_NAF(&ss);
@@ -1514,7 +1514,7 @@ impl PrivateKey {
 		// The seed MUST have length 57 bytes.
 		assert!(seed.len() == 57);
 		let mut bseed = [0u8; 57];
-		bseed[..].copy_from_slice(seed);
+		copy_from_slice(&mut bseed[0..57], seed);
 
 		// Hash the seed with SHAKE256, with a 114-byte output.
 		let mut sh = SHAKE256::new();
@@ -1531,7 +1531,7 @@ impl PrivateKey {
 
 		// Save second half of the hashed seed for signing operations.
 		let mut h = [0u8; 57];
-		h[..].copy_from_slice(&hh[57..]);
+		copy_from_slice(&mut h[0..57], &hh[57..57 * 2]);
 
 		// Public key is obtained from the secret scalar.
 		let public_key = PublicKey::from_point(&Point::mulgen(&s));
@@ -1631,8 +1631,8 @@ impl PrivateKey {
 		// S is encoded over 57 bytes, even though scalars use only 56;
 		// the last byte is left at zero.
 		let mut sig = [0u8; 114];
-		sig[0..57].copy_from_slice(&R_enc);
-		sig[57..113].copy_from_slice(&(r + k * self.s).encode());
+		copy_from_slice(&mut sig[0..57], &R_enc);
+		copy_from_slice(&mut sig[57..113], &(r + k * self.s).encode());
 
 		sig
 	}
@@ -1663,7 +1663,7 @@ impl PublicKey {
 			None => return None,
 		};
 		let mut encoded = [0u8; 57];
-		encoded[..].copy_from_slice(&buf[0..57]);
+		copy_from_slice(&mut encoded[0..57], &buf[0..57]);
 		Some(Self { point, encoded })
 	}
 

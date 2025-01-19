@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
-#[cfg(not(mrustc))]
+// #[cfg(not(mrustc))]
 pub mod ed448;
 mod gf448;
 mod gfgen;

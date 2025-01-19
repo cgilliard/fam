@@ -3,27 +3,10 @@
 
 use core::cmp::min;
 use core::convert::AsRef;
-use core::ptr::copy_nonoverlapping;
-use prelude::*;
 
 // Keccak state (25*8 = 200 bytes).
 #[derive(Copy, Clone)]
 struct KeccakState([u64; 25]);
-
-fn copy_from_slice(dst: &mut [u8], src: &[u8]) {
-	let len = src.len();
-	if len > dst.len() {
-		exit!(
-			"copy_from_slice: src.len() must be less than or equal to dst.len() [{} / {}]",
-			src.len(),
-			dst.len()
-		);
-	}
-
-	unsafe {
-		copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len);
-	}
-}
 
 impl KeccakState {
 	const RC: [u64; 24] = [
@@ -763,6 +746,7 @@ mod tests {
 	use super::*;
 	use core::iter::Iterator;
 	use core::option::Option as CoreOption;
+	use prelude::*;
 
 	fn hex_decode(input: &str) -> Result<Vec<u8>, Error> {
 		if input.len() % 2 != 0 {

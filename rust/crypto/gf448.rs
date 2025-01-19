@@ -2047,7 +2047,7 @@ mod tests {
 
 	extern crate num_bigint;
 	use self::num_bigint::{BigInt, Sign};
-	use super::GF448;
+	use super::*;
 	use crate::crypto::sha2::Sha512;
 
 	/*
@@ -2174,9 +2174,9 @@ mod tests {
 		}
 
 		let mut tmp = [0u8; 168];
-		tmp[0..56].copy_from_slice(va);
-		tmp[56..112].copy_from_slice(vb);
-		tmp[112..168].copy_from_slice(vx);
+		copy_from_slice(&mut tmp[0..56], va);
+		copy_from_slice(&mut tmp[56..112], vb);
+		copy_from_slice(&mut tmp[112..168], vx);
 		for k in 0..169 {
 			let c = GF448::decode_reduce(&tmp[0..k]);
 			let vc = c.encode();

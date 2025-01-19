@@ -421,10 +421,10 @@ macro_rules! define_gfgen {
 					//    value of at most p
 					//  - set_add() tolerates an input operand equal to p provided
 					//    that the sum is less than 2*p
-					self.0.copy_from_slice(&t[..Self::N]);
+					copy_from_slice_u64(&mut self.0, &t[0..Self::N]);
 					self.set_montyred();
 					let mut y = Self([0u64; Self::N]);
-					y.0.copy_from_slice(&t[Self::N..]);
+					copy_from_slice_u64(&mut y.0, &t[Self::N..t.len()]);
 					self.set_add(&y);
 				}
 
@@ -1357,8 +1357,8 @@ macro_rules! define_gfgen {
 					if Self::N < 4 {
 						let mut nt = [0u64; 4];
 						let mut kt = [0u64; 4];
-						nt[..Self::N].copy_from_slice(&Self::MODULUS);
-						kt[..Self::N].copy_from_slice(&k.0);
+						copy_from_slice_u64(&mut nt[0..Self::N], &Self::MODULUS);
+						copy_from_slice_u64(&mut kt[0..Self::N], &k.0);
 						use crypto::lagrange::lagrange_vartime;
 						lagrange_vartime(&kt, &nt, (Self::BITLEN >> 1) as u32, &mut d0, &mut d1);
 					} else {
@@ -1401,8 +1401,8 @@ macro_rules! define_gfgen {
 						// (non-Montgomery) representation.
 						let mut s0 = Self::ZERO;
 						let mut s1 = Self::ZERO;
-						s0.0[..DLEN].copy_from_slice(&d0);
-						s1.0[..DLEN].copy_from_slice(&d1);
+						copy_from_slice_u64(&mut s0.0[0..DLEN], &d0);
+						copy_from_slice_u64(&mut s1.0[0..DLEN], &d1);
 						if (d0[DLEN - 1] >> 63) != 0 {
 							s0 -= thalf;
 						}
@@ -1438,7 +1438,6 @@ macro_rules! define_gfgen {
 							e += k;
 							b += 1;
 						}
-						assert!(a != -100);
 
 						c0h = wrapping_add_u8(c0h.into(), a as u8);
 						c1h = wrapping_add_u8(c1h.into(), b as u8);
@@ -1532,7 +1531,7 @@ macro_rules! define_gfgen {
 						} else if j < n {
 							let k = n - j;
 							let mut tmp = [0u8; 8];
-							tmp[0..k].copy_from_slice(&buf[j..buf.len()]);
+							copy_from_slice(&mut tmp[0..k], &buf[j..buf.len()]);
 							from_le_bytes_u64(&tmp)
 						} else {
 							0
@@ -2334,6 +2333,7 @@ macro_rules! define_gfgen_tests {
 		mod $submod {
 			extern crate num_bigint;
 			use super::$typename;
+			use prelude::*;
 
 			/*
 			fn print(name: &str, v: $typename) {
@@ -2349,7 +2349,7 @@ macro_rules! define_gfgen_tests {
 			// of the field.
 			fn check_gf_ops(va: &[u8], vb: &[u8], vx: &[u8]) {
 				use self::num_bigint::{BigInt, Sign};
-				use core::convert::TryFrom;
+				use prelude::from_le_bytes_u32;
 
 				let mut zpmw = [0u32; $typename::MODULUS.len() * 2];
 				for i in 0..$typename::MODULUS.len() {
@@ -2359,7 +2359,8 @@ macro_rules! define_gfgen_tests {
 				let zp = BigInt::from_slice(Sign::Plus, &zpmw);
 				let zpz = &zp << 64;
 
-				let x = u32::from_le_bytes(*<&[u8; 4]>::try_from(&vb[..4]).unwrap());
+				let x = from_le_bytes_u32(&vb[0..4]);
+
 				let a = $typename::decode_reduce(va);
 				let b = $typename::decode_reduce(vb);
 				let za = BigInt::from_bytes_le(Sign::Plus, va);
@@ -2457,9 +2458,10 @@ macro_rules! define_gfgen_tests {
 				}
 
 				let mut tmp = [0u8; 3 * $typename::ENC_LEN];
-				tmp[0..$typename::ENC_LEN].copy_from_slice(va);
-				tmp[$typename::ENC_LEN..(2 * $typename::ENC_LEN)].copy_from_slice(vb);
-				tmp[(2 * $typename::ENC_LEN)..].copy_from_slice(vx);
+				copy_from_slice(&mut tmp[0..$typename::ENC_LEN], va);
+				copy_from_slice(&mut tmp[$typename::ENC_LEN..(2 * $typename::ENC_LEN)], vb);
+				let tmplen = tmp.len();
+				copy_from_slice(&mut tmp[(2 * $typename::ENC_LEN)..tmplen], vx);
 				for k in 0..(tmp.len() + 1) {
 					let c = $typename::decode_reduce(&tmp[0..k]);
 					let vc = c.encode();
@@ -2488,9 +2490,13 @@ macro_rules! define_gfgen_tests {
 					to_le_bytes_u64(bx + ((j as u64) << 40), &mut bytes);
 					sh.update(bytes);
 					if (j + 64) < $typename::ENC_LEN {
-						vv[j..(j + 64)].copy_from_slice(&sh.finalize_reset()[..]);
+						copy_from_slice(&mut vv[j..(j + 64)], &sh.finalize_reset()[..]);
 					} else {
-						vv[j..].copy_from_slice(&sh.finalize_reset()[..($typename::ENC_LEN - j)]);
+						let vvlen = vv.len();
+						copy_from_slice(
+							&mut vv[j..vvlen],
+							&sh.finalize_reset()[..($typename::ENC_LEN - j)],
+						);
 					};
 					j += 64;
 				}

@@ -5,6 +5,36 @@ use core::slice::from_raw_parts;
 use prelude::*;
 use sys::{safe_rand_bytes, safe_sleep_millis};
 
+pub fn copy_from_slice(dst: &mut [u8], src: &[u8]) {
+	let len = src.len();
+	if len > dst.len() {
+		exit!(
+			"copy_from_slice: src.len() must be less than or equal to dst.len() [{} / {}]",
+			src.len(),
+			dst.len()
+		);
+	}
+
+	unsafe {
+		copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len);
+	}
+}
+
+pub fn copy_from_slice_u64(dst: &mut [u64], src: &[u64]) {
+	let len = src.len();
+	if len > dst.len() {
+		exit!(
+			"copy_from_slice: src.len() must be less than or equal to dst.len() [{} / {}]",
+			src.len(),
+			dst.len()
+		);
+	}
+
+	unsafe {
+		copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len);
+	}
+}
+
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	if len + off > n.len() {
 		Err(err!(OutOfBounds))
