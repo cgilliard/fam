@@ -7,6 +7,7 @@ mod gfgen;
 mod lagrange;
 mod sha2;
 pub mod sha3;
+pub mod x448;
 
 const SHA3_FLAGS_KECCAK: i32 = 1;
 const SHA3_FLAGS_NONE: i32 = 0;
