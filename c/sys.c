@@ -14,12 +14,6 @@ void _ZN4core9panicking18panic_bounds_check17hd8c2e93ae78325eeE() {
 	printf("panic bounds check!\n");
 	_exit(-1);
 }
-
-void _ZN4core9panicking18panic_bounds_check17h4b8b67e9bd768044E() {
-	printf("panic bounds check!\n");
-	_exit(-1);
-}
-
 void _ZN4core9panicking18panic_bounds_check17hab62625bddb22ea0E() {
 	printf("panic bounds check!\n");
 	_exit(-1);
