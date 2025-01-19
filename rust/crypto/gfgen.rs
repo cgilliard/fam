@@ -1529,9 +1529,8 @@ macro_rules! define_gfgen {
 						self.0[i] = if j + 8 < n {
 							from_le_bytes_u64(&buf[j..(j + 8)])
 						} else if j < n {
-							let k = n - j;
 							let mut tmp = [0u8; 8];
-							copy_from_slice(&mut tmp[0..k], &buf[j..buf.len()]);
+							copy_from_slice(&mut tmp, &buf[j..buf.len()]);
 							from_le_bytes_u64(&tmp)
 						} else {
 							0

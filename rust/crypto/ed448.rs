@@ -309,7 +309,7 @@ impl Point {
 		let iZ = GF448::ONE / self.Z;
 		let (x, y) = (self.X * iZ, self.Y * iZ);
 		let mut bb = [0u8; 57];
-		copy_from_slice(&mut bb[0..56], &y.encode());
+		copy_from_slice(&mut bb, &y.encode());
 		bb[56] |= x.encode()[0] << 7;
 		bb
 	}
@@ -1631,8 +1631,17 @@ impl PrivateKey {
 		// S is encoded over 57 bytes, even though scalars use only 56;
 		// the last byte is left at zero.
 		let mut sig = [0u8; 114];
-		copy_from_slice(&mut sig[0..57], &R_enc);
-		copy_from_slice(&mut sig[57..113], &(r + k * self.s).encode());
+
+		let mut sig1 = [0u8; 57];
+		let mut sig2 = [0u8; 57];
+		copy_from_slice(&mut sig1, &R_enc);
+		copy_from_slice(&mut sig2, &(r + k * self.s).encode());
+
+		unsafe {
+			use core::ptr::copy_nonoverlapping;
+			copy_nonoverlapping(&sig1 as *const u8, (&mut sig as *mut u8).add(0), 57);
+			copy_nonoverlapping(&sig2 as *const u8, (&mut sig as *mut u8).add(57), 57);
+		}
 
 		sig
 	}
@@ -1663,7 +1672,7 @@ impl PublicKey {
 			None => return None,
 		};
 		let mut encoded = [0u8; 57];
-		copy_from_slice(&mut encoded[0..57], &buf[0..57]);
+		copy_from_slice(&mut encoded, &buf[0..57]);
 		Some(Self { point, encoded })
 	}
 
