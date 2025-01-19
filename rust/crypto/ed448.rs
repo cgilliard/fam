@@ -79,7 +79,6 @@
 
 use crate::crypto::gf448::GF448;
 use crate::crypto::sha3::SHAKE256;
-use core::convert::TryFrom;
 use core::iter::Iterator;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use prelude::*;
@@ -1552,7 +1551,7 @@ impl PrivateKey {
 	/// seed (see `from_seed()`). Otherwise, `None` is returned.
 	pub fn decode(buf: &[u8]) -> Option<Self> {
 		if buf.len() == 57 {
-			Some(Self::from_seed(<&[u8; 57]>::try_from(buf).unwrap()))
+			Some(Self::from_seed(buf))
 		} else {
 			None
 		}
@@ -1606,7 +1605,7 @@ impl PrivateKey {
 		sh.inject(&[phflag]);
 		sh.inject(&[clen]);
 		sh.inject(ctx);
-		sh.inject(&self.h);
+		sh.inject_u8(&self.h);
 		sh.inject(m);
 		let mut hv1 = [0u8; 114];
 		sh.flip_extract_reset(&mut hv1);
@@ -1621,8 +1620,8 @@ impl PrivateKey {
 		sh.inject(&[phflag]);
 		sh.inject(&[clen]);
 		sh.inject(ctx);
-		sh.inject(&R_enc);
-		sh.inject(&self.public_key.encoded);
+		sh.inject_u8(&R_enc);
+		sh.inject_u8(&self.public_key.encoded);
 		sh.inject(m);
 		let mut hv2 = [0u8; 114];
 		sh.flip_extract_reset(&mut hv2);
@@ -1753,7 +1752,7 @@ impl PublicKey {
 		sh.inject(&[clen]);
 		sh.inject(ctx);
 		sh.inject(R_enc);
-		sh.inject(&self.encoded);
+		sh.inject_u8(&self.encoded);
 		sh.inject(m);
 		let mut hv2 = [0u8; 114];
 		sh.flip_extract_reset(&mut hv2);

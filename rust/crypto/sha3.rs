@@ -679,6 +679,25 @@ impl<const SZ: usize> SHAKE<SZ> {
 		self.ptr = ptr;
 	}
 
+	pub fn inject_u8(&mut self, src: &[u8]) {
+		let mut ptr = self.ptr;
+		let src = src.as_ref();
+		let mut i = 0;
+		while i < src.len() {
+			let clen = min(src.len() - i, Self::RATE - ptr);
+			for _ in 0..clen {
+				self.state.0[ptr >> 3] ^= (src[i] as u64) << ((ptr & 7) << 3);
+				i += 1;
+				ptr += 1;
+			}
+			if ptr == Self::RATE {
+				self.state.process();
+				ptr = 0;
+			}
+		}
+		self.ptr = ptr;
+	}
+
 	/// An alias on `inject()` (for source compatibility purposes).
 	#[inline(always)]
 	pub fn update(&mut self, src: impl AsRef<[u8]>) {

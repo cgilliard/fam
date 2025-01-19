@@ -13,6 +13,7 @@ macro_rules! define_gfgen {
 			};
 			use core::iter::Iterator;
 			use core::ops;
+			use core::ptr::copy_nonoverlapping;
 			use prelude::*;
 
 			#[derive(Clone, Copy)]
@@ -30,6 +31,11 @@ macro_rules! define_gfgen {
 			const fn wrapping_add(a: u64, b: u64) -> u64 {
 				let sum = (a as u128) + (b as u128);
 				sum as u64
+			}
+
+			const fn wrapping_add_u8(a: u8, b: u8) -> u8 {
+				let sum = (a as u16) + (b as u16);
+				sum as u8
 			}
 
 			const fn wrapping_sub(a: u64, b: u64) -> u64 {
@@ -239,12 +245,8 @@ macro_rules! define_gfgen {
 						(self.0[i], cc2) = subborrow_u64(self.0[i], Self::MODULUS[i], cc2);
 					}
 
-					/*
-					let cc1 = Self::wrapping_neg(cc1 as u64);
-					let cc2 = Self::wrapping_neg(cc2 as u64);
-										*/
-					let cc1 = (cc1 as u64).wrapping_neg();
-					let cc2 = (cc2 as u64).wrapping_neg();
+					let cc1 = wrapping_neg(cc1 as u64);
+					let cc2 = wrapping_neg(cc2 as u64);
 					let m = cc2 & !cc1;
 					let mut cc3 = 0;
 					for i in 0..Self::N {
@@ -258,7 +260,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						(self.0[i], cc1) = subborrow_u64(self.0[i], rhs.0[i], cc1);
 					}
-					let m = (cc1 as u64).wrapping_neg();
+					let m = wrapping_neg(cc1 as u64);
 					let mut cc2 = 0;
 					for i in 0..Self::N {
 						(self.0[i], cc2) = addcarry_u64(self.0[i], m & Self::MODULUS[i], cc2);
@@ -272,8 +274,7 @@ macro_rules! define_gfgen {
 					for i in 0..Self::N {
 						(self.0[i], cc1) = subborrow_u64(0, self.0[i], cc1);
 					}
-					//let m = Self::wrapping_neg(cc1 as u64);
-					let m = (cc1 as u64).wrapping_neg();
+					let m = wrapping_neg(cc1 as u64);
 					let mut cc2 = 0;
 					for i in 0..Self::N {
 						(self.0[i], cc2) = addcarry_u64(self.0[i], m & Self::MODULUS[i], cc2);
@@ -659,7 +660,7 @@ macro_rules! define_gfgen {
 							self.0[i] = d;
 							cc = ee;
 						}
-						hi = hi.wrapping_add(cc as u64);
+						hi = wrapping_add(hi, cc as u64);
 					}
 				}
 
@@ -878,8 +879,8 @@ macro_rules! define_gfgen {
 							xa >>= 1;
 							fg1 <<= 1;
 						}
-						fg0 = fg0.wrapping_add(0x7FFFFFFF7FFFFFFF);
-						fg1 = fg1.wrapping_add(0x7FFFFFFF7FFFFFFF);
+						fg0 = wrapping_add(fg0, 0x7FFFFFFF7FFFFFFF);
+						fg1 = wrapping_add(fg1, 0x7FFFFFFF7FFFFFFF);
 						let f0 = Self::wrapping_sub(fg0 & 0xFFFFFFFF, 0x7FFFFFFF);
 						let g0 = Self::wrapping_sub(fg0 >> 32, 0x7FFFFFFF);
 						let f1 = Self::wrapping_sub(fg1 & 0xFFFFFFFF, 0x7FFFFFFF);
@@ -1101,24 +1102,22 @@ macro_rules! define_gfgen {
 							fg0 = Self::wrapping_sub(fg0, a_odd & fg1);
 							xa >>= 1;
 							fg1 <<= 1;
-							ls ^= xb.wrapping_add(2) >> 2;
+							ls ^= wrapping_add(xb, 2) >> 2;
 						}
 
 						// Compute the updated a and b (low words only) to get enough
 						// bits for the next two iterations.
-						let fg0z = fg0.wrapping_add(0x7FFFFFFF7FFFFFFF);
-						let fg1z = fg1.wrapping_add(0x7FFFFFFF7FFFFFFF);
+						let fg0z = wrapping_add(fg0, 0x7FFFFFFF7FFFFFFF);
+						let fg1z = wrapping_add(fg1, 0x7FFFFFFF7FFFFFFF);
 						let f0 = Self::wrapping_sub(fg0z & 0xFFFFFFFF, 0x7FFFFFFF);
 						let g0 = Self::wrapping_sub(fg0z >> 32, 0x7FFFFFFF);
 						let f1 = Self::wrapping_sub(fg1z & 0xFFFFFFFF, 0x7FFFFFFF);
 						let g1 = Self::wrapping_sub(fg1z >> 32, 0x7FFFFFFF);
 
 						let mut a0 =
-							wrapping_mul(a.0[0], f0).wrapping_add(wrapping_mul(b.0[0], g0)) >> 29;
-						let mut b0 = a.0[0]
-							.wrapping_mul(f1)
-							.wrapping_add(wrapping_mul(b.0[0], g1))
-							>> 29;
+							wrapping_add(wrapping_mul(a.0[0], f0), wrapping_mul(b.0[0], g0)) >> 29;
+						let mut b0 =
+							wrapping_add(wrapping_mul(a.0[0], f1), wrapping_mul(b.0[0], g1)) >> 29;
 						for _ in 0..2 {
 							let a_odd = Self::wrapping_neg(xa & 1);
 							let (_, cc) = subborrow_u64(xa, xb, 0);
@@ -1139,12 +1138,12 @@ macro_rules! define_gfgen {
 							xa >>= 1;
 							fg1 <<= 1;
 							a0 >>= 1;
-							ls ^= b0.wrapping_add(2) >> 2;
+							ls ^= wrapping_add(b0, 2) >> 2;
 						}
 
 						// Propagate updates to a and b.
-						fg0 = fg0.wrapping_add(0x7FFFFFFF7FFFFFFF);
-						fg1 = fg1.wrapping_add(0x7FFFFFFF7FFFFFFF);
+						fg0 = wrapping_add(fg0, 0x7FFFFFFF7FFFFFFF);
+						fg1 = wrapping_add(fg1, 0x7FFFFFFF7FFFFFFF);
 
 						let f0 = Self::wrapping_sub(fg0 & 0xFFFFFFFF, 0x7FFFFFFF);
 						let g0 = Self::wrapping_sub(fg0 >> 32, 0x7FFFFFFF);
@@ -1177,7 +1176,7 @@ macro_rules! define_gfgen {
 						xb ^= t1;
 						xa = Self::wrapping_sub(xa, a_odd & xb);
 						xa >>= 1;
-						ls ^= xb.wrapping_add(2) >> 2;
+						ls ^= wrapping_add(xb, 2) >> 2;
 					}
 
 					// At this point, if the source value was not zero, then the low
@@ -1441,8 +1440,8 @@ macro_rules! define_gfgen {
 						}
 						assert!(a != -100);
 
-						c0h = c0h.wrapping_add(a as u8);
-						c1h = c1h.wrapping_add(b as u8);
+						c0h = wrapping_add_u8(c0h.into(), a as u8);
+						c1h = wrapping_add_u8(c1h.into(), b as u8);
 					}
 
 					// We can encode the two outputs; if we don't have enough bytes
@@ -1499,11 +1498,23 @@ macro_rules! define_gfgen {
 					let mut j = 0;
 					for i in 0..Self::N {
 						if (j + 8) <= Self::ENC_LEN {
-							d[j..(j + 8)].copy_from_slice(&x.0[i].to_le_bytes());
+							let mut bytes = [0u8; 8];
+							to_le_bytes_u64(x.0[i], &mut bytes);
+							unsafe {
+								let dest = d.as_mut_ptr().add(j);
+								let src = bytes.as_ptr();
+								copy_nonoverlapping(src, dest, 8);
+							}
 							j += 8;
 						} else {
-							let k = Self::ENC_LEN - j;
-							d[j..].copy_from_slice(&x.0[i].to_le_bytes()[..k]);
+							let k = (Self::ENC_LEN - j) - 8;
+							let mut bytes = [0u8; 8];
+							to_le_bytes_u64(x.0[i], &mut bytes);
+							unsafe {
+								let dest = d.as_mut_ptr().add(j);
+								let src = bytes.as_ptr().add(k);
+								copy_nonoverlapping(src, dest, 8);
+							}
 						}
 					}
 					d
@@ -1949,10 +1960,10 @@ macro_rules! define_gfgen {
 							}
 						}
 
-						let fm = a.0[0]
-							.wrapping_mul(bj)
-							.wrapping_add(d.0[0])
-							.wrapping_mul($typename::M0I);
+						let fm = wrapping_mul(
+							wrapping_add(wrapping_mul(a.0[0], bj), d.0[0]),
+							$typename::M0I,
+						);
 						mmul1_inner(d, dh, a, bj, fm, 0, 0, 0)
 					}
 
@@ -1977,7 +1988,7 @@ macro_rules! define_gfgen {
 
 					let (d, dh) = mmul_inner(Self([0u64; $typename::N]), 0, a, b, 0);
 					let (d, cc) = $typename::subm(d);
-					$typename::addm_cond(d, (cc & !dh).wrapping_neg())
+					$typename::addm_cond(d, wrapping_neg(cc & !dh))
 				}
 
 				const fn const_rev(x: [u64; Self::N]) -> [u64; Self::N] {
@@ -2472,7 +2483,10 @@ macro_rules! define_gfgen_tests {
 				let mut sh = Sha512::new();
 				let mut j = 0;
 				while j < $typename::ENC_LEN {
-					sh.update((bx + ((j as u64) << 40)).to_le_bytes());
+					let mut bytes = [0u8; 8];
+					use prelude::to_le_bytes_u64;
+					to_le_bytes_u64(bx + ((j as u64) << 40), &mut bytes);
+					sh.update(bytes);
 					if (j + 64) < $typename::ENC_LEN {
 						vv[j..(j + 64)].copy_from_slice(&sh.finalize_reset()[..]);
 					} else {
