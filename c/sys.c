@@ -24,6 +24,11 @@ void _ZN4core9panicking18panic_bounds_check17hab62625bddb22ea0E() {
 	printf("panic bounds check!\n");
 	_exit(-1);
 }
+
+void _ZN4core9panicking18panic_bounds_check17h0db566006d72a8c4E() {
+	printf("panic bounds check!\n");
+	_exit(-1);
+}
 #endif	// TEST
 
 void *alloc(unsigned long size) {
