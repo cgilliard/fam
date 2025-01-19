@@ -1,6 +1,4 @@
 use crate::crypto::gf448::{addcarry_u64, sgnw, subborrow_u64, umull, umull_add, umull_add2};
-
-use core::convert::TryFrom;
 use core::iter::Iterator;
 
 // Given integers k and n, with 0 <= k < n < Nmax (with n prime), return
@@ -474,47 +472,47 @@ pub fn lagrange_vartime(k: &[u64], n: &[u64], max_bitlen: u32, c0: &mut [u64], c
 	let c1len = c1.len();
 	match n.len() {
 		4 => {
-			let (v0, v1) = lagrange256_vartime(
-				<&[u64; 4]>::try_from(k).unwrap(),
-				<&[u64; 4]>::try_from(n).unwrap(),
-				max_bitlen,
-			);
+			let mut k1 = [0u64; 4];
+			let mut n1 = [0u64; 4];
+			copy_from_slice_u64(&mut k1, k);
+			copy_from_slice_u64(&mut n1, n);
+			let (v0, v1) = lagrange256_vartime(&k1, &n1, max_bitlen);
 			copy_from_slice_u64(c0, &v0[0..c0len]);
 			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		5 => {
-			let (v0, v1) = lagrange320_vartime(
-				<&[u64; 5]>::try_from(k).unwrap(),
-				<&[u64; 5]>::try_from(n).unwrap(),
-				max_bitlen,
-			);
+			let mut k1 = [0u64; 5];
+			let mut n1 = [0u64; 5];
+			copy_from_slice_u64(&mut k1, k);
+			copy_from_slice_u64(&mut n1, n);
+			let (v0, v1) = lagrange320_vartime(&k1, &n1, max_bitlen);
 			copy_from_slice_u64(c0, &v0[0..c0len]);
 			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		6 => {
-			let (v0, v1) = lagrange384_vartime(
-				<&[u64; 6]>::try_from(k).unwrap(),
-				<&[u64; 6]>::try_from(n).unwrap(),
-				max_bitlen,
-			);
+			let mut k1 = [0u64; 6];
+			let mut n1 = [0u64; 6];
+			copy_from_slice_u64(&mut k1, k);
+			copy_from_slice_u64(&mut n1, n);
+			let (v0, v1) = lagrange384_vartime(&k1, &n1, max_bitlen);
 			copy_from_slice_u64(c0, &v0[0..c0len]);
 			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		7 => {
-			let (v0, v1) = lagrange448_vartime(
-				<&[u64; 7]>::try_from(k).unwrap(),
-				<&[u64; 7]>::try_from(n).unwrap(),
-				max_bitlen,
-			);
+			let mut k1 = [0u64; 7];
+			let mut n1 = [0u64; 7];
+			copy_from_slice_u64(&mut k1, k);
+			copy_from_slice_u64(&mut n1, n);
+			let (v0, v1) = lagrange448_vartime(&k1, &n1, max_bitlen);
 			copy_from_slice_u64(c0, &v0[0..c0len]);
 			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
 		8 => {
-			let (v0, v1) = lagrange512_vartime(
-				<&[u64; 8]>::try_from(k).unwrap(),
-				<&[u64; 8]>::try_from(n).unwrap(),
-				max_bitlen,
-			);
+			let mut k1 = [0u64; 8];
+			let mut n1 = [0u64; 8];
+			copy_from_slice_u64(&mut k1, k);
+			copy_from_slice_u64(&mut n1, n);
+			let (v0, v1) = lagrange512_vartime(&k1, &n1, max_bitlen);
 			copy_from_slice_u64(c0, &v0[0..c0len]);
 			copy_from_slice_u64(c1, &v1[0..c1len]);
 		}
