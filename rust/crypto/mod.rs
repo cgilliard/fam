@@ -5,6 +5,8 @@ pub mod ed448;
 mod gf448;
 mod gfgen;
 mod lagrange;
+pub mod pedersen;
+pub mod range_proof;
 mod sha2;
 pub mod sha3;
 pub mod x448;

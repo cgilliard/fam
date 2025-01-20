@@ -118,7 +118,8 @@ pub const fn umull_add(x: u64, y: u64, z: u64) -> (u64, u64) {
 	(t as u64, (t >> 64) as u64)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
 pub struct GF448([u64; 7]);
 
 impl GF448 {

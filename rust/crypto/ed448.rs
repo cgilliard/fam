@@ -78,19 +78,22 @@
 #![allow(non_snake_case)]
 
 use crate::crypto::gf448::GF448;
+use crate::crypto::gfgen::define_gfgen;
+use crate::crypto::gfgen::define_gfgen_tests;
 use crate::crypto::safe_cpsrng_rand_bytes;
 use crate::crypto::sha3::SHAKE256;
+use crate::crypto::{
+	safe_sha3_Finalize, safe_sha3_Init256, safe_sha3_SetFlags, safe_sha3_Update,
+	safe_sha3_context_size, SHA3_FLAGS_NONE,
+};
 use core::iter::Iterator;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use core::slice::from_raw_parts;
 use prelude::*;
-//use super::{CryptoRng, RngCore};
-use crate::crypto::gfgen::define_gfgen;
-use crate::crypto::gfgen::define_gfgen_tests;
-//use crate::backend::define_gfgen_tests;
 
 /// A point on the Edwards curve edwards448.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
 pub struct Point {
 	// We use projective coordinates, as suggested by RFC 8032.
 	//
@@ -203,6 +206,29 @@ impl Point {
 		Z: GF448::ONE,
 	};
 
+	pub fn derive_h() -> Self {
+		let mut H = Self::BASE;
+		let mut va = [0u8; 57];
+		let mut ctx = [0u8; 224];
+		if safe_sha3_context_size() > 224 {
+			exit!(
+				"sah3 context is greater than expected size {}. Expected: 224",
+				safe_sha3_context_size()
+			);
+		}
+		safe_sha3_Init256(&mut ctx as *mut u8);
+		safe_sha3_SetFlags(&mut ctx as *mut u8, SHA3_FLAGS_NONE);
+		safe_sha3_Update(&mut ctx as *mut u8, b"H".as_ptr(), 1);
+		let hash = unsafe { from_raw_parts(safe_sha3_Finalize(&mut ctx as *mut u8), 32) };
+		for i in 0..32 {
+			va[i] = hash[i];
+		}
+
+		let sc = Scalar::decode_reduce(&va);
+		H *= sc;
+		H
+	}
+
 	/// Curve equation parameter is d = -39081; this is -d = +39081.
 	pub(crate) const MINUS_D: u32 = 39081;
 
@@ -223,6 +249,7 @@ impl Point {
 		// Check input length.
 		if buf.len() != 57 {
 			*self = Self::NEUTRAL;
+			println!("x");
 			return 0;
 		}
 
@@ -4309,5 +4336,41 @@ mod tests {
 				assert!(P.is_in_subgroup() == 0x00000000);
 			}
 		}
+	}
+
+	#[test]
+	fn test_point_h() {
+		use crypto::gf448::GF448;
+		let H = Point::derive_h();
+		pub const H_EXPECTED: Point = Point {
+			X: GF448::w64le([
+				3191547490334248084,
+				16639901831368914591,
+				10700905663329219281,
+				592502937728072810,
+				644313577534740680,
+				9969087133727264781,
+				7473298904519329962,
+			]),
+			Y: GF448::w64le([
+				15145769443795944357,
+				5196700886436553960,
+				15864121651324398197,
+				10291869708315989570,
+				2548845843651936952,
+				5625132464436285377,
+				10160546952372225762,
+			]),
+			Z: GF448::w64le([
+				7916250926311627710,
+				930203196433534025,
+				2164009001171371023,
+				6304736011240385480,
+				7338538088860258501,
+				8951136280928459394,
+				17480154026209432625,
+			]),
+		};
+		assert_eq!(H, H_EXPECTED);
 	}
 }
