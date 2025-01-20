@@ -10,20 +10,7 @@ void _exit(int);
 
 // handle bounds check errors
 #ifndef TEST
-void _ZN4core9panicking18panic_bounds_check17hd8c2e93ae78325eeE() {
-	printf("panic bounds check!\n");
-	_exit(-1);
-}
-void _ZN4core9panicking18panic_bounds_check17hab62625bddb22ea0E() {
-	printf("panic bounds check!\n");
-	_exit(-1);
-}
-
-void _ZN4core9panicking18panic_bounds_check17h0db566006d72a8c4E() {
-	printf("panic bounds check!\n");
-	_exit(-1);
-}
-void _ZN4core9panicking18panic_bounds_check17he13e1d42a3dd5ab1E() {
+void _ZN4core9panicking18panic_bounds_check17ha189853b893018bdE() {
 	printf("panic bounds check!\n");
 	_exit(-1);
 }
