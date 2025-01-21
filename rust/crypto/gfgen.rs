@@ -17,7 +17,7 @@ macro_rules! define_gfgen {
 			use core::slice::from_raw_parts;
 			use prelude::*;
 
-			#[derive(Clone, Copy)]
+			#[derive(Clone, Copy, PartialEq)]
 			pub struct $typename([u64; $typename::N]);
 
 			const fn wrapping_neg(x: u64) -> u64 {
@@ -117,6 +117,58 @@ macro_rules! define_gfgen {
 
 				const fn wrapping_neg(x: u64) -> u64 {
 					((!x as u128) + 1) as u64
+				}
+
+				pub const fn w8lev(x: &[u8]) -> Self {
+					let mut limbs = [0u64; 7];
+
+					let mut i = 0;
+					while i < 7 {
+						limbs[i] = (x[i * 8 + 0] as u64)
+							| ((x[i * 8 + 1] as u64) << 8)
+							| ((x[i * 8 + 2] as u64) << 16)
+							| ((x[i * 8 + 3] as u64) << 24)
+							| ((x[i * 8 + 4] as u64) << 32)
+							| ((x[i * 8 + 5] as u64) << 40)
+							| ((x[i * 8 + 6] as u64) << 48);
+
+						// For the last limb, include the extra padding byte if it exists
+						if i == 6 {
+							limbs[i] |= (x[i * 8 + 7] as u64) & 0xFF; // Include the extra byte
+						} else {
+							limbs[i] |= (x[i * 8 + 7] as u64) << 56;
+						}
+						i += 1;
+					}
+
+					// Call w64le with the 7 u64 limbs
+					Self::w64le(limbs)
+				}
+
+				pub const fn w8le(x: [u8; 57]) -> Self {
+					let mut limbs = [0u64; 7];
+
+					let mut i = 0;
+					while i < 7 {
+						limbs[i] = (x[i * 8 + 0] as u64)
+							| ((x[i * 8 + 1] as u64) << 8)
+							| ((x[i * 8 + 2] as u64) << 16)
+							| ((x[i * 8 + 3] as u64) << 24)
+							| ((x[i * 8 + 4] as u64) << 32)
+							| ((x[i * 8 + 5] as u64) << 40)
+							| ((x[i * 8 + 6] as u64) << 48);
+
+						// For the last limb, include the extra padding byte if it exists
+						if i == 6 {
+							limbs[i] |= (x[i * 8 + 7] as u64) & 0xFF; // Include the extra byte
+						} else {
+							limbs[i] |= (x[i * 8 + 7] as u64) << 56;
+						}
+						i += 1;
+					}
+
+					// Call w64le with the 7 u64 limbs
+					Self::w64le(limbs)
 				}
 
 				// Create an element from its 64-bit limbs, provided in little-endian
@@ -1193,7 +1245,7 @@ macro_rules! define_gfgen {
 
 				// Raise this value to the provided exponent. The exponent is non-zero
 				// and is public. The exponent is encoded over N 64-bit limbs.
-				fn set_modpow_pubexp(&mut self, e: &[u64; Self::N]) {
+				pub fn set_modpow_pubexp(&mut self, e: &[u64; Self::N]) {
 					// Make a 4-bit window; win[i] contains x^(i+1)
 					let mut win = [Self::ZERO; 15];
 					win[0] = *self;

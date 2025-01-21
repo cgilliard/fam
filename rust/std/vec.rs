@@ -18,6 +18,23 @@ pub struct Vec<T> {
 	_marker: PhantomData<T>,
 }
 
+impl<T> Clone for Vec<T> {
+	fn clone(&self) -> Result<Self, Error> {
+		let value_ptr = safe_alloc(size_of::<T>() * self.capacity);
+		if value_ptr.is_null() {
+			return Err(err!(Alloc));
+		}
+		let value = Ptr::new(value_ptr);
+		Ok(Self {
+			value,
+			capacity: self.capacity,
+			elements: self.elements,
+			min: self.min,
+			_marker: PhantomData,
+		})
+	}
+}
+
 impl<T: PartialEq> PartialEq for Vec<T> {
 	fn eq(&self, other: &Vec<T>) -> bool {
 		if self.len() != other.len() {

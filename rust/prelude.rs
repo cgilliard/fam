@@ -23,4 +23,5 @@ pub use util::runtime::*;
 pub use core::cmp::PartialEq;
 pub use core::convert::{From, Into, TryFrom, TryInto};
 pub use core::default::Default;
+pub use core::iter::Iterator;
 pub use core::ops::{Drop, FnMut};

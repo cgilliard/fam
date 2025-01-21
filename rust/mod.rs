@@ -1,5 +1,6 @@
 #![no_std]
 #![feature(unsize)]
+#![feature(stmt_expr_attributes)]
 #![feature(coerce_unsized)]
 #![allow(internal_features)]
 #![feature(core_intrinsics)]

@@ -164,6 +164,33 @@ impl GF448 {
 		0xFFFFFFFFFFFFFFFF,
 	]);
 
+	pub const fn w8le(x: [u8; 57]) -> Self {
+		// Initialize an array of 7 u64 elements
+		let mut limbs = [0u64; 7];
+
+		let mut i = 0;
+		while i < 7 {
+			limbs[i] = (x[i * 8 + 0] as u64)
+				| ((x[i * 8 + 1] as u64) << 8)
+				| ((x[i * 8 + 2] as u64) << 16)
+				| ((x[i * 8 + 3] as u64) << 24)
+				| ((x[i * 8 + 4] as u64) << 32)
+				| ((x[i * 8 + 5] as u64) << 40)
+				| ((x[i * 8 + 6] as u64) << 48);
+
+			// For the last limb, include the extra padding byte if it exists
+			if i == 6 {
+				limbs[i] |= (x[i * 8 + 7] as u64) & 0xFF; // Include the extra byte
+			} else {
+				limbs[i] |= (x[i * 8 + 7] as u64) << 56;
+			}
+			i += 1;
+		}
+
+		// Call w64le with the 7 u64 limbs
+		Self::w64le(limbs)
+	}
+
 	// Create an element from a 448-bit value (implicitly reduced modulo
 	// the field order) provided as seven 64-bit limbs (in low-to-high order).
 	pub const fn w64le(x: [u64; 7]) -> Self {
