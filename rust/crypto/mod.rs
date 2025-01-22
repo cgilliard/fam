@@ -23,6 +23,8 @@ extern "C" {
 
 	pub fn cpsrng_rand_bytes(v: *mut u8, len: usize);
 
+	// SECP256k1
+	pub fn secp256k1_context_create(flags: u32) -> *mut u8;
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -64,9 +66,18 @@ pub fn safe_sha3_Finalize(ctx: *mut u8) -> *const u8 {
 	unsafe { sha3_Finalize(ctx) }
 }
 
+pub fn safe_secp256k1_context_create(flags: u32) -> *mut u8 {
+	unsafe { secp256k1_context_create(flags) }
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
+
+	#[test]
+	fn test_secp256k1_1() {
+		let x = safe_secp256k1_context_create(1);
+	}
 
 	#[test]
 	fn test_aes1() {

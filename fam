@@ -14,6 +14,7 @@ filter=
 . scripts/parse_params.sh || exit 1;
 
 if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
+	./scripts/secp256k1zkp.sh
 	cd c
 	for file in *.c
 	do
@@ -40,7 +41,15 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 	cp target/release/deps/libnum_integer-*.rlib ../../../.obj/libnum_integer.rlib
 	cp target/release/deps/libnum_traits-*.rlib ../../../.obj/libnum_traits.rlib
 	cd ../../..
-	rustc +nightly --extern num_integer=.obj/libnum_integer.rlib --extern num_traits=.obj/libnum_traits.rlib --extern num_bigint=.obj/libnum_bigint.rlib -C debuginfo=2 --test rust/mod.rs -o bin/test_fam -L .obj -l static=test ${rustflags} ||  exit 1; 
+	rustc +nightly --extern \
+		num_integer=.obj/libnum_integer.rlib \
+		--extern num_traits=.obj/libnum_traits.rlib \
+		--extern num_bigint=.obj/libnum_bigint.rlib \
+		-C debuginfo=2 --test rust/mod.rs \
+		-o bin/test_fam \
+		-L .obj \
+		-l static=test \
+		-l static=secp256k1 ${rustflags} ||  exit 1; 
 	./bin/test_fam ${filter} --test-threads=1 || exit 1;
 	if [ "$coverage" = "1" ]; then
                 git log -1 > /tmp/coverage.txt || exit 1;
@@ -53,6 +62,7 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 fi
 if [ "$all" = "1" ]; then
 	ccflags=-O3
+	./scripts/secp256k1zkp.sh
 	cd c
         for file in *.c
         do
@@ -79,9 +89,12 @@ if [ "$all" = "1" ]; then
                 rustc +nightly ${debug} -C panic=abort -C opt-level=3 --emit=obj --crate-type=lib -o .obj/rust.o rust/mod.rs \
                         || exit 1;
         fi
-	echo "${cc} ${ccflags} -o bin/fam .obj/*.o";
+	echo "${cc} ${ccflags} -o bin/fam .obj/*.o -L.obj -lsecp256k1";
        	${cc} ${ccflags} -o bin/fam .obj/*.o || exit 1;
 fi
 if [ "$clean" = "1" ]; then
+	cd secp256k1-zkp
+	make clean
+	cd ..
 	rm -rf .obj/* libtest.a bin/* rust/test_deps/*/target
 fi

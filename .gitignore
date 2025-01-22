@@ -5,6 +5,7 @@ bin/*
 **/.*.dat
 rust/test_deps/*/target
 secp256k1-zkp/configure
+secp256k1-zkp/configure~
 secp256k1-zkp/build-aux
 secp256k1-zkp/autom4te.cache
 secp256k1-zkp/aclocal.m4
