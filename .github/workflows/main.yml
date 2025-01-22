@@ -82,7 +82,7 @@ jobs:
       - name: macos update nightly
         run: |
           rustup install nightly
-          brew install autoconf automake
+          brew install autoconf automake libtool
       - name: macos build (rustc)
         run: |
           ./fam
