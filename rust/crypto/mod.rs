@@ -1,8 +1,15 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
+pub mod ed448;
+mod gf448;
+mod gfgen;
+mod lagrange;
+pub mod pedersen;
+pub mod range_proof;
 mod sha2;
 pub mod sha3;
+pub mod x448;
 
 const SHA3_FLAGS_KECCAK: i32 = 1;
 const SHA3_FLAGS_NONE: i32 = 0;
