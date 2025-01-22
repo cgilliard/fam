@@ -80,7 +80,9 @@ jobs:
         run: |
           sw_vers
       - name: macos update nightly
-        run: rustup install nightly
+        run: |
+          rustup install nightly
+          brew install autoconf automake
       - name: macos build (rustc)
         run: |
           ./fam
