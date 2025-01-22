@@ -1,12 +1,14 @@
 #!/bin/sh
 
 cd secp256k1-zkp
-./autogen.sh
-./configure \
-	--enable-module-schnorrsig \
-	--enable-module-rangeproof \
-	--enable-module-generator \
-	--enable-experimental
+if [ ! -f "./configure" ]; then
+	./autogen.sh
+	./configure \
+		--enable-module-schnorrsig \
+		--enable-module-rangeproof \
+		--enable-module-generator \
+		--enable-experimental
+fi
 make
 cp .libs/libsecp256k1.a ../.obj
 cd ..
