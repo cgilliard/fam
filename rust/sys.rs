@@ -87,7 +87,7 @@ extern "C" {
 	pub fn shutdown(opt_rem_file: *const u8);
 	pub fn getpagesize() -> usize;
 
-	pub fn rand_bytes(data: *mut u8, len: usize);
+	pub fn rand_bytes(data: *mut u8, len: usize) -> i32;
 
 	pub fn backtrace_full(bin: *const u8, len: usize) -> *const u8;
 	pub fn cstring_len(s: *const u8) -> usize;
@@ -143,7 +143,7 @@ pub fn safe_channel_pending(channel: *const u8) -> bool {
 	unsafe { channel_pending(channel) }
 }
 
-pub fn safe_rand_bytes(data: *mut u8, len: usize) {
+pub fn safe_rand_bytes(data: *mut u8, len: usize) -> i32 {
 	unsafe { rand_bytes(data, len) }
 }
 

@@ -4,8 +4,10 @@
 mod sha2;
 pub mod sha3;
 
-const SHA3_FLAGS_KECCAK: i32 = 1;
-const SHA3_FLAGS_NONE: i32 = 0;
+pub const SHA3_FLAGS_KECCAK: i32 = 1;
+pub const SHA3_FLAGS_NONE: i32 = 0;
+
+pub const SECP256K1_CONTEXT_NONE: u32 = 1;
 
 extern "C" {
 	// AES
@@ -25,6 +27,47 @@ extern "C" {
 
 	// SECP256k1
 	pub fn secp256k1_context_create(flags: u32) -> *mut u8;
+	pub fn secp256k1_context_destroy(ctx: *mut u8);
+	pub fn secp256k1_context_randomize(ctx: *mut u8, seed: *const u8) -> i32;
+	pub fn secp256k1_keypair_create(ctx: *mut u8, keypair: *mut u8, seckey: *const u8) -> i32;
+	pub fn secp256k1_ec_seckey_verify(ctx: *mut u8, seckey: *const u8) -> i32;
+	pub fn secp256k1_ec_pubkey_combine(
+		ctx: *mut u8,
+		combined_pubkey: *mut u8,
+		pubkeys: *const u8,
+		n: usize,
+	) -> i32;
+	pub fn secp256k1_keypair_xonly_pub(
+		ctx: *mut u8,
+		xonly_pubkey: *mut u8,
+		pk_parity: *const i32,
+		keypair: *const u8,
+	) -> i32;
+	pub fn secp256k1_xonly_pubkey_serialize(
+		ctx: *mut u8,
+		output: *mut u8,
+		xonly_pubkey: *const u8,
+	) -> i32;
+	pub fn secp256k1_xonly_pubkey_parse(
+		ctx: *mut u8,
+		xonly_pubkey: *mut u8,
+		input: *const u8,
+		len: usize,
+	) -> i32;
+	pub fn secp256k1_schnorrsig_sign32(
+		ctx: *mut u8,
+		sig64: *mut u8,
+		msg32: *const u8,
+		keypair: *const u8,
+		aux_rand: *const u8,
+	) -> i32;
+	pub fn secp256k1_schnorrsig_verify(
+		ctx: *mut u8,
+		sig64: *const u8,
+		msg32: *const u8,
+		msglen: usize,
+		xonly_pubkey: *const u8,
+	) -> i32;
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -67,7 +110,17 @@ pub fn safe_sha3_Finalize(ctx: *mut u8) -> *const u8 {
 }
 
 pub fn safe_secp256k1_context_create(flags: u32) -> *mut u8 {
-	unsafe { secp256k1_context_create(flags) }
+	unsafe {
+		let ctx = secp256k1_context_create(flags);
+		let mut r = [0u8; 32];
+		cpsrng_rand_bytes(&mut r as *mut u8, 32);
+		secp256k1_context_randomize(ctx, &r as *const u8);
+		ctx
+	}
+}
+
+pub fn safe_secp256k1_context_destroy(ctx: *mut u8) {
+	unsafe { secp256k1_context_destroy(ctx) }
 }
 
 #[cfg(test)]
@@ -76,7 +129,57 @@ mod test {
 
 	#[test]
 	fn test_secp256k1_1() {
-		let x = safe_secp256k1_context_create(1);
+		let ctx = safe_secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+		assert!(!ctx.is_null());
+		let mut seckey = [0u8; 32];
+		unsafe {
+			cpsrng_rand_bytes(&mut seckey as *mut u8, 32);
+			assert!(secp256k1_ec_seckey_verify(ctx, &seckey as *const u8) == 1);
+		}
+
+		let mut keypair = [0u8; 96];
+		let mut xonly_pubkey = [0u8; 64];
+		unsafe {
+			use core::ptr::null;
+			assert!(
+				secp256k1_keypair_create(ctx, &mut keypair as *mut u8, &seckey as *const u8) != 0
+			);
+			assert!(
+				secp256k1_keypair_xonly_pub(
+					ctx,
+					&mut xonly_pubkey as *mut u8,
+					null(),
+					&keypair as *const u8,
+				) == 1
+			);
+		}
+		let mut sig64 = [0u8; 64];
+		let msg32 = [8u8; 32];
+		let mut r = [0u8; 32];
+		unsafe {
+			cpsrng_rand_bytes(&mut r as *mut u8, 32);
+			assert!(
+				secp256k1_schnorrsig_sign32(
+					ctx,
+					&mut sig64 as *mut u8,
+					&msg32 as *const u8,
+					&keypair as *const u8,
+					&r as *const u8,
+				) == 1
+			);
+
+			assert!(
+				secp256k1_schnorrsig_verify(
+					ctx,
+					&sig64 as *const u8,
+					&msg32 as *const u8,
+					32,
+					&xonly_pubkey as *const u8,
+				) == 1
+			);
+		}
+
+		safe_secp256k1_context_destroy(ctx);
 	}
 
 	#[test]
