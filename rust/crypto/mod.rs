@@ -234,6 +234,24 @@ extern "C" {
 		value: u64,
 		gen: *const u8,
 	) -> i32;
+
+	pub fn secp256k1_rangeproof_rewind(
+		ctx: *mut u8,
+		blind_out: *mut u8,
+		value_out: *mut u64,
+		message_out: *mut u8,
+		outlen: *mut usize,
+		nonce: *const u8,
+		min_value: *const u64,
+		max_value: *const u64,
+		commit: *const u8,
+		proof: *const u8,
+		plen: usize,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+		gen: *const u8,
+	) -> i32;
+
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -305,7 +323,6 @@ mod test {
 		let mut commit = [0u8; 33];
 		let mut blind = [55u8; 32];
 		let mut nonce = [56u8; 32];
-		let msg = [7u8; 32];
 
 		unsafe {
 			cpsrng_rand_bytes(&mut blind as *mut u8, 32);
@@ -331,8 +348,8 @@ mod test {
 					0,
 					64,
 					1234,
-					&msg as *const u8,
-					msg.len(),
+					null(),
+					0,
 					extra_commit.as_ptr(),
 					0,
 					&GENERATOR_H as *const u8,
@@ -359,6 +376,37 @@ mod test {
 				),
 				1
 			);
+
+			let mut blind_out = [0u8; 32];
+			let mut value_out = 0u64;
+			let mut message_out = [0u8; 32];
+			let mut outlen = 0usize;
+			let mut rewind_nonce = [59u8; 32];
+
+			cpsrng_rand_bytes(&mut rewind_nonce as *mut u8, 32);
+
+			assert_eq!(
+				secp256k1_rangeproof_rewind(
+					ctx,
+					blind_out.as_mut_ptr(),
+					&mut value_out as *mut u64,
+					&mut message_out as *mut u8,
+					&mut outlen as *mut usize,
+					nonce.as_ptr(),
+					&zero as *const u64,
+					&max as *const u64,
+					commit.as_ptr(),
+					proof.as_ptr(),
+					plen,
+					null(),
+					0,
+					GENERATOR_H.as_ptr()
+				),
+				1
+			);
+
+			assert_eq!(value_out, 1234);
+			assert_eq!(blind_out, blind);
 		}
 	}
 
