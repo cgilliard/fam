@@ -156,11 +156,11 @@ extern "C" {
 	) -> i32;
 
 	pub fn secp256k1_musig_partial_sig_agg(
-		ctx: *mut u8,            // context
-		final_sig: *mut u8,      // output final aggregated signature (64 bytes)
-		session: *const u8,      // session data
-		partial_sigs: *const u8, // array of partial signatures
-		n: usize,                // number of partial signatures
+		ctx: *mut u8,                   // context
+		final_sig: *mut u8,             // output final aggregated signature (64 bytes)
+		session: *const u8,             // session data
+		partial_sigs: *const *const u8, // array of partial signatures
+		n: usize,                       // number of partial signatures
 	) -> i32;
 
 	pub fn secp256k1_schnorrsig_verify(
@@ -294,7 +294,6 @@ mod test {
 	#[test]
 	fn test_musig_simple() {
 		use core::ptr;
-		use prelude::*;
 		// Create a context for secp256k1
 		let ctx = safe_secp256k1_context_create(SECP256K1_CONTEXT_NONE);
 		assert!(!ctx.is_null());
@@ -512,15 +511,15 @@ mod test {
 				) == 1
 			);
 
-			/*
 			// Aggregate partial signatures to get the final signature
 			let mut final_sig = [0u8; 64];
+			let partial_sig = [&partial_sig1 as *const u8, &partial_sig2 as *const u8];
 			assert!(
 				secp256k1_musig_partial_sig_agg(
 					ctx,
 					&mut final_sig as *mut u8,
 					&session as *const u8,
-					&partial_sig as *const u8,
+					partial_sig.as_ptr(),
 					2
 				) == 1
 			);
@@ -535,7 +534,6 @@ mod test {
 					&agg_pk as *const u8
 				) == 1
 			);
-						*/
 		}
 
 		// Clean up the context
