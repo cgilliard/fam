@@ -9,6 +9,21 @@ pub const SHA3_FLAGS_NONE: i32 = 0;
 
 pub const SECP256K1_CONTEXT_NONE: u32 = 1;
 
+/*
+pub const GENERATOR_H: [u8; 64] = [
+	80, 146, 155, 116, 193, 160, 73, 84, 183, 139, 75, 96, 53, 233, 122, 94, 7, 138, 90, 15, 40,
+	236, 150, 213, 71, 191, 238, 154, 206, 128, 58, 192, 49, 211, 198, 134, 57, 115, 146, 110, 4,
+	158, 99, 124, 177, 181, 244, 10, 54, 218, 194, 138, 241, 118, 105, 104, 195, 12, 35, 19, 243,
+	163, 137, 4,
+];
+*/
+pub const GENERATOR_H: [u8; 64] = [
+	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
+	0x31, 0xd3, 0xc6, 0x86, 0x39, 0x73, 0x92, 0x6e, 0x04, 0x9e, 0x63, 0x7c, 0xb1, 0xb5, 0xf4, 0x0a,
+	0x36, 0xda, 0xc2, 0x8a, 0xf1, 0x76, 0x69, 0x68, 0xc3, 0x0c, 0x23, 0x13, 0xf3, 0xa3, 0x89, 0x04,
+];
+
 extern "C" {
 	// AES
 	pub fn AES_ctx_size() -> usize;
@@ -181,6 +196,44 @@ extern "C" {
 		hashfn: *const u8,
 		data: *const u8,
 	);
+
+	pub fn secp256k1_rangeproof_sign(
+		ctx: *mut u8,
+		proof: *mut u8,
+		plen: *mut usize,
+		min_value: u64,
+		commit: *const u8,
+		blind: *const u8,
+		nonce: *const u8,
+		exp: i32,
+		min_bits: i32,
+		value: u64,
+		message: *const u8,
+		msg_len: usize,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+		gen: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_rangeproof_verify(
+		ctx: *mut u8,
+		min_value: *const u64,
+		max_value: *const u64,
+		commit: *const u8,
+		proof: *const u8,
+		plen: usize,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+		gen: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_pedersen_commit(
+		ctx: *mut u8,
+		secp256k1_pedersen_commitment: *mut u8,
+		blind: *const u8,
+		value: u64,
+		gen: *const u8,
+	) -> i32;
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -240,6 +293,74 @@ pub fn safe_secp256k1_context_destroy(ctx: *mut u8) {
 mod test {
 	use super::*;
 	use core::ptr::null;
+
+	#[test]
+	fn test_secp256k1_rangeproof() {
+		let ctx = safe_secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+		assert!(!ctx.is_null());
+
+		let extra_commit = [0u8; 33];
+		let mut proof = [0u8; 5126];
+		let mut plen = proof.len();
+		let mut commit = [0u8; 33];
+		let mut blind = [55u8; 32];
+		let mut nonce = [56u8; 32];
+		let msg = [7u8; 32];
+
+		unsafe {
+			cpsrng_rand_bytes(&mut blind as *mut u8, 32);
+			cpsrng_rand_bytes(&mut nonce as *mut u8, 32);
+
+			secp256k1_pedersen_commit(
+				ctx,
+				&mut commit as *mut u8,
+				&blind as *const u8,
+				1234,
+				&GENERATOR_H as *const u8,
+			);
+
+			assert_eq!(
+				secp256k1_rangeproof_sign(
+					ctx,
+					&mut proof as *mut u8,
+					&mut plen as *mut usize,
+					0,
+					&commit as *const u8,
+					&blind as *const u8,
+					&nonce as *const u8,
+					0,
+					64,
+					1234,
+					&msg as *const u8,
+					msg.len(),
+					extra_commit.as_ptr(),
+					0,
+					&GENERATOR_H as *const u8,
+				),
+				1
+			);
+
+			assert!(plen <= 5134);
+
+			let zero = 0u64;
+			let max = 0xFFFFFFFFFFFFFFFFu64;
+
+			assert_eq!(
+				secp256k1_rangeproof_verify(
+					ctx,
+					&zero as *const u64,
+					&max as *const u64,
+					&commit as *const u8,
+					&proof as *const u8,
+					plen,
+					null(),
+					0,
+					&GENERATOR_H as *const u8,
+				),
+				1
+			);
+		}
+	}
 
 	#[test]
 	fn test_secp256k1_1() {
