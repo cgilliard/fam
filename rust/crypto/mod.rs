@@ -173,10 +173,14 @@ extern "C" {
 
 	pub fn secp256k1_keypair_negate(ctx: *mut u8, keypair: *mut u8);
 
-	pub fn secp256k1_fe_is_odd(fe: *const u8) -> i32;
-	pub fn secp256k1_fe_impl_set_b32_mod(fe: *mut u8, xonly_pubkey: *const u8);
-	pub fn secp256k1_keypair_xonly_tweak_add(ctx: *mut u8, keypair: *mut u8, tweak: *const u8);
-
+	pub fn secp256k1_ecdh(
+		ctx: *mut u8,
+		shared_secret: *mut u8,
+		pubkey: *const u8,
+		seckey: *const u8,
+		hashfn: *const u8,
+		data: *const u8,
+	);
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -235,6 +239,7 @@ pub fn safe_secp256k1_context_destroy(ctx: *mut u8) {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::ptr::null;
 
 	#[test]
 	fn test_secp256k1_1() {
@@ -292,6 +297,120 @@ mod test {
 	}
 
 	#[test]
+	fn test_ecdh() {
+		// Create a context for secp256k1
+		let ctx = safe_secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+		assert!(!ctx.is_null());
+
+		// Generate secret keys for two participants
+		let mut sk1 = [0u8; 32];
+		let mut sk2 = [0u8; 32];
+		unsafe {
+			cpsrng_rand_bytes(&mut sk1 as *mut u8, 32);
+			cpsrng_rand_bytes(&mut sk2 as *mut u8, 32);
+		}
+
+		// Create keypairs from the secret keys
+		let mut keypair1 = [0u8; 96];
+		let mut keypair2 = [0u8; 96];
+		let mut pk1 = [0u8; 64];
+		let mut pk2 = [0u8; 64];
+
+		unsafe {
+			assert!(secp256k1_ec_seckey_verify(ctx, &sk1 as *const u8) == 1);
+			assert!(secp256k1_ec_seckey_verify(ctx, &sk2 as *const u8) == 1);
+
+			// Create keypair
+			assert!(
+				secp256k1_keypair_create(ctx, &mut keypair1 as *mut u8, &sk1 as *const u8) == 1
+			);
+
+			let mut pk_parity = -1;
+			assert!(
+				secp256k1_keypair_xonly_pub(
+					ctx,
+					&mut pk1 as *mut u8,
+					&mut pk_parity as *mut i32,
+					&keypair1 as *const u8,
+				) == 1
+			);
+
+			if pk_parity == 1 {
+				secp256k1_ec_seckey_negate(ctx, &mut sk1 as *mut u8);
+				assert!(
+					secp256k1_keypair_create(ctx, &mut keypair1 as *mut u8, &sk1 as *const u8) == 1
+				);
+
+				assert!(
+					secp256k1_keypair_xonly_pub(
+						ctx,
+						&mut pk1 as *mut u8,
+						&mut pk_parity as *mut i32,
+						&keypair1 as *const u8,
+					) == 1
+				);
+				assert_eq!(pk_parity, 0);
+			}
+
+			assert!(
+				secp256k1_keypair_create(ctx, &mut keypair2 as *mut u8, &sk2 as *const u8) == 1
+			);
+
+			let mut pk_parity = -1;
+			assert!(
+				secp256k1_keypair_xonly_pub(
+					ctx,
+					&mut pk2 as *mut u8,
+					&mut pk_parity as *mut i32,
+					&keypair2 as *const u8,
+				) == 1
+			);
+			if pk_parity == 1 {
+				secp256k1_ec_seckey_negate(ctx, &mut sk2 as *mut u8);
+				assert!(
+					secp256k1_keypair_create(ctx, &mut keypair2 as *mut u8, &sk2 as *const u8) == 1
+				);
+
+				assert!(
+					secp256k1_keypair_xonly_pub(
+						ctx,
+						&mut pk2 as *mut u8,
+						&mut pk_parity as *mut i32,
+						&keypair2 as *const u8,
+					) == 1
+				);
+			}
+
+			let mut shared_secret1 = [0u8; 32];
+			let mut shared_secret2 = [0u8; 32];
+			secp256k1_ecdh(
+				ctx,
+				&mut shared_secret1 as *mut u8,
+				&pk2 as *const u8,
+				&sk1 as *const u8,
+				null(),
+				null(),
+			);
+
+			secp256k1_ecdh(
+				ctx,
+				&mut shared_secret2 as *mut u8,
+				&pk1 as *const u8,
+				&sk2 as *const u8,
+				null(),
+				null(),
+			);
+
+			for i in 0..32 {
+				assert_eq!(shared_secret1[i], shared_secret2[i]);
+			}
+		}
+
+		// Clean up the context
+		safe_secp256k1_context_destroy(ctx);
+	}
+
+	#[test]
 	fn test_musig_simple() {
 		use core::ptr;
 		// Create a context for secp256k1
@@ -307,10 +426,10 @@ mod test {
 		}
 
 		// Create keypairs from the secret keys
-		let mut keypair1 = [0u8; 1000];
-		let mut keypair2 = [0u8; 1000];
-		let mut pk1 = [0u8; 1000];
-		let mut pk2 = [0u8; 1000];
+		let mut keypair1 = [0u8; 96];
+		let mut keypair2 = [0u8; 96];
+		let mut pk1 = [0u8; 64];
+		let mut pk2 = [0u8; 64];
 
 		unsafe {
 			assert!(secp256k1_ec_seckey_verify(ctx, &sk1 as *const u8) == 1);
@@ -380,13 +499,13 @@ mod test {
 		}
 
 		// Generate nonces and session ID
-		let mut pubnonce1 = [0u8; 1000]; // Public nonces (132 bytes)
-		let mut pubnonce2 = [0u8; 1000]; // second nonce
-		let mut secnonce1 = [0u8; 1000]; // Secret nonces (132 bytes)
-		let mut secnonce2 = [0u8; 1000];
-		let mut session_id1 = [0u8; 1000]; // Session IDs (32 bytes)
-		let mut session_id2 = [0u8; 1000];
-		let mut aggnonce = [0u8; 1000]; // Aggregated nonce (132 bytes)
+		let mut pubnonce1 = [0u8; 132]; // Public nonces (132 bytes)
+		let mut pubnonce2 = [0u8; 132]; // second nonce
+		let mut secnonce1 = [0u8; 132]; // Secret nonces (132 bytes)
+		let mut secnonce2 = [0u8; 132];
+		let mut session_id1 = [0u8; 32]; // Session IDs (32 bytes)
+		let mut session_id2 = [0u8; 32];
+		let mut aggnonce = [0u8; 132]; // Aggregated nonce (132 bytes)
 
 		unsafe {
 			// Generate nonces for each participant
@@ -430,12 +549,12 @@ mod test {
 		}
 
 		// Prepare for signing and verification
-		let mut keyagg_cache = [0u8; 1000]; // Cache for key aggregation
-		let mut agg_pk = [0u8; 1000]; // Aggregated public key
-		let mut session = [0u8; 1000]; // Session state
+		let mut keyagg_cache = [0u8; 256]; // Cache for key aggregation
+		let mut agg_pk = [0u8; 64]; // Aggregated public key
+		let mut session = [0u8; 256]; // Session state
 
 		let pks_ptrs: [*const u8; 2] = [&pk1 as *const u8, &pk2 as *const u8];
-		let msg = [37u8; 1000];
+		let msg = [37u8; 32];
 
 		unsafe {
 			// Aggregate public keys
@@ -463,8 +582,8 @@ mod test {
 			);
 		}
 
-		let mut partial_sig1 = [0u8; 1000];
-		let mut partial_sig2 = [0u8; 1000];
+		let mut partial_sig1 = [0u8; 64];
+		let mut partial_sig2 = [0u8; 64];
 
 		unsafe {
 			assert!(
