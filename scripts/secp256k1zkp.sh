@@ -7,6 +7,7 @@ if [ ! -f "./configure" ]; then
 		--enable-module-schnorrsig \
 		--enable-module-rangeproof \
 		--enable-module-generator \
+		--enable-module-musig \
 		--enable-experimental
 fi
 make

@@ -37,6 +37,7 @@
 #include "int128_impl.h"
 #include "scratch_impl.h"
 #include "selftest.h"
+#include "../include/secp256k1_musig.h"
 
 #ifdef SECP256K1_NO_BUILD
 # error "secp256k1.h processed without SECP256K1_BUILD defined while building secp256k1.c"
@@ -160,6 +161,7 @@ secp256k1_context* secp256k1_context_preallocated_create(void* prealloc, unsigne
 
 secp256k1_context* secp256k1_context_create(unsigned int flags) {
     size_t const prealloc_size = secp256k1_context_preallocated_size(flags);
+    printf("context create %li sec_non = %li, aggnonce=%li\n", sizeof(secp256k1_musig_pubnonce), sizeof(secp256k1_musig_secnonce), sizeof(secp256k1_musig_aggnonce));
     secp256k1_context* ctx = (secp256k1_context*)checked_malloc(&default_error_callback, prealloc_size);
     if (EXPECT(secp256k1_context_preallocated_create(ctx, flags) == NULL, 0)) {
         free(ctx);

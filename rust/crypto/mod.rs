@@ -43,6 +43,7 @@ extern "C" {
 		pk_parity: *const i32,
 		keypair: *const u8,
 	) -> i32;
+	pub fn secp256k1_keypair_pub(ctx: *mut u8, pubkey: *mut u8, keypair: *const u8) -> i32;
 	pub fn secp256k1_xonly_pubkey_serialize(
 		ctx: *mut u8,
 		output: *mut u8,
@@ -61,13 +62,113 @@ extern "C" {
 		keypair: *const u8,
 		aux_rand: *const u8,
 	) -> i32;
-	pub fn secp256k1_schnorrsig_verify(
+
+	pub fn secp256k1_musig_session_initialize(
 		ctx: *mut u8,
-		sig64: *const u8,
-		msg32: *const u8,
-		msglen: usize,
-		xonly_pubkey: *const u8,
+		session: *mut u8,
+		pubkeys: *const u8,
+		n: usize,
+		aux_rand: *const u8,
 	) -> i32;
+
+	pub fn secp256k1_musig_aggregate_signatures(
+		ctx: *mut u8,
+		sig64: *mut u8,
+		session: *mut u8,
+		partial_sigs: *const u8,
+		n: usize,
+	) -> i32;
+	/*
+			pub fn create_keypair_and_pk(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_nonce_gen(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_pubkey_agg(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_nonce_agg(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_nonce_process(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_partial_sign(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_partial_sig_verify(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_musig_partial_sig_agg(ctx: *mut u8, ...) -> i32;
+			pub fn secp256k1_schnorrsig_verify(ctx: *mut u8,  ...) -> i32;
+	*/
+	/*
+	pub fn create_keypair_and_pk(
+		ctx: *mut u8,          // context
+		keypair: *mut u8,      // output keypair
+		pubkey: *mut u8,       // output public key
+		secret_key: *const u8, // input secret key (32 bytes)
+	) -> i32;
+		*/
+
+	pub fn secp256k1_musig_nonce_gen(
+		ctx: *mut u8,               // context
+		secnonce: *mut u8,          // output secret nonce
+		pubnonce: *mut u8,          // output public nonce
+		session_id: *const u8,      // session ID (32 bytes)
+		sk: *const u8,              // secret key (32 bytes)
+		pubkey: *const u8,          // public key
+		pubkeys: *const u8,         // optional: list of other public keys
+		additional_data: *const u8, // optional: additional data
+		secnonce2: *mut u8,         // optional: secondary secret nonce
+	) -> i32;
+
+	pub fn secp256k1_musig_pubkey_agg(
+		ctx: *mut u8,              // context
+		scratch: *mut u8,          // scratch space for aggregation
+		agg_pk: *mut u8,           // output aggregated public key
+		keyagg_cache: *mut u8,     // cache for key aggregation
+		pubkeys: *const *const u8, // array of public keys
+		n: usize,                  // number of public keys to aggregate
+	) -> i32;
+
+	pub fn secp256k1_musig_nonce_agg(
+		ctx: *mut u8,                // context
+		aggnonce: *mut u8,           // output aggregated nonce
+		pubnonces: *const *const u8, // array of public nonces
+		n: usize,                    // number of nonces to aggregate
+	) -> i32;
+
+	pub fn secp256k1_musig_nonce_process(
+		ctx: *mut u8,               // context
+		session: *mut u8,           // session data
+		aggnonce: *const u8,        // aggregated nonce
+		msg: *const u8,             // message to sign (32 bytes)
+		keyagg_cache: *const u8,    // key aggregation cache
+		additional_data: *const u8, // optional additional data
+	) -> i32;
+
+	pub fn secp256k1_musig_partial_sign(
+		ctx: *mut u8,            // context
+		partial_sig: *mut u8,    // output partial signature
+		secnonce: *const u8,     // secret nonce
+		keypair: *const u8,      // keypair
+		keyagg_cache: *const u8, // key aggregation cache
+		session: *const u8,      // session data
+	) -> i32;
+
+	pub fn secp256k1_musig_partial_sig_verify(
+		ctx: *mut u8,            // context
+		partial_sig: *const u8,  // partial signature
+		pubnonce: *const u8,     // public nonce
+		pubkey: *const u8,       // public key
+		keyagg_cache: *const u8, // key aggregation cache
+		session: *const u8,      // session data
+	) -> i32;
+
+	pub fn secp256k1_musig_partial_sig_agg(
+		ctx: *mut u8,            // context
+		final_sig: *mut u8,      // output final aggregated signature (64 bytes)
+		session: *const u8,      // session data
+		partial_sigs: *const u8, // array of partial signatures
+		n: usize,                // number of partial signatures
+	) -> i32;
+
+	pub fn secp256k1_schnorrsig_verify(
+		ctx: *mut u8,   // context
+		sig: *const u8, // signature (64 bytes)
+		msg: *const u8, // message to verify (32 bytes)
+		msg_len: usize, // length of the message
+		pk: *const u8,  // public key
+	) -> i32;
+
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -179,6 +280,230 @@ mod test {
 			);
 		}
 
+		safe_secp256k1_context_destroy(ctx);
+	}
+
+	#[test]
+	fn test_musig_simple() {
+		use core::ptr;
+		use prelude::*;
+		// Create a context for secp256k1
+		let ctx = safe_secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+		assert!(!ctx.is_null());
+
+		// Generate secret keys for two participants
+		let mut sk1 = [0u8; 32];
+		let mut sk2 = [0u8; 32];
+		unsafe {
+			cpsrng_rand_bytes(&mut sk1 as *mut u8, 32);
+			cpsrng_rand_bytes(&mut sk2 as *mut u8, 32);
+		}
+
+		// Create keypairs from the secret keys
+		let mut keypair1 = [0u8; 1000];
+		let mut keypair2 = [0u8; 1000];
+		let mut pk1 = [0u8; 1000];
+		let mut pk2 = [0u8; 1000];
+
+		unsafe {
+			assert!(secp256k1_ec_seckey_verify(ctx, &sk1 as *const u8) == 1);
+			assert!(secp256k1_ec_seckey_verify(ctx, &sk2 as *const u8) == 1);
+
+			// Create keypair
+			use core::ptr::null;
+			assert!(
+				secp256k1_keypair_create(ctx, &mut keypair1 as *mut u8, &sk1 as *const u8) == 1
+			);
+
+			/*
+			assert!(
+				secp256k1_keypair_xonly_pub(
+					ctx,
+					&mut pk1 as *mut u8,
+					null(),
+					&keypair1 as *const u8,
+				) == 1
+			);
+						*/
+			assert!(secp256k1_keypair_pub(ctx, &mut pk1 as *mut u8, &keypair1 as *const u8) == 1);
+
+			assert!(
+				secp256k1_keypair_create(ctx, &mut keypair2 as *mut u8, &sk2 as *const u8) == 1
+			);
+
+			let pk_parity = 1;
+			/*
+			assert!(
+				secp256k1_keypair_xonly_pub(
+					ctx,
+					&mut pk2 as *mut u8,
+					null(),
+					&keypair2 as *const u8,
+				) == 1
+			);
+						*/
+			assert!(secp256k1_keypair_pub(ctx, &mut pk2 as *mut u8, &keypair2 as *const u8) == 1);
+		}
+
+		// Generate nonces and session ID
+		let mut pubnonce1 = [0u8; 1000]; // Public nonces (132 bytes)
+		let mut pubnonce2 = [0u8; 1000]; // second nonce
+		let mut secnonce1 = [0u8; 1000]; // Secret nonces (132 bytes)
+		let mut secnonce2 = [0u8; 1000];
+		let mut session_id1 = [0u8; 1000]; // Session IDs (32 bytes)
+		let mut session_id2 = [0u8; 1000];
+		let mut aggnonce = [0u8; 1000]; // Aggregated nonce (132 bytes)
+
+		unsafe {
+			// Generate nonces for each participant
+			cpsrng_rand_bytes(&mut session_id1 as *mut u8, 32);
+			assert!(
+				secp256k1_musig_nonce_gen(
+					ctx,
+					&mut secnonce1 as *mut u8,
+					&mut pubnonce1 as *mut u8,
+					&session_id1 as *const u8,
+					&sk1 as *const u8,
+					&pk1 as *const u8,
+					ptr::null(),
+					ptr::null(),
+					ptr::null_mut()
+				) == 1
+			);
+
+			cpsrng_rand_bytes(&mut session_id2 as *mut u8, 32);
+			assert!(
+				secp256k1_musig_nonce_gen(
+					ctx,
+					&mut secnonce2 as *mut u8,
+					&mut pubnonce2 as *mut u8,
+					&session_id2 as *const u8,
+					&sk2 as *const u8,
+					&pk2 as *const u8,
+					ptr::null(),
+					ptr::null(),
+					ptr::null_mut()
+				) == 1
+			);
+
+			let pubnonce_ptrs: [*const u8; 2] = [&pubnonce1 as *const u8, &pubnonce2 as *const u8];
+
+			// Aggregate the public nonces
+			assert!(
+				secp256k1_musig_nonce_agg(ctx, &mut aggnonce as *mut u8, pubnonce_ptrs.as_ptr(), 2)
+					== 1
+			);
+		}
+
+		// Prepare for signing and verification
+		let mut keyagg_cache = [0u8; 1000]; // Cache for key aggregation
+		let mut agg_pk = [0u8; 1000]; // Aggregated public key
+		let mut session = [0u8; 1000]; // Session state
+
+		let pks_ptrs: [*const u8; 2] = [&pk1 as *const u8, &pk2 as *const u8];
+		let msg = [37u8; 1000];
+
+		unsafe {
+			// Aggregate public keys
+			assert!(
+				secp256k1_musig_pubkey_agg(
+					ctx,
+					ptr::null_mut(),
+					&mut agg_pk as *mut u8,
+					&mut keyagg_cache as *mut u8,
+					pks_ptrs.as_ptr(),
+					2
+				) == 1
+			);
+
+			// Process nonce aggregation
+			assert!(
+				secp256k1_musig_nonce_process(
+					ctx,
+					&mut session as *mut u8,
+					&aggnonce as *const u8,
+					&msg as *const u8,
+					&keyagg_cache as *const u8,
+					ptr::null()
+				) == 1
+			);
+		}
+
+		let mut partial_sig1 = [0u8; 1000];
+		let mut partial_sig2 = [0u8; 1000];
+
+		unsafe {
+			assert!(
+				secp256k1_musig_partial_sign(
+					ctx,
+					&mut partial_sig1 as *mut u8,
+					&secnonce1 as *const u8,
+					&keypair1 as *const u8,
+					&keyagg_cache as *const u8,
+					&session as *const u8
+				) == 1
+			);
+
+			assert!(
+				secp256k1_musig_partial_sig_verify(
+					ctx,
+					&partial_sig1 as *const u8,
+					&pubnonce1 as *const u8,
+					&pk1 as *const u8,
+					&keyagg_cache as *const u8,
+					&session as *const u8
+				) == 1
+			);
+
+			assert!(
+				secp256k1_musig_partial_sign(
+					ctx,
+					&mut partial_sig2 as *mut u8,
+					&secnonce2 as *const u8,
+					&keypair2 as *const u8,
+					&keyagg_cache as *const u8,
+					&session as *const u8
+				) == 1
+			);
+
+			assert!(
+				secp256k1_musig_partial_sig_verify(
+					ctx,
+					&partial_sig2 as *const u8,
+					&pubnonce2 as *const u8,
+					&pk2 as *const u8,
+					&keyagg_cache as *const u8,
+					&session as *const u8
+				) == 1
+			);
+
+			/*
+			// Aggregate partial signatures to get the final signature
+			let mut final_sig = [0u8; 64];
+			assert!(
+				secp256k1_musig_partial_sig_agg(
+					ctx,
+					&mut final_sig as *mut u8,
+					&session as *const u8,
+					&partial_sig as *const u8,
+					2
+				) == 1
+			);
+
+			// Verify the final Schnorr signature
+			assert!(
+				secp256k1_schnorrsig_verify(
+					ctx,
+					&final_sig as *const u8,
+					&msg as *const u8,
+					32,
+					&agg_pk as *const u8
+				) == 1
+			);
+						*/
+		}
+
+		// Clean up the context
 		safe_secp256k1_context_destroy(ctx);
 	}
 
