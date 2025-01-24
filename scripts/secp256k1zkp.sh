@@ -10,6 +10,6 @@ if [ ! -f "./configure" ]; then
 		--enable-module-musig \
 		--enable-experimental
 fi
-make
+make || exit 1;
 cp .libs/libsecp256k1.a ../.obj
 cd ..

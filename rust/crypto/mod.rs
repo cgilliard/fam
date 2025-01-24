@@ -40,7 +40,7 @@ extern "C" {
 	pub fn secp256k1_keypair_xonly_pub(
 		ctx: *mut u8,
 		xonly_pubkey: *mut u8,
-		pk_parity: *const i32,
+		pk_parity: *mut i32,
 		keypair: *const u8,
 	) -> i32;
 	pub fn secp256k1_keypair_pub(ctx: *mut u8, pubkey: *mut u8, keypair: *const u8) -> i32;
@@ -70,6 +70,8 @@ extern "C" {
 		n: usize,
 		aux_rand: *const u8,
 	) -> i32;
+
+	pub fn secp256k1_ec_seckey_negate(ctx: *const u8, seckey: *mut u8) -> i32;
 
 	pub fn secp256k1_musig_aggregate_signatures(
 		ctx: *mut u8,
@@ -169,6 +171,12 @@ extern "C" {
 		pk: *const u8,  // public key
 	) -> i32;
 
+	pub fn secp256k1_keypair_negate(ctx: *mut u8, keypair: *mut u8);
+
+	pub fn secp256k1_fe_is_odd(fe: *const u8) -> i32;
+	pub fn secp256k1_fe_impl_set_b32_mod(fe: *mut u8, xonly_pubkey: *const u8);
+	pub fn secp256k1_keypair_xonly_tweak_add(ctx: *mut u8, keypair: *mut u8, tweak: *const u8);
+
 }
 
 pub fn safe_cpsrng_rand_bytes(v: *mut u8, len: usize) {
@@ -241,7 +249,7 @@ mod test {
 		let mut keypair = [0u8; 96];
 		let mut xonly_pubkey = [0u8; 64];
 		unsafe {
-			use core::ptr::null;
+			use core::ptr::null_mut;
 			assert!(
 				secp256k1_keypair_create(ctx, &mut keypair as *mut u8, &seckey as *const u8) != 0
 			);
@@ -249,7 +257,7 @@ mod test {
 				secp256k1_keypair_xonly_pub(
 					ctx,
 					&mut xonly_pubkey as *mut u8,
-					null(),
+					null_mut(),
 					&keypair as *const u8,
 				) == 1
 			);
@@ -310,39 +318,66 @@ mod test {
 			assert!(secp256k1_ec_seckey_verify(ctx, &sk2 as *const u8) == 1);
 
 			// Create keypair
-			use core::ptr::null;
 			assert!(
 				secp256k1_keypair_create(ctx, &mut keypair1 as *mut u8, &sk1 as *const u8) == 1
 			);
 
-			/*
+			let mut pk_parity = -1;
 			assert!(
 				secp256k1_keypair_xonly_pub(
 					ctx,
 					&mut pk1 as *mut u8,
-					null(),
+					&mut pk_parity as *mut i32,
 					&keypair1 as *const u8,
 				) == 1
 			);
-						*/
-			assert!(secp256k1_keypair_pub(ctx, &mut pk1 as *mut u8, &keypair1 as *const u8) == 1);
+
+			if pk_parity == 1 {
+				secp256k1_ec_seckey_negate(ctx, &mut sk1 as *mut u8);
+				assert!(
+					secp256k1_keypair_create(ctx, &mut keypair1 as *mut u8, &sk1 as *const u8) == 1
+				);
+
+				assert!(
+					secp256k1_keypair_xonly_pub(
+						ctx,
+						&mut pk1 as *mut u8,
+						&mut pk_parity as *mut i32,
+						&keypair1 as *const u8,
+					) == 1
+				);
+				assert_eq!(pk_parity, 0);
+			}
 
 			assert!(
 				secp256k1_keypair_create(ctx, &mut keypair2 as *mut u8, &sk2 as *const u8) == 1
 			);
 
-			let pk_parity = 1;
-			/*
+			let mut pk_parity = -1;
 			assert!(
 				secp256k1_keypair_xonly_pub(
 					ctx,
 					&mut pk2 as *mut u8,
-					null(),
+					&mut pk_parity as *mut i32,
 					&keypair2 as *const u8,
 				) == 1
 			);
-						*/
-			assert!(secp256k1_keypair_pub(ctx, &mut pk2 as *mut u8, &keypair2 as *const u8) == 1);
+			if pk_parity == 1 {
+				secp256k1_ec_seckey_negate(ctx, &mut sk2 as *mut u8);
+				assert!(
+					secp256k1_keypair_create(ctx, &mut keypair2 as *mut u8, &sk2 as *const u8) == 1
+				);
+
+				assert!(
+					secp256k1_keypair_xonly_pub(
+						ctx,
+						&mut pk2 as *mut u8,
+						&mut pk_parity as *mut i32,
+						&keypair2 as *const u8,
+					) == 1
+				);
+				assert_eq!(pk_parity, 0);
+			}
 		}
 
 		// Generate nonces and session ID

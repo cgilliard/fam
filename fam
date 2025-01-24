@@ -14,7 +14,7 @@ filter=
 . scripts/parse_params.sh || exit 1;
 
 if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
-	./scripts/secp256k1zkp.sh
+	./scripts/secp256k1zkp.sh || exit 1;
 	cd c
 	for file in *.c
 	do
@@ -62,7 +62,7 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 fi
 if [ "$all" = "1" ]; then
 	ccflags=-O3
-	./scripts/secp256k1zkp.sh
+	./scripts/secp256k1zkp.sh || exit 1;
 	cd c
         for file in *.c
         do
