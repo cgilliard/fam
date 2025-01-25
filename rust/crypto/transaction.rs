@@ -1,14 +1,15 @@
 use core::convert::AsRef;
 use crypto::{
-	cpsrng_rand_bytes, safe_secp256k1_context_create, safe_secp256k1_context_destroy,
-	secp256k1_ec_seckey_negate, secp256k1_keypair_create, secp256k1_keypair_xonly_pub,
-	secp256k1_pedersen_commit, secp256k1_xonly_pubkey_serialize, GENERATOR_H,
-	SECP256K1_CONTEXT_NONE,
+	cpsrng_context_create, cpsrng_rand_bytes_ctx, safe_secp256k1_context_create,
+	safe_secp256k1_context_destroy, secp256k1_ec_seckey_negate, secp256k1_keypair_create,
+	secp256k1_keypair_xonly_pub, secp256k1_pedersen_commit, secp256k1_xonly_pubkey_serialize,
+	GENERATOR_H, SECP256K1_CONTEXT_NONE,
 };
 use prelude::*;
 
 pub struct Secp {
 	ctx: *mut u8,
+	rand: *mut u8,
 }
 
 impl Drop for Secp {
@@ -23,7 +24,11 @@ impl Secp {
 		if ctx.is_null() {
 			Err(err!(SecpInit))
 		} else {
-			Ok(Self { ctx })
+			let rand = unsafe { cpsrng_context_create() };
+			if rand.is_null() {
+				safe_secp256k1_context_destroy(ctx);
+			}
+			Ok(Self { ctx, rand })
 		}
 	}
 }
@@ -45,7 +50,7 @@ impl PrivateKey {
 		let mut pubkey = [0u8; 64];
 
 		unsafe {
-			cpsrng_rand_bytes(&mut v as *mut u8, 32);
+			cpsrng_rand_bytes_ctx(secp.rand, &mut v as *mut u8, 32);
 			if secp256k1_keypair_create(secp.ctx, &mut keypair as *mut u8, &v as *const u8) == 0 {
 				return Err(err!(SecpErr));
 			}

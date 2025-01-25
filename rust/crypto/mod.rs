@@ -40,6 +40,9 @@ extern "C" {
 	pub fn sha3_SetFlags(ctx: *mut u8, flags: i32);
 
 	pub fn cpsrng_rand_bytes(v: *mut u8, len: usize);
+	pub fn cpsrng_context_create() -> *mut u8;
+	pub fn cpsrng_context_destroy(ctx: *mut u8);
+	pub fn cpsrng_rand_bytes_ctx(ctx: *mut u8, v: *mut u8, len: usize);
 
 	// SECP256k1
 	pub fn secp256k1_context_create(flags: u32) -> *mut u8;
