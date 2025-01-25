@@ -15,7 +15,12 @@
 #ifndef _BASE_CPSRNG__
 #define _BASE_CPSRNG__
 
+#include "aes.h"
 #include "types.h"
+
+typedef struct CsprngCtx {
+	char x;
+} CsprngCtx;
 
 void cpsrng_reseed();
 void cpsrng_rand_byte(byte *v);

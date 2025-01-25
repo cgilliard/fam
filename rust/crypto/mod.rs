@@ -3,6 +3,7 @@
 
 mod sha2;
 pub mod sha3;
+pub mod transaction;
 
 pub const SHA3_FLAGS_KECCAK: i32 = 1;
 pub const SHA3_FLAGS_NONE: i32 = 0;
@@ -64,6 +65,7 @@ extern "C" {
 		output: *mut u8,
 		xonly_pubkey: *const u8,
 	) -> i32;
+	pub fn secp256k1_keypair_sec(ctx: *mut u8, seckey: *mut u8, keypair: *const u8) -> i32;
 	pub fn secp256k1_xonly_pubkey_parse(
 		ctx: *mut u8,
 		xonly_pubkey: *mut u8,
