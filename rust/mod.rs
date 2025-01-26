@@ -10,7 +10,7 @@
 #[macro_use]
 pub mod std;
 
-mod crypto;
+pub mod crypto;
 pub mod disk;
 pub mod net;
 pub mod prelude;

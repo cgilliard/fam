@@ -35,12 +35,6 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
         done
 	cd ../..
 	ar rcs .obj/libtest.a .obj/*.o || exit 1;
-	cd rust/test_deps/num-bigint
-	cargo +nightly build --release
-	cp target/release/libnum_bigint.rlib ../../../.obj
-	cp target/release/deps/libnum_integer-*.rlib ../../../.obj/libnum_integer.rlib
-	cp target/release/deps/libnum_traits-*.rlib ../../../.obj/libnum_traits.rlib
-	cd ../../..
 	rustc +nightly --extern \
 		num_integer=.obj/libnum_integer.rlib \
 		--extern num_traits=.obj/libnum_traits.rlib \
