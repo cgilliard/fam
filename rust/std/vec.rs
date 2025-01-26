@@ -330,12 +330,12 @@ impl<T> Vec<T> {
 		self.value.raw()
 	}
 
-	pub fn as_slice(&self) -> &[u8] {
-		unsafe { from_raw_parts(self.value.raw(), self.elements) }
+	pub fn as_slice(&self) -> &[T] {
+		unsafe { from_raw_parts(self.value.raw() as *const T, self.elements) }
 	}
 
-	pub fn as_mut_slice(&mut self) -> &mut [u8] {
-		unsafe { from_raw_parts_mut(self.value.raw(), self.elements) }
+	pub fn as_mut_slice(&mut self) -> &mut [T] {
+		unsafe { from_raw_parts_mut(self.value.raw() as *mut T, self.elements) }
 	}
 
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {

@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(new_range_api)]
 #![feature(unsize)]
 #![feature(stmt_expr_attributes)]
 #![feature(coerce_unsized)]

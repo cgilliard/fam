@@ -42,6 +42,7 @@ define_enum_with_strings!(ErrorKind {
 	Connect,
 	IO,
 	Bind,
+	InsufficientFunds,
 	Todo,
 });
 

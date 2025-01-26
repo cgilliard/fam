@@ -122,7 +122,7 @@ extern "C" {
 
 	pub fn secp256k1_musig_nonce_gen(
 		ctx: *mut u8,               // context
-		secnonce: *mut u8,          // output secret nonce
+		secnonce: *const u8,        // output secret nonce
 		pubnonce: *mut u8,          // output public nonce
 		session_id: *const u8,      // session ID (32 bytes)
 		sk: *const u8,              // secret key (32 bytes)
@@ -675,7 +675,7 @@ mod test {
 		// Generate nonces and session ID
 		let mut pubnonce1 = [0u8; 132]; // Public nonces (132 bytes)
 		let mut pubnonce2 = [0u8; 132]; // second nonce
-		let mut secnonce1 = [0u8; 132]; // Secret nonces (132 bytes)
+		let mut secnonce1 = [1u8; 132]; // Secret nonces (132 bytes)
 		let mut secnonce2 = [0u8; 132];
 		let mut session_id1 = [0u8; 32]; // Session IDs (32 bytes)
 		let mut session_id2 = [0u8; 32];
