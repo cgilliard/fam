@@ -21,6 +21,7 @@ pub use util::runtime::*;
 
 // External
 pub use core::cmp::PartialEq;
+pub use core::convert::{AsMut, AsRef};
 pub use core::convert::{From, Into, TryFrom, TryInto};
 pub use core::default::Default;
 pub use core::iter::Iterator;

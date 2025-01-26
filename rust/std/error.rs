@@ -35,6 +35,7 @@ define_enum_with_strings!(ErrorKind {
 	ConnectionClosed,
 	SecpInit,
 	SecpErr,
+	SecpOddParity,
 	WsStop,
 	MultiplexRegister,
 	SocketConnect,
