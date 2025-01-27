@@ -13,10 +13,10 @@ impl AsRef<[u8]> for SecNonce {
 
 impl SecNonce {
 	pub fn from_seed(seed: &[u8]) -> Self {
+		let mut v = [0u8; 132];
 		if seed.len() < 32 {
 			exit!("seed len must be >= 32");
 		}
-		let mut v = [0u8; 132];
 		unsafe {
 			copy_nonoverlapping(seed.as_ptr(), v.as_mut_ptr(), 32);
 		}

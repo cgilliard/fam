@@ -6,8 +6,8 @@ use prelude::*;
 pub struct Signature([u8; 64]);
 
 pub struct SlateContext {
-	session_id: [u8; 32],
-	secnonce: [u8; 132],
+	_session_id: [u8; 32],
+	_secnonce: [u8; 132],
 }
 
 pub struct ParticipantData {
@@ -17,6 +17,12 @@ pub struct ParticipantData {
 }
 
 pub struct Slate {
-	session: Session,
-	participant_data: Vec<ParticipantData>,
+	_session: Session,
+	_participant_data: Vec<ParticipantData>,
+}
+
+impl AsRef<[u8]> for Signature {
+	fn as_ref(&self) -> &[u8] {
+		&self.0
+	}
 }

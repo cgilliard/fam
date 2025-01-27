@@ -3,6 +3,7 @@
 
 use core::cmp::min;
 use core::convert::AsRef;
+use prelude::*;
 
 // Keccak state (25*8 = 200 bytes).
 #[derive(Copy, Clone)]
@@ -562,7 +563,11 @@ impl<const SZ: usize> SHA3Core<SZ> {
 		while i < src.len() {
 			let clen = min(src.len() - i, Self::RATE - ptr);
 			for _ in 0..clen {
-				self.state.0[ptr >> 3] ^= (src[i] as u64) << ((ptr & 7) << 3);
+				if ptr >> 3 < self.state.0.len() && i < src.len() {
+					self.state.0[ptr >> 3] ^= (src[i] as u64) << ((ptr & 7) << 3);
+				} else {
+					exit!("out of bounds!");
+				}
 				i += 1;
 				ptr += 1;
 			}
@@ -576,12 +581,18 @@ impl<const SZ: usize> SHA3Core<SZ> {
 
 	fn digest_to(&mut self, dst: &mut [u8]) {
 		let i = self.ptr;
-		self.state.0[i >> 3] ^= 0x06u64 << ((i & 7) << 3);
-		let i = Self::RATE - 1;
-		self.state.0[i >> 3] ^= 0x80u64 << ((i & 7) << 3);
-		self.state.process();
-		for i in 0..dst.len() {
-			dst[i] = (self.state.0[i >> 3] >> ((i & 7) << 3)) as u8;
+		let shift = i >> 3;
+		let len = self.state.0.len();
+		if shift < len {
+			self.state.0[i >> 3] ^= 0x06u64 << ((i & 7) << 3);
+			let i = Self::RATE - 1;
+			self.state.0[i >> 3] ^= 0x80u64 << ((i & 7) << 3);
+			self.state.process();
+			for i in 0..dst.len() {
+				dst[i] = (self.state.0[i >> 3] >> ((i & 7) << 3)) as u8;
+			}
+		} else {
+			exit!("out of bounds!");
 		}
 	}
 

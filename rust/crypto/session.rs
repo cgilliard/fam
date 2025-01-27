@@ -12,7 +12,7 @@ impl Session {
 	pub fn new(ctx: &mut Context) -> Self {
 		let keyagg_cache = [0u8; 256];
 		let session = [0u8; 256];
-		let agg_pk = [0u8; 64];
+		let _agg_pk = [0u8; 64];
 		Self::from_parts(ctx, keyagg_cache, session)
 	}
 
