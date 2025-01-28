@@ -757,7 +757,6 @@ mod tests {
 	use super::*;
 	use core::iter::Iterator;
 	use core::option::Option as CoreOption;
-	use prelude::*;
 
 	fn hex_decode(input: &str) -> Result<Vec<u8>, Error> {
 		if input.len() % 2 != 0 {

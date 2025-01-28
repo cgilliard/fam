@@ -1,3 +1,4 @@
+pub mod commitment;
 pub mod context;
 mod ffi;
 pub mod keys;

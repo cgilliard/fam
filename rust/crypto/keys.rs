@@ -150,6 +150,7 @@ mod test {
 		let mut ctx = Context::new().unwrap();
 		let pkey = PrivateKey::generate(&mut ctx);
 		assert!(pkey.is_ok());
+		let pkey = pkey.unwrap();
 
 		let b = [1u8; 32]; // odd parity
 		assert!(PrivateKey::from_bytes(&mut ctx, b).is_err());
@@ -160,5 +161,21 @@ mod test {
 		let k = [2u8; 32];
 		let k1 = PrivateKey::from_bytes(&mut ctx, k).unwrap();
 		assert_eq!(k1.as_ref(), k);
+
+		let pk1 = PublicKey::from(&mut ctx, k1);
+		let pk0 = PublicKey::from(&mut ctx, pkey);
+		let pkarr: &[*const u8] = &[pk0.as_ref().as_ptr(), pk1.as_ref().as_ptr()];
+		let mut out = [0u8; 64];
+		unsafe {
+			assert_eq!(
+				secp256k1_ec_pubkey_combine(
+					ctx.secp(),
+					&mut out as *mut u8,
+					pkarr.as_ptr(),
+					pkarr.len(),
+				),
+				1,
+			);
+		}
 	}
 }
