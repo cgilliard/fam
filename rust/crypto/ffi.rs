@@ -68,7 +68,7 @@ extern "C" {
 	) -> i32;
 	pub fn secp256k1_musig_nonce_gen(
 		ctx: *mut u8,
-		secnonce: *const u8,
+		secnonce: *mut u8,
 		pubnonce: *mut u8,
 		session_id: *const u8,
 		sk: *const u8,
@@ -114,5 +114,13 @@ extern "C" {
 		session: *const u8,
 		partial_sigs: *const *const u8,
 		n: usize,
+	) -> i32;
+	pub fn secp256k1_musig_partial_sig_verify(
+		ctx: *mut u8,
+		partial_sig: *const u8,
+		pubnonce: *const u8,
+		pubkey: *const u8,
+		keyagg_cache: *const u8,
+		session: *const u8,
 	) -> i32;
 }

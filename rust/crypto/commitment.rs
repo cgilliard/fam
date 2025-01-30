@@ -35,4 +35,8 @@ impl Commitment {
 		}
 		Commitment(commit)
 	}
+
+	pub fn from(bytes: [u8; 33]) -> Self {
+		Self(bytes)
+	}
 }
