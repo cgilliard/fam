@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub const SECP256K1_CONTEXT_NONE: u32 = 1;
+pub const SECP256K1_EC_COMPRESSED: u32 = 258;
 
 pub const GENERATOR_H: [u8; 64] = [
 	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
@@ -121,5 +122,25 @@ extern "C" {
 		pubkey: *const u8,
 		keyagg_cache: *const u8,
 		session: *const u8,
+	) -> i32;
+	pub fn secp256k1_xonly_pubkey_from_pubkey(
+		ctx: *mut u8,
+		xonly_pk: *const u8,
+		pk_parity: *const i32,
+		pk: *mut u8,
+	) -> i32;
+	pub fn secp256k1_ec_pubkey_parse(
+		ctx: *mut u8,
+		pubkey: *mut u8,
+		input: *const u8,
+		inputlen: usize,
+	) -> i32;
+	pub fn secp256k1_ec_pubkey_create(ctx: *mut u8, pubkey: *mut u8, seckey: *const u8) -> i32;
+	pub fn secp256k1_ec_pubkey_serialize(
+		ctx: *mut u8,
+		output: *mut u8,
+		outputlen: *const usize,
+		pubkey: *const u8,
+		flags: u32,
 	) -> i32;
 }

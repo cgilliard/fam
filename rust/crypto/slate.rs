@@ -3,9 +3,9 @@ use crypto::commitment::Commitment;
 use crypto::context::Context;
 use crypto::ffi::{
 	cpsrng_rand_bytes_ctx, secp256k1_ec_pubkey_combine, secp256k1_keypair_create,
-	secp256k1_keypair_xonly_pub, secp256k1_musig_nonce_agg, secp256k1_musig_nonce_gen,
-	secp256k1_musig_nonce_process, secp256k1_musig_partial_sig_agg,
-	secp256k1_musig_partial_sig_verify, secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg,
+	secp256k1_musig_nonce_agg, secp256k1_musig_nonce_gen, secp256k1_musig_nonce_process,
+	secp256k1_musig_partial_sig_agg, secp256k1_musig_partial_sig_verify,
+	secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg,
 };
 use crypto::keys::{PrivateKey, PublicKey};
 use crypto::session::Session;
@@ -501,7 +501,6 @@ impl Slate {
 					return Err(err!(SecpErr));
 				}
 
-				println!("partial_sign");
 				if secp256k1_musig_partial_sign(
 					ctx.secp(),
 					&mut partial_sig as *mut u8,
@@ -513,7 +512,6 @@ impl Slate {
 				{
 					return Err(err!(SecpErr));
 				}
-				println!("partial_sign success");
 				match pd.part_sigs.push(partial_sig) {
 					Ok(_) => {}
 					Err(e) => return Err(e),
@@ -852,10 +850,8 @@ mod test {
 			)
 			.unwrap();
 
-		/*
 		assert!(slate_userb
 			.sign_index(1, &mut ctx, vec![offset].unwrap(), vec![pkoutput].unwrap())
 			.is_ok());
-			*/
 	}
 }

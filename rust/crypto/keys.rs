@@ -14,34 +14,10 @@ impl AsRef<[u8]> for PrivateKey {
 impl PrivateKey {
 	pub fn generate(context: &mut Context) -> Result<Self, Error> {
 		let mut v = [0u8; 32];
-		let mut keypair = [0u8; 96];
-		let mut pk_parity = 0;
-		let mut pubkey = [0u8; 64];
-
 		unsafe {
 			cpsrng_rand_bytes_ctx(context.rand(), &mut v as *mut u8, 32);
 			if secp256k1_ec_seckey_verify(context.secp(), &v as *const u8) == 0 {
 				return Err(err!(SecpErr));
-			}
-			if secp256k1_keypair_create(context.secp(), &mut keypair as *mut u8, &v as *const u8)
-				== 0
-			{
-				return Err(err!(SecpErr));
-			}
-			if secp256k1_keypair_xonly_pub(
-				context.secp(),
-				&mut pubkey as *mut u8,
-				&mut pk_parity,
-				&keypair as *const u8,
-			) == 0
-			{
-				return Err(err!(SecpErr));
-			}
-
-			if pk_parity == 1 {
-				if secp256k1_ec_seckey_negate(context.secp(), &mut v as *mut u8) == 0 {
-					return Err(err!(SecpErr));
-				}
 			}
 		}
 		Ok(PrivateKey(v))
@@ -52,31 +28,6 @@ impl PrivateKey {
 			if secp256k1_ec_seckey_verify(context.secp(), &v as *const u8) == 0 {
 				return Err(err!(SecpErr));
 			}
-		}
-
-		let mut keypair = [0u8; 96];
-		let mut pk_parity = 0;
-		let mut pubkey = [0u8; 64];
-
-		unsafe {
-			if secp256k1_keypair_create(context.secp(), &mut keypair as *mut u8, &v as *const u8)
-				== 0
-			{
-				return Err(err!(SecpErr));
-			}
-			if secp256k1_keypair_xonly_pub(
-				context.secp(),
-				&mut pubkey as *mut u8,
-				&mut pk_parity,
-				&keypair as *const u8,
-			) == 0
-			{
-				return Err(err!(SecpErr));
-			}
-		}
-
-		if pk_parity != 0 {
-			return Err(err!(SecpOddParity));
 		}
 
 		Ok(Self(v))
@@ -95,7 +46,7 @@ impl PrivateKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct PublicKey([u8; 32]);
+pub struct PublicKey([u8; 33]);
 
 impl AsRef<[u8]> for PublicKey {
 	fn as_ref(&self) -> &[u8] {
@@ -106,21 +57,18 @@ impl AsRef<[u8]> for PublicKey {
 impl PublicKey {
 	pub fn from(ctx: &mut Context, key: PrivateKey) -> Self {
 		let mut pubkey = [0u8; 64];
-		let mut pubkey_out = [0u8; 32];
-		let mut keypair = [0u8; 96];
-		let mut pk_parity = 0i32;
+		let mut pubkey_out = [0u8; 33];
+
+		let len = 33usize;
+
 		unsafe {
-			secp256k1_keypair_create(ctx.secp(), &mut keypair as *mut u8, key.as_ref().as_ptr());
-			secp256k1_keypair_xonly_pub(
-				ctx.secp(),
-				&mut pubkey as *mut u8,
-				&mut pk_parity,
-				&keypair as *const u8,
-			);
-			secp256k1_xonly_pubkey_serialize(
+			secp256k1_ec_pubkey_create(ctx.secp(), pubkey.as_mut_ptr(), key.as_ref().as_ptr());
+			secp256k1_ec_pubkey_serialize(
 				ctx.secp(),
 				&mut pubkey_out as *mut u8,
+				&len as *const usize,
 				&pubkey as *const u8,
+				SECP256K1_EC_COMPRESSED,
 			);
 		}
 		PublicKey(pubkey_out)
@@ -129,14 +77,13 @@ impl PublicKey {
 	pub fn to_pub64(&self, ctx: &mut Context) -> [u8; 64] {
 		let mut ret = [0u8; 64];
 		let v = unsafe {
-			secp256k1_xonly_pubkey_parse(ctx.secp(), &mut ret as *mut u8, &self.0 as *const u8)
+			secp256k1_ec_pubkey_parse(ctx.secp(), &mut ret as *mut u8, &self.0 as *const u8, 33)
 		};
 		if v == 0 {
 			// should not get here because we check these things in creation of the
 			// PrivateKey.
 			exit!("could not parse pubkey");
 		}
-
 		ret
 	}
 }
@@ -153,7 +100,7 @@ mod test {
 		let pkey = pkey.unwrap();
 
 		let b = [1u8; 32]; // odd parity
-		assert!(PrivateKey::from_bytes(&mut ctx, b).is_err());
+		assert!(PrivateKey::from_bytes(&mut ctx, b).is_ok());
 
 		let b = [2u8; 32]; // even parity
 		assert!(PrivateKey::from_bytes(&mut ctx, b).is_ok());
