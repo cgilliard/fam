@@ -50,7 +50,6 @@ extern "C" {
 		ctx: *mut u8,
 		xonly_pubkey: *mut u8,
 		input: *const u8,
-		len: usize,
 	) -> i32;
 	pub fn secp256k1_ec_seckey_negate(ctx: *mut u8, seckey: *mut u8) -> i32;
 	pub fn secp256k1_pedersen_commit(

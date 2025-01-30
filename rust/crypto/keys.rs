@@ -129,7 +129,7 @@ impl PublicKey {
 	pub fn to_pub64(&self, ctx: &mut Context) -> [u8; 64] {
 		let mut ret = [0u8; 64];
 		let v = unsafe {
-			secp256k1_xonly_pubkey_parse(ctx.secp(), &mut ret as *mut u8, &self.0 as *const u8, 32)
+			secp256k1_xonly_pubkey_parse(ctx.secp(), &mut ret as *mut u8, &self.0 as *const u8)
 		};
 		if v == 0 {
 			// should not get here because we check these things in creation of the

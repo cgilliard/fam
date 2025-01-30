@@ -3,9 +3,9 @@ use crypto::commitment::Commitment;
 use crypto::context::Context;
 use crypto::ffi::{
 	cpsrng_rand_bytes_ctx, secp256k1_ec_pubkey_combine, secp256k1_keypair_create,
-	secp256k1_musig_nonce_agg, secp256k1_musig_nonce_gen, secp256k1_musig_nonce_process,
-	secp256k1_musig_partial_sig_agg, secp256k1_musig_partial_sig_verify,
-	secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg,
+	secp256k1_keypair_xonly_pub, secp256k1_musig_nonce_agg, secp256k1_musig_nonce_gen,
+	secp256k1_musig_nonce_process, secp256k1_musig_partial_sig_agg,
+	secp256k1_musig_partial_sig_verify, secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg,
 };
 use crypto::keys::{PrivateKey, PublicKey};
 use crypto::session::Session;
@@ -362,8 +362,7 @@ impl Slate {
 		let mut public_nonces: Vec<[u8; 132]> = Vec::new();
 		let mut public_blind_sum: Option<[u8; 64]> = None;
 		for input in inputs {
-			let sk = input.1;
-			match self.add_nonce(ctx, &mut public_nonces, sk) {
+			match self.add_nonce(ctx, &mut public_nonces, input.1) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
@@ -502,6 +501,7 @@ impl Slate {
 					return Err(err!(SecpErr));
 				}
 
+				println!("partial_sign");
 				if secp256k1_musig_partial_sign(
 					ctx.secp(),
 					&mut partial_sig as *mut u8,
@@ -513,6 +513,7 @@ impl Slate {
 				{
 					return Err(err!(SecpErr));
 				}
+				println!("partial_sign success");
 				match pd.part_sigs.push(partial_sig) {
 					Ok(_) => {}
 					Err(e) => return Err(e),
