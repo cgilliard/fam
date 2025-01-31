@@ -5,7 +5,7 @@ use crypto::ffi::{
 	cpsrng_rand_bytes_ctx, secp256k1_ec_pubkey_combine, secp256k1_keypair_create,
 	secp256k1_musig_nonce_agg, secp256k1_musig_nonce_gen, secp256k1_musig_nonce_process,
 	secp256k1_musig_partial_sig_agg, secp256k1_musig_partial_sig_verify,
-	secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg,
+	secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg, secp256k1_schnorrsig_verify,
 };
 use crypto::keys::{PrivateKey, PublicKey};
 use crypto::session::Session;
@@ -24,6 +24,7 @@ pub struct Slate {
 	inputs: Vec<Commitment>,
 	outputs: Vec<Commitment>,
 	fee: u64,
+	final_sig: Option<[u8; 64]>,
 	// Note: we do not serialize the session_ids or sec_nonces when sending to another participant
 	sec_nonces: Vec<[u8; 132]>,
 }
@@ -36,6 +37,7 @@ impl Slate {
 			inputs: Vec::new(),
 			outputs: Vec::new(),
 			fee,
+			final_sig: None,
 			sec_nonces: Vec::new(),
 		}
 	}
@@ -524,6 +526,34 @@ impl Slate {
 	}
 
 	pub fn finalize(&mut self, ctx: &mut Context) -> Result<(), Error> {
+		if self.inputs.len() == 0 && self.outputs.len() == 0 {
+			return Err(err!(IllegalState));
+		}
+		let mut final_sig = [0u8; 64];
+		let mut partial_sigs_vec = Vec::new();
+		for participant in &self.participant_data {
+			for sig in &participant.part_sigs {
+				match partial_sigs_vec.push(sig.as_ptr()) {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				}
+			}
+		}
+
+		let partial_sigs = partial_sigs_vec.as_slice();
+		unsafe {
+			if secp256k1_musig_partial_sig_agg(
+				ctx.secp(),
+				&mut final_sig as *mut u8,
+				&self.session.session as *const u8,
+				partial_sigs.as_ptr(),
+				partial_sigs.len(),
+			) == 0
+			{
+				return Err(err!(SecpErr));
+			}
+		}
+		self.final_sig = Some(final_sig);
 		Ok(())
 	}
 
@@ -652,7 +682,7 @@ impl Slate {
 				&mut v as *mut u8,
 				&mut self.session.keyagg_cache as *mut u8,
 				pbe.as_ptr(),
-				self.participant_data.len(),
+				pbe.len(),
 			) == 0
 			{
 				return Err(err!(SecpErr));
@@ -853,5 +883,116 @@ mod test {
 		assert!(slate_userb
 			.sign_index(1, &mut ctx, vec![offset].unwrap(), vec![pkoutput].unwrap())
 			.is_ok());
+
+		assert_eq!(slate_userb.participant_data[1].part_sigs.len(), 2);
+
+		unsafe {
+			let pk = PublicKey::from(&mut ctx, offset).to_pub64(&mut ctx);
+			assert_eq!(
+				secp256k1_musig_partial_sig_verify(
+					ctx.secp(),
+					&slate_userb.participant_data[1].part_sigs[0] as *const u8,
+					&slate_userb.participant_data[1].public_nonces[0] as *const u8,
+					&pk as *const u8,
+					&slate_userb.session.keyagg_cache as *const u8,
+					&slate_userb.session.session as *const u8
+				),
+				1
+			);
+			let negavite_pkoutput = pkoutput.negate(&mut ctx).unwrap();
+			let pk = PublicKey::from(&mut ctx, negavite_pkoutput);
+			let pk = pk.to_pub64(&mut ctx);
+			assert_eq!(
+				secp256k1_musig_partial_sig_verify(
+					ctx.secp(),
+					&slate_userb.participant_data[1].part_sigs[1] as *const u8,
+					&slate_userb.participant_data[1].public_nonces[1] as *const u8,
+					&pk as *const u8,
+					&slate_userb.session.keyagg_cache as *const u8,
+					&slate_userb.session.session as *const u8
+				),
+				1
+			);
+		}
+
+		let slate_ser = slate_userb.serialize().unwrap();
+		let mut slate_usera = Slate::deserialize(slate_ser).unwrap();
+
+		unsafe {
+			let pk = PublicKey::from(&mut ctx, offset).to_pub64(&mut ctx);
+			assert_eq!(
+				secp256k1_musig_partial_sig_verify(
+					ctx.secp(),
+					&slate_usera.participant_data[1].part_sigs[0] as *const u8,
+					&slate_usera.participant_data[1].public_nonces[0] as *const u8,
+					&pk as *const u8,
+					&slate_usera.session.keyagg_cache as *const u8,
+					&slate_usera.session.session as *const u8
+				),
+				1
+			);
+			let negavite_pkoutput = pkoutput.negate(&mut ctx).unwrap();
+			let pk = PublicKey::from(&mut ctx, negavite_pkoutput);
+			let pk = pk.to_pub64(&mut ctx);
+			assert_eq!(
+				secp256k1_musig_partial_sig_verify(
+					ctx.secp(),
+					&slate_usera.participant_data[1].part_sigs[1] as *const u8,
+					&slate_usera.participant_data[1].public_nonces[1] as *const u8,
+					&pk as *const u8,
+					&slate_usera.session.keyagg_cache as *const u8,
+					&slate_usera.session.session as *const u8
+				),
+				1
+			);
+
+			slate_usera.sec_nonces = slate.sec_nonces;
+
+			assert!(slate_usera
+				.sign_index(0, &mut ctx, vec![pkinput].unwrap(), Vec::new())
+				.is_ok());
+
+			let pk = PublicKey::from(&mut ctx, pkinput).to_pub64(&mut ctx);
+			assert_eq!(
+				secp256k1_musig_partial_sig_verify(
+					ctx.secp(),
+					&slate_usera.participant_data[0].part_sigs[0] as *const u8,
+					&slate_usera.participant_data[0].public_nonces[0] as *const u8,
+					&pk as *const u8,
+					&slate_usera.session.keyagg_cache as *const u8,
+					&slate_usera.session.session as *const u8
+				),
+				1
+			);
+		}
+
+		assert_eq!(slate_usera.participant_data[0].part_sigs.len(), 1);
+		assert_eq!(slate_usera.participant_data[1].part_sigs.len(), 2);
+
+		assert!(slate_usera.finalize(&mut ctx).is_ok());
+
+		let public_blind_excess_sum = slate_usera.public_blind_sum(&mut ctx).unwrap();
+		let mut sha3_256 = SHA3_256::new();
+		let mut feebytes = [0u8; 8];
+		to_le_bytes_u64(slate_usera.fee, &mut feebytes);
+		sha3_256.update(feebytes);
+		sha3_256.update(public_blind_excess_sum.as_ref());
+		let msg: [u8; 32] = sha3_256.finalize();
+		let agg_pk = slate_usera.public_blind_sum(&mut ctx).unwrap();
+
+		/*
+		unsafe {
+			assert_eq!(
+				secp256k1_schnorrsig_verify(
+					ctx.secp(),
+					&slate_usera.final_sig.unwrap() as *const u8,
+					&msg as *const u8,
+					32,
+					&agg_pk as *const u8
+				),
+				1
+			);
+		}
+				*/
 	}
 }

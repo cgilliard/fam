@@ -143,4 +143,11 @@ extern "C" {
 		pubkey: *const u8,
 		flags: u32,
 	) -> i32;
+	pub fn secp256k1_schnorrsig_verify(
+		ctx: *mut u8,
+		sig: *const u8,
+		msg: *const u8,
+		msg_len: usize,
+		pk: *const u8,
+	) -> i32;
 }
