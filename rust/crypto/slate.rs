@@ -428,7 +428,7 @@ impl Slate {
 			Ok(v) => v,
 			Err(e) => return Err(e),
 		};
-		let public_blind_excess_sum = match self.public_blind_sum(ctx) {
+		let public_blind_sum = match self.public_blind_sum(ctx) {
 			Ok(v) => v,
 			Err(e) => return Err(e),
 		};
@@ -438,7 +438,7 @@ impl Slate {
 		let mut feebytes = [0u8; 8];
 		to_le_bytes_u64(self.fee, &mut feebytes);
 		sha3_256.update(feebytes);
-		sha3_256.update(public_blind_excess_sum.as_ref());
+		sha3_256.update(public_blind_sum.as_ref());
 		let msg: [u8; 32] = sha3_256.finalize();
 
 		unsafe {
@@ -971,12 +971,12 @@ mod test {
 
 		assert!(slate_usera.finalize(&mut ctx).is_ok());
 
-		let public_blind_excess_sum = slate_usera.public_blind_sum(&mut ctx).unwrap();
+		let public_blind_sum = slate_usera.public_blind_sum(&mut ctx).unwrap();
 		let mut sha3_256 = SHA3_256::new();
 		let mut feebytes = [0u8; 8];
 		to_le_bytes_u64(slate_usera.fee, &mut feebytes);
 		sha3_256.update(feebytes);
-		sha3_256.update(public_blind_excess_sum.as_ref());
+		sha3_256.update(public_blind_sum.as_ref());
 		let msg: [u8; 32] = sha3_256.finalize();
 		let agg_pk = slate_usera.public_blind_sum(&mut ctx).unwrap();
 
