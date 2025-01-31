@@ -13,9 +13,9 @@ use crypto::sha3::SHA3_256;
 use prelude::*;
 
 pub struct ParticipantData {
-	pub public_blind_sum: [u8; 64],
-	pub public_nonces: Vec<[u8; 132]>,
-	pub part_sigs: Vec<[u8; 64]>,
+	public_blinds: Vec<[u8; 64]>,
+	public_nonces: Vec<[u8; 132]>,
+	part_sigs: Vec<[u8; 64]>,
 }
 
 pub struct Slate {
@@ -62,6 +62,10 @@ impl Slate {
 	 *
 	 * participant format:
 	 * [pub_blind_sum - 64 bytes]
+	 * [public_blinds count - 4 bytes]
+	 * [public_blind 1 - 64 bytes]
+	 * [public_blind 2 - 64 bytes]
+	 * ...
 	 * [public_nonce count - 4 bytes]
 	 * [public nonce 1 - 132 bytes]
 	 * [public nonce 2 - 132 bytes]
@@ -138,9 +142,21 @@ impl Slate {
 		}
 
 		for participant in &self.participant_data {
-			match ret.append_ptr(&participant.public_blind_sum as *const u8, 64) {
+			let mut public_blinds_count = [0u8; 4];
+			to_le_bytes_u32(
+				participant.public_blinds.len() as u32,
+				&mut public_blinds_count,
+			);
+			match ret.append_ptr(&public_blinds_count as *const u8, 4) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
+			}
+
+			for blind in &participant.public_blinds {
+				match ret.append_ptr(blind.as_ref().as_ptr(), 64) {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				}
 			}
 
 			let mut public_nonces_count = [0u8; 4];
@@ -200,6 +216,10 @@ impl Slate {
 	 *
 	 * participant format:
 	 * [pub_blind_sum - 64 bytes]
+	 * [public_blinds count - 4 bytes]
+	 * [public_blind 1 - 64 bytes]
+	 * [public_blind 2 - 64 bytes]
+	 * ...
 	 * [public_nonce count - 4 bytes]
 	 * [public nonce 1 - 132 bytes]
 	 * [public nonce 2 - 132 bytes]
@@ -285,18 +305,31 @@ impl Slate {
 		itt += 4;
 
 		for _i in 0..participants {
-			let mut public_blind_sum = [0u8; 64];
+			let mut public_blinds = Vec::new();
 			let mut public_nonces = Vec::new();
 			let mut part_sigs = Vec::new();
 
-			if bytes_len <= itt + 64 {
+			if bytes_len <= itt + 4 {
+				return Err(err!(CorruptedData));
+			}
+			let public_blinds_count = from_le_bytes_u32(&bytes[itt..itt + 4]);
+			itt += 4;
+
+			if itt + public_blinds_count as usize * 64 >= bytes_len {
 				return Err(err!(CorruptedData));
 			}
 
-			unsafe {
-				copy_nonoverlapping(bytes_ptr.add(itt), public_blind_sum.as_mut_ptr(), 64);
+			for _j in 0..public_blinds_count {
+				let mut public_blind = [0u8; 64];
+				unsafe {
+					copy_nonoverlapping(bytes_ptr.add(itt), public_blind.as_mut_ptr(), 64);
+				}
+				match public_blinds.push(public_blind) {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				}
+				itt += 64;
 			}
-			itt += 64;
 
 			if bytes_len <= itt + 4 {
 				return Err(err!(CorruptedData));
@@ -342,7 +375,7 @@ impl Slate {
 			}
 
 			let participant = ParticipantData {
-				public_blind_sum,
+				public_blinds,
 				public_nonces,
 				part_sigs,
 			};
@@ -361,14 +394,14 @@ impl Slate {
 		inputs: Vec<(u64, PrivateKey)>,
 		outputs: Vec<(u64, PrivateKey)>,
 	) -> Result<(), Error> {
+		let mut public_blinds = Vec::new();
 		let mut public_nonces: Vec<[u8; 132]> = Vec::new();
-		let mut public_blind_sum: Option<[u8; 64]> = None;
 		for input in inputs {
 			match self.add_nonce(ctx, &mut public_nonces, input.1) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
-			match self.add_to_pbs(ctx, input.1, &mut public_blind_sum) {
+			match self.add_to_pbs(ctx, input.1, &mut public_blinds) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
@@ -388,7 +421,7 @@ impl Slate {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
-			match self.add_to_pbs(ctx, negative_output, &mut public_blind_sum) {
+			match self.add_to_pbs(ctx, negative_output, &mut public_blinds) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
@@ -400,19 +433,14 @@ impl Slate {
 				Err(e) => return Err(e),
 			}
 		}
-		match public_blind_sum {
-			Some(public_blind_sum) => {
-				let pd = ParticipantData {
-					public_blind_sum,
-					part_sigs: Vec::new(),
-					public_nonces,
-				};
-				match self.participant_data.push(pd) {
-					Ok(_) => {}
-					Err(e) => return Err(e),
-				}
-			}
-			None => return Err(err!(IllegalArgument)),
+		let pd = ParticipantData {
+			public_blinds,
+			part_sigs: Vec::new(),
+			public_nonces,
+		};
+		match self.participant_data.push(pd) {
+			Ok(_) => {}
+			Err(e) => return Err(e),
 		}
 		Ok(())
 	}
@@ -608,29 +636,12 @@ impl Slate {
 		&mut self,
 		ctx: &mut Context,
 		pkey: PrivateKey,
-		public_blind_sum: &mut Option<[u8; 64]>,
+		public_blinds: &mut Vec<[u8; 64]>,
 	) -> Result<(), Error> {
 		let pk = PublicKey::from(ctx, pkey).to_pub64(ctx);
-		match public_blind_sum {
-			Some(pbs) => {
-				let mut tmp = [0u8; 64];
-				let pkarr: &[*const u8] = &[pk.as_ptr(), pbs.as_ptr()];
-				unsafe {
-					if secp256k1_ec_pubkey_combine(
-						ctx.secp(),
-						&mut tmp as *mut u8,
-						pkarr.as_ptr(),
-						pkarr.len(),
-					) == 0
-					{
-						return Err(err!(SecpErr));
-					}
-				}
-				*public_blind_sum = Some(tmp);
-			}
-			None => {
-				*public_blind_sum = Some(pk);
-			}
+		match public_blinds.push(pk) {
+			Ok(_) => {}
+			Err(e) => return Err(e),
 		}
 		Ok(())
 	}
@@ -668,10 +679,18 @@ impl Slate {
 		let mut v = [0u8; 64];
 		let mut pbe_vec = Vec::new();
 		for pd in &self.participant_data {
+			for blind in &pd.public_blinds {
+				match pbe_vec.push(blind.as_ptr()) {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				}
+			}
+			/*
 			match pbe_vec.push(pd.public_blind_sum.as_ptr()) {
 				Ok(_) => {}
 				Err(e) => return Err(e),
 			}
+					*/
 		}
 		let pbe: &[*const u8] = pbe_vec.as_slice();
 
@@ -712,10 +731,6 @@ mod test {
 		assert_eq!(slate.inputs.len(), 1);
 		assert_eq!(slate.outputs.len(), 0);
 		assert_eq!(slate.participant_data.len(), 1);
-		assert_eq!(
-			slate.participant_data[0].public_blind_sum,
-			PublicKey::from(&mut ctx, pkinput).to_pub64(&mut ctx)
-		);
 
 		let _ser = slate.serialize().unwrap();
 
@@ -743,12 +758,13 @@ mod test {
 			);
 		}
 
-		assert_eq!(slate.participant_data[1].public_blind_sum.as_ref(), sumpk);
-
 		let mut pk = [0u8; 64];
 		let mut pbe_vec = Vec::new();
 		for pd in &slate.participant_data {
-			assert!(pbe_vec.push(pd.public_blind_sum.as_ptr()).is_ok());
+			for blind in &pd.public_blinds {
+				assert!(pbe_vec.push(blind.as_ptr()).is_ok());
+			}
+			//assert!(pbe_vec.push(pd.public_blind_sum.as_ptr()).is_ok());
 		}
 		let pbe: &[*const u8] = pbe_vec.as_slice();
 
@@ -759,7 +775,7 @@ mod test {
 				&mut pk as *mut u8,
 				&mut slate.session.keyagg_cache as *mut u8,
 				pbe.as_ptr(),
-				slate.participant_data.len(),
+				pbe.len(),
 			);
 		}
 
@@ -835,11 +851,6 @@ mod test {
 		assert_eq!(slate.session.session, slate_deser.session.session);
 		assert_eq!(slate.session.keyagg_cache, slate_deser.session.keyagg_cache);
 		assert_eq!(slate.fee, slate_deser.fee);
-
-		assert_eq!(
-			slate.participant_data[0].public_blind_sum,
-			slate_deser.participant_data[0].public_blind_sum
-		);
 
 		assert_eq!(
 			slate.participant_data[0].public_nonces.len(),
@@ -980,7 +991,6 @@ mod test {
 		let msg: [u8; 32] = sha3_256.finalize();
 		let agg_pk = slate_usera.public_blind_sum(&mut ctx).unwrap();
 
-		/*
 		unsafe {
 			assert_eq!(
 				secp256k1_schnorrsig_verify(
@@ -993,6 +1003,5 @@ mod test {
 				1
 			);
 		}
-				*/
 	}
 }
