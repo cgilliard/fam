@@ -25,15 +25,7 @@ if [ "$test" = "1" ] || [ "$fasttest" = "1" ] || [ "$coverage" = "1" ]; then
 			fi
 		fi
 	done
-	cd crypto
-	for file in *.c
-        do
-                if [ ! -e ../../.obj/${file%.c}.o ] || [ ${file} -nt ../../.obj/${file%.c}.o ]; then
-                        echo "${cc} ${ccflags} -DTEST -o ../../.obj/${file%.c}.o -c -I. ${file}";
-                	${cc} ${ccflags} -DTEST -o ../../.obj/${file%.c}.o -c -I. ${file} || exit 1;
-        	fi
-        done
-	cd ../..
+	cd ..
 	ar rcs .obj/libtest.a .obj/*.o || exit 1;
 	rustc +nightly --extern \
 		num_integer=.obj/libnum_integer.rlib \
@@ -65,15 +57,7 @@ if [ "$all" = "1" ]; then
 			${cc} ${ccflags} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
         	fi
         done
-	cd crypto
-        for file in *.c
-        do
-                if [ ! -e ../../.obj/${file%.c}.o ] || [ ${file} -nt ../../.obj/${file%.c}.o ]; then
-                        echo "${cc} ${ccflags} -o ../../.obj/${file%.c}.o -c -I. ${file}";
-                        ${cc} ${ccflags} -o ../../.obj/${file%.c}.o -c -I. ${file} || exit 1;
-                fi
-        done
-	cd ../..
+	cd ..
 	if [ "$usemrustc" = "1" ]; then
 		echo "${mrustc} --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust.o -C panic=abort";
                 ${mrustc} -O --crate-type=lib rust/mod.rs -L${output} --cfg mrustc -o .obj/rust -C panic=abort \
