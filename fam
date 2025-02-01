@@ -72,7 +72,7 @@ if [ "$all" = "1" ]; then
 fi
 if [ "$clean" = "1" ]; then
 	cd secp256k1-zkp
-	make clean
+	make mostlyclean-compile
 	cd ..
 	rm -rf .obj/* libtest.a bin/* rust/test_deps/*/target
 fi

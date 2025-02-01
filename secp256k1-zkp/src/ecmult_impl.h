@@ -1061,7 +1061,7 @@ static size_t secp256k1_pippenger_max_points(secp256k1_scratch *scratch) {
 static int secp256k1_ecmult_multi_var_simple(const secp256k1_ecmult_context *ctx, secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, secp256k1_ecmult_multi_callback cb, void *cbdata, size_t n_points) {
     size_t point_idx;
     secp256k1_scalar szero;
-    secp256k1_gej tmpj;
+    secp256k1_gej tmpj = {0};
 
     secp256k1_scalar_set_int(&szero, 0);
     /* r = inp_g_sc*G */
