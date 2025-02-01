@@ -19,7 +19,7 @@
 #define ENABLE_MODULE_BULLETPROOF 1
 
 /* Define this symbol to enable the Pedersen commitment module */
-/* #undef ENABLE_MODULE_COMMITMENT */
+#define ENABLE_MODULE_COMMITMENT 1
 
 /* Define this symbol to enable the ECDH module */
 #define ENABLE_MODULE_ECDH 1
