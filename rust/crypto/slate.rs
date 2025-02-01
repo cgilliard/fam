@@ -2,10 +2,10 @@ use core::ptr::{copy_nonoverlapping, null, null_mut};
 use crypto::commitment::Commitment;
 use crypto::context::Context;
 use crypto::ffi::{
-	cpsrng_rand_bytes_ctx, secp256k1_ec_pubkey_combine, secp256k1_keypair_create,
-	secp256k1_musig_nonce_agg, secp256k1_musig_nonce_gen, secp256k1_musig_nonce_process,
-	secp256k1_musig_partial_sig_agg, secp256k1_musig_partial_sig_verify,
-	secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg, secp256k1_schnorrsig_verify,
+	cpsrng_rand_bytes_ctx, secp256k1_keypair_create, secp256k1_musig_nonce_agg,
+	secp256k1_musig_nonce_gen, secp256k1_musig_nonce_process, secp256k1_musig_partial_sig_agg,
+	secp256k1_musig_partial_sig_verify, secp256k1_musig_partial_sign, secp256k1_musig_pubkey_agg,
+	secp256k1_schnorrsig_verify,
 };
 use crypto::keys::{PrivateKey, PublicKey};
 use crypto::session::Session;
@@ -685,12 +685,6 @@ impl Slate {
 					Err(e) => return Err(e),
 				}
 			}
-			/*
-			match pbe_vec.push(pd.public_blind_sum.as_ptr()) {
-				Ok(_) => {}
-				Err(e) => return Err(e),
-			}
-					*/
 		}
 		let pbe: &[*const u8] = pbe_vec.as_slice();
 
@@ -746,17 +740,6 @@ mod test {
 		assert_eq!(slate.inputs.len(), 1);
 		assert_eq!(slate.outputs.len(), 1);
 		assert_eq!(slate.participant_data.len(), 2);
-		let mut sumpk = [0u8; 64];
-		let pkoutput_neg = pkoutput.negate(&mut ctx).unwrap();
-		let pbe0 = PublicKey::from(&mut ctx, offset).to_pub64(&mut ctx);
-		let pbe1 = PublicKey::from(&mut ctx, pkoutput_neg).to_pub64(&mut ctx);
-		let pbe: &[*const u8] = &[pbe0.as_ptr(), pbe1.as_ptr()];
-		unsafe {
-			assert!(
-				secp256k1_ec_pubkey_combine(ctx.secp(), &mut sumpk as *mut u8, pbe.as_ptr(), 2)
-					== 1
-			);
-		}
 
 		let mut pk = [0u8; 64];
 		let mut pbe_vec = Vec::new();
@@ -764,7 +747,6 @@ mod test {
 			for blind in &pd.public_blinds {
 				assert!(pbe_vec.push(blind.as_ptr()).is_ok());
 			}
-			//assert!(pbe_vec.push(pd.public_blind_sum.as_ptr()).is_ok());
 		}
 		let pbe: &[*const u8] = pbe_vec.as_slice();
 

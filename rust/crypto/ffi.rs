@@ -31,11 +31,19 @@ extern "C" {
 	pub fn cpsrng_rand_bytes_ctx(ctx: *mut u8, v: *mut u8, len: usize);
 
 	// SECP256k1
+	pub fn secp256k1_schnorrsig_sign32(
+		ctx: *mut u8,
+		sig: *mut u8,
+		msg: *const u8,
+		keypair: *const u8,
+		aux: *const u8,
+	) -> i32;
 	pub fn secp256k1_context_create(flags: u32) -> *mut u8;
 	pub fn secp256k1_context_destroy(ctx: *mut u8);
 	pub fn secp256k1_context_randomize(ctx: *mut u8, seed: *const u8) -> i32;
 	pub fn secp256k1_keypair_create(ctx: *mut u8, keypair: *mut u8, seckey: *const u8) -> i32;
 	pub fn secp256k1_ec_seckey_verify(ctx: *mut u8, seckey: *const u8) -> i32;
+	pub fn secp256k1_keypair_pub(ctx: *mut u8, pubkey: *mut u8, keypair: *const u8) -> i32;
 	pub fn secp256k1_keypair_xonly_pub(
 		ctx: *mut u8,
 		xonly_pubkey: *mut u8,
@@ -127,7 +135,7 @@ extern "C" {
 		ctx: *mut u8,
 		xonly_pk: *const u8,
 		pk_parity: *const i32,
-		pk: *mut u8,
+		pk: *const u8,
 	) -> i32;
 	pub fn secp256k1_ec_pubkey_parse(
 		ctx: *mut u8,
@@ -148,6 +156,8 @@ extern "C" {
 		sig: *const u8,
 		msg: *const u8,
 		msg_len: usize,
-		pk: *const u8,
+		xonly_pk: *const u8,
 	) -> i32;
+
+	pub fn secp256k1_schnorrsig_scalar_add(r: *mut u8, a: *const u8, b: *const u8) -> i32;
 }

@@ -1,3 +1,4 @@
+pub mod aggsig;
 pub mod commitment;
 pub mod context;
 mod ffi;
