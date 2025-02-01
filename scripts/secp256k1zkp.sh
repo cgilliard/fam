@@ -8,7 +8,8 @@ if [ ! -f "./configure" ]; then
 		--enable-module-rangeproof \
 		--enable-module-generator \
 		--enable-module-musig \
-		--enable-experimental
+		--enable-experimental \
+		--enable-module-aggsig
 fi
 make || exit 1;
 cp .libs/libsecp256k1.a ../.obj

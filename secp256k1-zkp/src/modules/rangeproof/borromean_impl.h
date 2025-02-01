@@ -5,33 +5,39 @@
  **********************************************************************/
 
 
-#ifndef SECP256K1_BORROMEAN_IMPL_H
-#define SECP256K1_BORROMEAN_IMPL_H
+#ifndef _SECP256K1_BORROMEAN_IMPL_H_
+#define _SECP256K1_BORROMEAN_IMPL_H_
 
-#include "../../scalar.h"
-#include "../../field.h"
-#include "../../group.h"
-#include "../../hash.h"
-#include "../../eckey.h"
-#include "../../ecmult.h"
-#include "../../ecmult_gen.h"
+#include "scalar.h"
+#include "field.h"
+#include "group.h"
+#include "hash.h"
+#include "eckey.h"
+#include "ecmult.h"
+#include "ecmult_gen.h"
 #include "borromean.h"
 
 #include <limits.h>
 #include <string.h>
 
+#ifdef WORDS_BIGENDIAN
+#define BE32(x) (x)
+#else
+#define BE32(p) ((((p) & 0xFF) << 24) | (((p) & 0xFF00) << 8) | (((p) & 0xFF0000) >> 8) | (((p) & 0xFF000000) >> 24))
+#endif
+
 SECP256K1_INLINE static void secp256k1_borromean_hash(unsigned char *hash, const unsigned char *m, size_t mlen, const unsigned char *e, size_t elen,
  size_t ridx, size_t eidx) {
-    unsigned char ring[4];
-    unsigned char epos[4];
+    uint32_t ring;
+    uint32_t epos;
     secp256k1_sha256 sha256_en;
     secp256k1_sha256_initialize(&sha256_en);
-    secp256k1_write_be32(ring, (uint32_t)ridx);
-    secp256k1_write_be32(epos, (uint32_t)eidx);
+    ring = BE32((uint32_t)ridx);
+    epos = BE32((uint32_t)eidx);
     secp256k1_sha256_write(&sha256_en, e, elen);
     secp256k1_sha256_write(&sha256_en, m, mlen);
-    secp256k1_sha256_write(&sha256_en, ring, 4);
-    secp256k1_sha256_write(&sha256_en, epos, 4);
+    secp256k1_sha256_write(&sha256_en, (unsigned char*)&ring, 4);
+    secp256k1_sha256_write(&sha256_en, (unsigned char*)&epos, 4);
     secp256k1_sha256_finalize(&sha256_en, hash);
 }
 
@@ -49,7 +55,7 @@ SECP256K1_INLINE static void secp256k1_borromean_hash(unsigned char *hash, const
  *   | | r_i = r
  *   | return e_0 ==== H(r_{0..i}||m)
  */
-int secp256k1_borromean_verify(secp256k1_scalar *evalues, const unsigned char *e0,
+int secp256k1_borromean_verify(const secp256k1_ecmult_context* ecmult_ctx, secp256k1_scalar *evalues, const unsigned char *e0,
  const secp256k1_scalar *s, const secp256k1_gej *pubs, const size_t *rsizes, size_t nrings, const unsigned char *m, size_t mlen) {
     secp256k1_gej rgej;
     secp256k1_ge rge;
@@ -61,6 +67,7 @@ int secp256k1_borromean_verify(secp256k1_scalar *evalues, const unsigned char *e
     size_t count;
     size_t size;
     int overflow;
+    VERIFY_CHECK(ecmult_ctx != NULL);
     VERIFY_CHECK(e0 != NULL);
     VERIFY_CHECK(s != NULL);
     VERIFY_CHECK(pubs != NULL);
@@ -81,7 +88,7 @@ int secp256k1_borromean_verify(secp256k1_scalar *evalues, const unsigned char *e
                 /*If requested, save the challenges for proof rewind.*/
                 evalues[count] = ens;
             }
-            secp256k1_ecmult(&rgej, &pubs[count], &ens, &s[count]);
+            secp256k1_ecmult(ecmult_ctx, &rgej, &pubs[count], &ens, &s[count]);
             if (secp256k1_gej_is_infinity(&rgej)) {
                 return 0;
             }
@@ -99,10 +106,10 @@ int secp256k1_borromean_verify(secp256k1_scalar *evalues, const unsigned char *e
     }
     secp256k1_sha256_write(&sha256_e0, m, mlen);
     secp256k1_sha256_finalize(&sha256_e0, tmp);
-    return secp256k1_memcmp_var(e0, tmp, 32) == 0;
+    return memcmp(e0, tmp, 32) == 0;
 }
 
-int secp256k1_borromean_sign(const secp256k1_ecmult_gen_context *ecmult_gen_ctx,
+int secp256k1_borromean_sign(const secp256k1_ecmult_context* ecmult_ctx, const secp256k1_ecmult_gen_context *ecmult_gen_ctx,
  unsigned char *e0, secp256k1_scalar *s, const secp256k1_gej *pubs, const secp256k1_scalar *k, const secp256k1_scalar *sec,
  const size_t *rsizes, const size_t *secidx, size_t nrings, const unsigned char *m, size_t mlen) {
     secp256k1_gej rgej;
@@ -115,6 +122,7 @@ int secp256k1_borromean_sign(const secp256k1_ecmult_gen_context *ecmult_gen_ctx,
     size_t count;
     size_t size;
     int overflow;
+    VERIFY_CHECK(ecmult_ctx != NULL);
     VERIFY_CHECK(ecmult_gen_ctx != NULL);
     VERIFY_CHECK(e0 != NULL);
     VERIFY_CHECK(s != NULL);
@@ -145,7 +153,7 @@ int secp256k1_borromean_sign(const secp256k1_ecmult_gen_context *ecmult_gen_ctx,
              *  leaks which members are non-forgeries. That the forgeries themselves are variable time may leave
              *  an additional privacy impacting timing side-channel, but not a key loss one.
              */
-            secp256k1_ecmult(&rgej, &pubs[count + j], &ens, &s[count + j]);
+            secp256k1_ecmult(ecmult_ctx, &rgej, &pubs[count + j], &ens, &s[count + j]);
             if (secp256k1_gej_is_infinity(&rgej)) {
                 return 0;
             }
@@ -166,7 +174,7 @@ int secp256k1_borromean_sign(const secp256k1_ecmult_gen_context *ecmult_gen_ctx,
             return 0;
         }
         for (j = 0; j < secidx[i]; j++) {
-            secp256k1_ecmult(&rgej, &pubs[count + j], &ens, &s[count + j]);
+            secp256k1_ecmult(ecmult_ctx, &rgej, &pubs[count + j], &ens, &s[count + j]);
             if (secp256k1_gej_is_infinity(&rgej)) {
                 return 0;
             }

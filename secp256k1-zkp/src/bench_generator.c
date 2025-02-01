@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../include/secp256k1_generator.h"
+#include "include/secp256k1_generator.h"
 #include "util.h"
 #include "bench.h"
 
@@ -23,22 +23,22 @@ static void bench_generator_setup(void* arg) {
     memset(data->blind, 0x13, 32);
 }
 
-static void bench_generator_generate(void* arg, int iters) {
+static void bench_generator_generate(void* arg) {
     int i;
     bench_generator_t *data = (bench_generator_t*)arg;
 
-    for (i = 0; i < iters; i++) {
+    for (i = 0; i < 20000; i++) {
         secp256k1_generator gen;
         CHECK(secp256k1_generator_generate(data->ctx, &gen, data->key));
         data->key[i & 31]++;
     }
 }
 
-static void bench_generator_generate_blinded(void* arg, int iters) {
+static void bench_generator_generate_blinded(void* arg) {
     int i;
     bench_generator_t *data = (bench_generator_t*)arg;
 
-    for (i = 0; i < iters; i++) {
+    for (i = 0; i < 20000; i++) {
         secp256k1_generator gen;
         CHECK(secp256k1_generator_generate_blinded(data->ctx, &gen, data->key, data->blind));
         data->key[1 + (i & 30)]++;
@@ -48,12 +48,11 @@ static void bench_generator_generate_blinded(void* arg, int iters) {
 
 int main(void) {
     bench_generator_t data;
-    int iters = get_iters(20000);
 
-    data.ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+    data.ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
 
-    run_benchmark("generator_generate", bench_generator_generate, bench_generator_setup, NULL, &data, 10, iters);
-    run_benchmark("generator_generate_blinded", bench_generator_generate_blinded, bench_generator_setup, NULL, &data, 10, iters);
+    run_benchmark("generator_generate", bench_generator_generate, bench_generator_setup, NULL, &data, 10, 20000);
+    run_benchmark("generator_generate_blinded", bench_generator_generate_blinded, bench_generator_setup, NULL, &data, 10, 20000);
 
     secp256k1_context_destroy(data.ctx);
     return 0;

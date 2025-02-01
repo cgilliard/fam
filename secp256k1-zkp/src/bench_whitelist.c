@@ -5,13 +5,13 @@
  **********************************************************************/
 #include <stdio.h>
 
-#include "../include/secp256k1.h"
+#include "include/secp256k1.h"
 
-#include "../include/secp256k1_whitelist.h"
-#include "util.h"
+#include "include/secp256k1_whitelist.h"
 #include "bench.h"
+#include "util.h"
 #include "hash_impl.h"
-#include "int128_impl.h"
+#include "num_impl.h"
 #include "scalar_impl.h"
 #include "testrand_impl.h"
 
@@ -29,31 +29,28 @@ typedef struct {
     size_t n_keys;
 } bench_data;
 
-static void bench_whitelist(void* arg, int iters) {
+static void bench_whitelist(void* arg) {
     bench_data* data = (bench_data*)arg;
-    int i;
-    for (i = 0; i < iters; i++) {
-        CHECK(secp256k1_whitelist_verify(data->ctx, &data->sig, data->online_pubkeys, data->offline_pubkeys, data->n_keys, &data->sub_pubkey) == 1);
-    }
+    CHECK(secp256k1_whitelist_verify(data->ctx, &data->sig, data->online_pubkeys, data->offline_pubkeys, data->n_keys, &data->sub_pubkey) == 1);
 }
 
 static void bench_whitelist_setup(void* arg) {
     bench_data* data = (bench_data*)arg;
     int i = 0;
-    CHECK(secp256k1_whitelist_sign(data->ctx, &data->sig, data->online_pubkeys, data->offline_pubkeys, data->n_keys, &data->sub_pubkey, data->online_seckey[i], data->summed_seckey[i], i));
+    CHECK(secp256k1_whitelist_sign(data->ctx, &data->sig, data->online_pubkeys, data->offline_pubkeys, data->n_keys, &data->sub_pubkey, data->online_seckey[i], data->summed_seckey[i], i, NULL, NULL));
 }
 
-static void run_test(bench_data* data, int iters) {
+static void run_test(bench_data* data) {
     char str[32];
     sprintf(str, "whitelist_%i", (int)data->n_keys);
-    run_benchmark(str, bench_whitelist, bench_whitelist_setup, NULL, data, 100, iters);
+    run_benchmark(str, bench_whitelist, bench_whitelist_setup, NULL, data, 100, 1);
 }
 
-static void random_scalar_order(secp256k1_scalar *num) {
+void random_scalar_order(secp256k1_scalar *num) {
     do {
         unsigned char b32[32];
         int overflow = 0;
-        secp256k1_testrand256(b32);
+        secp256k1_rand256(b32);
         secp256k1_scalar_set_b32(num, b32, &overflow);
         if (overflow || secp256k1_scalar_is_zero(num)) {
             continue;
@@ -67,9 +64,8 @@ int main(void) {
     size_t i;
     size_t n_keys = 30;
     secp256k1_scalar ssub;
-    int iters = get_iters(5);
 
-    data.ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+    data.ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
 
     /* Start with subkey */
     random_scalar_order(&ssub);
@@ -100,7 +96,7 @@ int main(void) {
     /* Run test */
     for (i = 1; i <= n_keys; ++i) {
         data.n_keys = i;
-        run_test(&data, iters);
+        run_test(&data);
     }
 
     secp256k1_context_destroy(data.ctx);

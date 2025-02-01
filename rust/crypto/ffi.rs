@@ -159,5 +159,30 @@ extern "C" {
 		xonly_pk: *const u8,
 	) -> i32;
 
-	pub fn secp256k1_schnorrsig_scalar_add(r: *mut u8, a: *const u8, b: *const u8) -> i32;
+	pub fn secp256k1_aggsig_context_create(
+		ctx: *mut u8,
+		pubkeys: *const u8,
+		n_pubkeys: usize,
+		seed: *const u8,
+	) -> *mut u8;
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use crypto::context::Context;
+	#[test]
+	fn test() {
+		let ctx = Context::new().unwrap();
+		let pubkeys = [0u8; 64];
+		let seed = [9u8; 32];
+		unsafe {
+			secp256k1_aggsig_context_create(
+				ctx.secp(),
+				&pubkeys as *const u8,
+				1,
+				&seed as *const u8,
+			);
+		}
+	}
 }
