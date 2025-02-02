@@ -1,5 +1,28 @@
 #[allow(dead_code)]
 extern "C" {
+	// allocation
+	pub fn alloc(size: usize) -> *const u8;
+	pub fn release(ptr: *const u8);
+	pub fn resize(ptr: *const u8, size: usize) -> *const u8;
+
+	// sys
+	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
+	pub fn ptr_add(p: *mut u8, v: i64);
+	pub fn exit(code: i32);
+	pub fn getalloccount() -> usize;
+
+	// misc
+	pub fn sleep_millis(millis: u64) -> i32;
+	pub fn rand_bytes(data: *mut u8, len: usize) -> i32;
+	pub fn f64_to_str(d: f64, buf: *mut u8, capacity: u64) -> i32;
+
+	// atomic
+	pub fn atomic_store_u64(ptr: *mut u64, value: u64);
+	pub fn atomic_load_u64(ptr: *const u64) -> u64;
+	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
+	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
+	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
+
 	// AES
 	pub fn AES_ctx_size() -> usize;
 	pub fn AES_init_ctx_iv(ctx: *mut u8, key: *const u8, iv: *const u8);
@@ -10,6 +33,32 @@ extern "C" {
 	pub fn cpsrng_context_create() -> *mut u8;
 	pub fn cpsrng_context_destroy(ctx: *mut u8);
 	pub fn cpsrng_rand_bytes(ctx: *mut u8, v: *mut u8, len: usize);
+
+	// aggsig
+	pub fn secp256k1_aggsig_sign_single(
+		cx: *const u8,
+		sig: *mut u8,
+		msg32: *const u8,
+		seckey32: *const u8,
+		secnonce32: *const u8,
+		extra32: *const u8,
+		pubnonce_for_e: *const u8,
+		pubnonce_total: *const u8,
+		pubkey_for_e: *const u8,
+		seed32: *const u8,
+	) -> i32;
+	pub fn secp256k1_aggsig_verify_single(
+		cx: *const u8,
+		sig: *const u8,
+		msg32: *const u8,
+		pubnonce: *const u8,
+		pk: *const u8,
+		pk_total: *const u8,
+		extra_pubkey: *const u8,
+		is_partial: i32,
+	) -> i32;
+	pub fn secp256k1_context_create(flags: u32) -> *mut u8;
+	pub fn secp256k1_context_destroy(ctx: *mut u8);
 }
 
 #[cfg(test)]
@@ -49,5 +98,39 @@ mod test {
 			AES_CTR_xcrypt_buffer(ctx, &mut input as *mut u8, 64);
 		}
 		assert_eq!(input, expected_output, "AES CTR mode encryption failed!");
+	}
+
+	#[test]
+	fn test_signature1() {
+		unsafe {
+			let mut sig = [0u8; 64];
+			let msg = [9u8; 32];
+			let seckey32 = [1u8; 32];
+			let secnonce32 = [2u8; 32];
+			let extra32 = [3u8; 32];
+			let pubnonce_for_e = [4u8; 32];
+			let pubnonce_total = [5u8; 32];
+			let pubkey_for_e = [6u8; 32];
+			let seed32 = [7u8; 32];
+
+			let ctx = secp256k1_context_create(
+				crate::constants::SECP256K1_START_SIGN | crate::constants::SECP256K1_START_SIGN,
+			);
+
+			secp256k1_aggsig_sign_single(
+				ctx,
+				&mut sig as *mut u8,
+				&msg as *const u8,
+				&seckey32 as *const u8,
+				&secnonce32 as *const u8,
+				&extra32 as *const u8,
+				&pubnonce_for_e as *const u8,
+				&pubnonce_total as *const u8,
+				&pubkey_for_e as *const u8,
+				&seed32 as *const u8,
+			);
+
+			secp256k1_context_destroy(ctx);
+		}
 	}
 }
