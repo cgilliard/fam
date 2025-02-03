@@ -83,6 +83,8 @@ jobs:
         run: |
           rustup install nightly
           brew install autoconf automake libtool gmp
+          sudo mkdir -p /usr/local/lib
+          sudo cp `brew --prefix gmp`/lib/libgmp.a /usr/local/lib
       - name: macos build (rustc)
         run: |
           ./fam
