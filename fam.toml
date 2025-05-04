@@ -1,0 +1,8 @@
+[crate]
+	bin = "fam"
+	#lib = "famlib"
+
+[deps]
+	mydep1 = { path = "../abc" }
+	mydep2 = { path = "../def" }
+	mydep3 = { git = "https://github.com/cgilliard/crate1" }
