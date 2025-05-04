@@ -2,7 +2,7 @@
 
 CC=clang
 CCFLAGS="-O3"
-BIN_NAME=fam
+BIN_NAME=famtoml
 RUSTC=../famc/bin/famc
 #RUSTC=rustc
 RLIBS=../famc/output-1.29.0
