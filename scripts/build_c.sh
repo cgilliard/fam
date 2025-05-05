@@ -5,8 +5,6 @@ if [ "${CC}" = "" ]; then
 	exit 1;
 fi
 
-echo "building c files in ${DIRECTORY}"
-
 for file in ${DIRECTORY}/c/*.c
 do
 	if [ -f "$file" ]; then

@@ -26,10 +26,10 @@ if [ "${DEP_PATH}" = "" ] || [ "${DEST_BASE}" = "" ] || [ "${CYCLE_STACK_PATH}" 
 	exit 1;
 fi
 
-SHASUM=`shasum "${DEP_PATH}/fam.toml" | cut -d ' ' -f 1`
+SHASUM=`shasum "${DEP_PATH}/fam.toml" | cut -d ' ' -f 1` || exit 1;
 
-COPY=1;
-if [ -e ${DEST_BASE}/${SHASUM} ]; then
+COPY=1
+if [ -e ${DEST_BASE}/${SHASUM}/complete ]; then
 	COPY=0;
 fi
 
@@ -45,56 +45,87 @@ do
 	i_prev=${i}
 	TOML_PREV=${TOML}
 	COUNT_PREV=${COUNT}
-	COPY_PREV=${COPY}
 
 	CRATE_INDEX=`expr 1 + $i \* 3`
 	PATH_INDEX=`expr $CRATE_INDEX + 2`;
 	CRATE_NAME=`echo ${TOML} | cut -d ' ' -f $CRATE_INDEX`;
 	NEXT_PATH=`echo ${TOML} | cut -d ' ' -f $PATH_INDEX`;
 	DEP_PATH=${DEP_PATH}/${NEXT_PATH}
+	DEPTH=`expr $DEPTH + 1`
 	. ${FAM_BASE}/scripts/dep.sh
+	DEPTH=`expr $DEPTH - 1`
 
 	DEP_PATH=${DEP_PATH_PREV}
 	SHASUM=${SHASUM_PREV}
 	i=${i_prev}
 	TOML=${TOML_PREV}
 	COUNT=${COUNT_PREV}
-	COPY=${COPY_PREV}
 
 	i=`expr $i + 1`
 done
 
 TARGET=${DEST_BASE}/${SHASUM}
-if [ "${COPY}" -eq 1 ]; then
-	echo "Copying over files from ${DEP_PATH}"
-	mkdir -p ${TARGET}
-	mkdir -p ${TARGET}/c || exit 1;
-	mkdir -p ${TARGET}/rust || exit 1;
-	mkdir -p ${TARGET}/target || exit 1;
-	mkdir -p ${TARGET}/target/objs || exit 1;
+mkdir -p ${TARGET}
+mkdir -p ${TARGET}/c || exit 1;
+mkdir -p ${TARGET}/rust || exit 1;
+mkdir -p ${TARGET}/target || exit 1;
+mkdir -p ${TARGET}/target/lib || exit 1;
+mkdir -p ${TARGET}/target/objs || exit 1;
 
-	# Check and copy C files
-	if [ -d "${DEP_PATH}/c" ]; then
-		C_FILES=`ls ${DEP_PATH}/c 2>/dev/null`
-		if [ -n "$C_FILES" ]; then
-			COMMAND="cp -rp ${DEP_PATH}/c/* ${TARGET}/c"
-			${COMMAND} || exit 1;
-		fi
+# Check and copy C files
+if [ -d "${DEP_PATH}/c" ]; then
+	C_FILES=`ls ${DEP_PATH}/c 2>/dev/null`
+	if [ -n "$C_FILES" ]; then
+		COMMAND="cp -rp ${DEP_PATH}/c/* ${TARGET}/c"
+		${COMMAND} || exit 1;
 	fi
+fi
 
-	# Check and copy Rust files
-	if [ -d "${DEP_PATH}/rust" ]; then
-		RUST_FILES=`ls ${DEP_PATH}/rust 2>/dev/null`
-		if [ -n "$RUST_FILES" ]; then
-			COMMAND="cp -rp ${DEP_PATH}/rust/* ${TARGET}/rust"
-			${COMMAND} || exit 1;
-		fi
+# Check and copy Rust files
+if [ -d "${DEP_PATH}/rust" ]; then
+	RUST_FILES=`ls ${DEP_PATH}/rust 2>/dev/null`
+	if [ -n "$RUST_FILES" ]; then
+		COMMAND="cp -rp ${DEP_PATH}/rust/* ${TARGET}/rust"
+		${COMMAND} || exit 1;
 	fi
-else
-	echo "Not copying ${DEP_PATH}";
 fi
 
 DIRECTORY=${TARGET}
-. ${FAM_BASE}/scripts/build_c.sh
-. ${FAM_BASE}/scripts/build_rust.sh
+if [ $DEPTH -ne 0 ]; then
+	. ${FAM_BASE}/scripts/build_c.sh
+	. ${FAM_BASE}/scripts/build_rust.sh
+fi
 
+IS_BIN=0;
+if [ "`echo ${TOML} | cut -d ' ' -f 1`" = "bin" ]; then
+        IS_BIN=1;
+fi
+BIN=`echo ${TOML} | cut -d ' ' -f 2`;
+
+
+if [ $DEPTH -ne 0 ]; then
+	ARCHIVE="${DIRECTORY}/target/lib/lib${BIN}.a"
+	AR=ar
+	OBJ_FILES="${DIRECTORY}/target/objs/*.o"
+        NEED_AR=0
+
+        # Test if any .o files exist
+        for obj in $OBJ_FILES
+        do
+                if [ -f "$obj" ]; then
+                        # At least one object file exists
+                        if [ ! -e "$ARCHIVE" ] || [ "$obj" -nt "$ARCHIVE" ]; then
+                                NEED_AR=1
+                                break
+                        fi
+                fi
+        done
+
+        if [ "$NEED_AR" = "1" ]; then
+		COMMAND="${AR} rcs ${ARCHIVE} ${DIRECTORY}/target/objs/*.o"
+		echo ${COMMAND}
+		${COMMAND} || exit 1;
+	fi
+fi
+
+touch ${DEST_BASE}/${SHASUM}/complete
