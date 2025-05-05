@@ -12,6 +12,7 @@ mkdir -p ${DIRECTORY}/target/out || exit 1;
 mkdir -p ${DIRECTORY}/target/deps || exit 1;
 mkdir -p ${DIRECTORY}/target/main || exit 1;
 mkdir -p ${DIRECTORY}/target/objs || exit 1;
+mkdir -p ${DIRECTORY}/target/lib || exit 1;
 
 DEP_PATH=${DIRECTORY}
 DEST_BASE=${DIRECTORY}/target/deps
@@ -49,4 +50,27 @@ ${FINAL_DIRECTORY}/target/deps/*/target/lib/*.a"
         	echo ${COMMAND}
         	${COMMAND} || exit 1;
 	fi
+else
+	ARCHIVE="${FINAL_DIRECTORY}/target/lib/lib${FINAL_BIN}.a"
+        AR=ar
+        OBJ_FILES="${FINAL_DIRECTORY}/target/objs/*.o"
+        NEED_AR=0
+
+        # Test if any .o files exist
+        for obj in $OBJ_FILES
+        do
+                if [ -f "$obj" ]; then
+                        # At least one object file exists
+                        if [ ! -e "$ARCHIVE" ] || [ "$obj" -nt "$ARCHIVE" ]; then
+                                NEED_AR=1
+                                break
+                        fi
+                fi
+        done
+
+        if [ "$NEED_AR" = "1" ]; then
+                COMMAND="${AR} rcs ${ARCHIVE} ${FINAL_DIRECTORY}/target/objs/*.o"
+                echo ${COMMAND}
+                ${COMMAND} || exit 1;
+        fi
 fi
