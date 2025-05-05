@@ -10,9 +10,7 @@ BIN=`echo ${TOML} | cut -d ' ' -f 2`;
 mkdir -p ${DIRECTORY}/target || exit 1;
 mkdir -p ${DIRECTORY}/target/out || exit 1;
 mkdir -p ${DIRECTORY}/target/deps || exit 1;
-mkdir -p ${DIRECTORY}/target/main || exit 1;
 mkdir -p ${DIRECTORY}/target/objs || exit 1;
-mkdir -p ${DIRECTORY}/target/lib || exit 1;
 
 DEP_PATH=${DIRECTORY}
 DEST_BASE=${DIRECTORY}/target/deps
@@ -46,12 +44,12 @@ if [ ${FINAL_IS_BIN} -eq 1 ]; then
 	if [ ${NEED_CC} -eq 1 ]; then
         	COMMAND="${CC} -o ${BINARY} \
 ${OBJ_FILES} \
-${FINAL_DIRECTORY}/target/deps/*/target/lib/*.a"
+${FINAL_DIRECTORY}/target/deps/*/target/out/*.a"
         	echo ${COMMAND}
         	${COMMAND} || exit 1;
 	fi
 else
-	ARCHIVE="${FINAL_DIRECTORY}/target/lib/lib${FINAL_BIN}.a"
+	ARCHIVE="${FINAL_DIRECTORY}/target/out/lib${FINAL_BIN}.a"
         AR=ar
         OBJ_FILES="${FINAL_DIRECTORY}/target/objs/*.o"
         NEED_AR=0

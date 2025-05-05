@@ -69,7 +69,7 @@ mkdir -p ${TARGET}
 mkdir -p ${TARGET}/c || exit 1;
 mkdir -p ${TARGET}/rust || exit 1;
 mkdir -p ${TARGET}/target || exit 1;
-mkdir -p ${TARGET}/target/lib || exit 1;
+mkdir -p ${TARGET}/target/out || exit ;
 mkdir -p ${TARGET}/target/objs || exit 1;
 
 # Check and copy C files
@@ -104,7 +104,7 @@ BIN=`echo ${TOML} | cut -d ' ' -f 2`;
 
 
 if [ $DEPTH -ne 0 ]; then
-	ARCHIVE="${DIRECTORY}/target/lib/lib${BIN}.a"
+	ARCHIVE="${DIRECTORY}/target/out/lib${BIN}.a"
 	AR=ar
 	OBJ_FILES="${DIRECTORY}/target/objs/*.o"
         NEED_AR=0
