@@ -6,6 +6,18 @@ if [ -z "$SCRIPT_PATH" ]; then
 fi
 FAM_BASE=$(dirname "$(dirname "$SCRIPT_PATH")")
 
-TOML=`${FAM_BASE}/bin/famtoml "$@"`
-echo ${TOML}
+. ${FAM_BASE}/scripts/parse_params.sh "$@"
+
+if [ ${CLEAN} -eq 1 ]; then
+	. ${FAM_BASE}/scripts/clean.sh "$@"
+elif [ ${COVERAGE} -eq 1 ]; then
+	. ${FAM_BASE}/scripts/coverage.sh "$@"
+elif [ ${TEST} -eq 1 ]; then
+	. ${FAM_BASE}/scripts/test.sh "$@"
+elif [ ${ALL} -eq 1 ]; then
+	. ${FAM_BASE}/scripts/all.sh "$@"
+else
+	echo "Unepxected state - no option selected!";
+	exit 1;
+fi
 
