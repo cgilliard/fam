@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
 		if (strstr(lib.u.s, " ") != NULL) {
 			error("lib cannot contain a space", 0);
 		}
-		offset = snprintf(buf, sizeof(buf), "bin %s", lib.u.s);
+		offset = snprintf(buf, sizeof(buf), "lib %s", lib.u.s);
 	}
 
 	parse_deps(result, buf, offset);

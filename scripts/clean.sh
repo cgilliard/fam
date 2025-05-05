@@ -1,3 +1,5 @@
 #!/bin/sh
 
-echo "clean";
+COMMAND="rm -rf ${DIRECTORY}/target/*";
+echo ${COMMAND};
+${COMMAND}

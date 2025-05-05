@@ -8,7 +8,7 @@ CLEAN=0
 DIRECTORY="."
 
 export CC=clang
-export RUSTC=famc
+export RUSTC=rustc
 COUNT=0;
 
 for arg in "$@"; do
