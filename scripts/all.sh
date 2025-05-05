@@ -29,7 +29,7 @@ DIRECTORY=${FINAL_DIRECTORY}
 
 if [ ${FINAL_IS_BIN} -eq 1 ]; then
 	BINARY=${FINAL_DIRECTORY}/target/out/${FINAL_BIN}
-	OBJ_FILES=${FINAL_DIRECTORY}/target/objs/*
+	OBJ_FILES=${FINAL_DIRECTORY}/target/objs/*.o
 	NEED_CC=0
         for obj in $OBJ_FILES
         do

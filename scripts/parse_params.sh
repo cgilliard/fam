@@ -63,6 +63,17 @@ for arg in "$@"; do
 			echo "Error: --rustc requires a non-empty value: --rustc=famc" >&2
 			exit 1;
 		;;
+		--rustextra=*)
+			export RUSTEXTRA=${arg#*=};
+			if [ -z "${RUSTEXTRA}" ]; then
+				echo "Error: --rustextra requires a non-empty value: --rustextra=-L../famc/output-1.29.0" >&2
+				exit 1;
+			fi
+		;;
+		--rustextra)
+			echo "Error: --rustextra requires a non-empty value: --rustextra=-L../famc/output-1.29.0" >&2
+			exit 1;
+		;;
 		-d=*)
 			DIRECTORY=${arg#*=};
 			if [ -z "${DIRECTORY}" ]; then
