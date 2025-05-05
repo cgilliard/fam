@@ -1,12 +1,16 @@
 #!/bin/sh
 
-echo "building rust: '${DIRECTORY}'"
+if [ "${RUSTC}" = "" ]; then
+        echo "RUSTC not set!";
+        exit 1;
+fi
+BIN=_rust_binary__
 
 NEED_UPDATE=0;
 if [ -e ${DIRECTORY}/rust ]; then
 	for file in `find ${DIRECTORY}/rust | grep "\.rs$"`
 	do
-		OBJ=${DIRECTORY}/target/objs/rust_${BIN}.o
+		OBJ=${DIRECTORY}/target/objs/${BIN}.o
 		if [ ! -e ${OBJ} ] || [ ${file} -nt ${OBJ} ]; then
 			NEED_UPDATE=1;
 			break;
@@ -20,7 +24,7 @@ if [ ${NEED_UPDATE} -eq 1 ]; then
 -C panic=abort \
 --crate-name=${BIN} \
 --crate-type=staticlib \
--o ${DIRECTORY}/target/objs/rust_${BIN}.o \
+-o ${DIRECTORY}/target/objs/${BIN}.o \
 --emit=obj
 ${DIRECTORY}/rust/lib.rs"
 		echo ${COMMAND}

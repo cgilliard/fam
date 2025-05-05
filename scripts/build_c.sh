@@ -1,12 +1,17 @@
 #!/bin/sh
 
-echo "building c: '${DIRECTORY}'"
+if [ "${CC}" = "" ]; then
+	echo "CC not set!";
+	exit 1;
+fi
+
+echo "building c files in ${DIRECTORY}"
 
 for file in ${DIRECTORY}/c/*.c
 do
 	if [ -f "$file" ]; then
-	BASENAME=$(basename "$file" .c);
-		OBJ=${DIRECTORY}/target/objs/c_${BASENAME}.o
+		BASENAME=$(basename "$file" .c);
+		OBJ=${DIRECTORY}/target/objs/${BASENAME}.o
         	if [ ! -e ${OBJ} ] || [ ${file} -nt ${OBJ} ]; then
 			COMMAND="${CC} ${CCFLAGS} -o ${OBJ} -c ${file}";
 			echo ${COMMAND};
