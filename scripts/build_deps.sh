@@ -42,10 +42,46 @@ do
 		fi
 	fi
 
+	PREV_DIRECTORY=${DIRECTORY}
+	PREV_BIN=${BIN}
+	DIRECTORY=${DEP_DIR}
+	BIN=${CRATE_NAME}
+	
+	mkdir -p ${DIRECTORY}/target || exit 1;
+	mkdir -p ${DIRECTORY}/target/bin || exit 1;
+	mkdir -p ${DIRECTORY}/target/lib || exit 1;
+	mkdir -p ${DIRECTORY}/target/deps || exit 1;
+	mkdir -p ${DIRECTORY}/target/main || exit 1;
+	mkdir -p ${DIRECTORY}/target/objs || exit 1;
 	# build c
-	. ${FAM_BASE}/scripts/build_c.sh -d=${DEP_DIR}
+	. ${FAM_BASE}/scripts/build_c.sh "$@" || exit 1;
 	# build rust
-	. ${FAM_BASE}/scripts/build_c.sh -d=${DEP_DIR}
+	. ${FAM_BASE}/scripts/build_rust.sh "$@" || exit 1;
+
+	ARCHIVE="${DIRECTORY}/target/lib/lib${BIN}.a"
+        OBJ_FILES="${DIRECTORY}/target/objs/*.o"
+        NEED_AR=0
+
+        # Test if any .o files exist
+        for obj in $OBJ_FILES
+        do
+                if [ -f "$obj" ]; then
+                        # At least one object file exists
+                        if [ ! -e "$ARCHIVE" ] || [ "$obj" -nt "$ARCHIVE" ]; then
+                                NEED_AR=1
+                                break
+                        fi
+                fi
+        done
+
+        if [ "$NEED_AR" = "1" ]; then
+                COMMAND="${AR} rcs ${ARCHIVE} ${DIRECTORY}/target/objs/*.o"
+                echo ${COMMAND}
+                ${COMMAND} || exit 1;
+        fi
+
+	DIRECTORY=${PREV_DIRECTORY}
+	BIN=${PREV_BIN}
 
 	i=`expr $i + 1`
 done

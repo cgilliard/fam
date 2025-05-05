@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo "building rust: '$@'"
+echo "building rust: '${DIRECTORY}'"
 
 NEED_UPDATE=0;
 if [ -e ${DIRECTORY}/rust ]; then

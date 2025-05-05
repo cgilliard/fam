@@ -20,8 +20,9 @@ mkdir -p ${DIRECTORY}/target/objs || exit 1;
 . ${FAM_BASE}/scripts/build_c.sh "$@" || exit 1;
 . ${FAM_BASE}/scripts/build_rust.sh "$@" || exit 1;
 
+
 if [ ${IS_BIN} -eq 1 ]; then
-	COMMAND="${CC} -o ${DIRECTORY}/target/bin/${BIN} ${DIRECTORY}/target/objs/*"
+	COMMAND="${CC} -o ${DIRECTORY}/target/bin/${BIN} ${DIRECTORY}/target/objs/* ${DIRECTORY}/target/deps/*/target/lib/*.a"
 	echo ${COMMAND}
 	${COMMAND} || exit 1;
 else

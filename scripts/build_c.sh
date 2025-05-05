@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo "building c: '$@'"
+echo "building c: '${DIRECTORY}'"
 
 for file in ${DIRECTORY}/c/*.c
 do
